@@ -1,0 +1,6 @@
+{
+  "name": "PRAXIS",
+  "description": "Plateforme pédagogique PRAXIS : correction intelligente des copies par IA Vision, analyse de classe et suivi des compétences.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
