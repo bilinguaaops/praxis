@@ -478,18 +478,15 @@ function loadLeads(): LeadRecord[] {
     if (fs.existsSync(LEADS_FILE)) {
       const data = fs.readFileSync(LEADS_FILE, 'utf-8');
       const parsed = JSON.parse(data);
-      if (Array.isArray(parsed) && parsed.length >= 8) {
+      if (Array.isArray(parsed)) {
         return parsed;
       }
     }
   } catch (err) {
-    console.warn('[Leads] Erreur lecture fichier leads, initialisation :', err);
+    console.warn('[Leads] Erreur lecture fichier leads :', err);
   }
 
-  // Seed default rich SaaS leads if missing or too small
-  const initial = generateInitialTeachers();
-  saveLeads(initial);
-  return initial;
+  return [];
 }
 
 function saveLeads(leads: LeadRecord[]) {
@@ -1524,17 +1521,26 @@ app.get('/api/admin/stats', requireAdminAuth, (req, res) => {
     const label = `${monthNames[d.getMonth()]} ${d.getFullYear().toString().slice(-2)}`;
 
     // Calculate progression proportion
-    const factor = Math.max(0.2, (12 - i) / 12);
-    const monthMrr = Number((mrr * (0.35 + 0.65 * Math.pow(factor, 1.2))).toFixed(2));
-    const monthUsers = Math.max(2, Math.round(totalTeachers * (0.2 + 0.8 * factor)));
-    const monthPaid = Math.max(1, Math.round(paidCount * (0.15 + 0.85 * factor)));
+    if (totalTeachers === 0) {
+      mrrMonthlyHistory.push({
+        month: label,
+        mrr: 0,
+        users: 0,
+        paidUsers: 0,
+      });
+    } else {
+      const factor = Math.max(0.1, (12 - i) / 12);
+      const monthMrr = Number((mrr * factor).toFixed(2));
+      const monthUsers = Math.round(totalTeachers * factor);
+      const monthPaid = Math.round(paidCount * factor);
 
-    mrrMonthlyHistory.push({
-      month: label,
-      mrr: monthMrr,
-      users: monthUsers,
-      paidUsers: monthPaid,
-    });
+      mrrMonthlyHistory.push({
+        month: label,
+        mrr: monthMrr,
+        users: monthUsers,
+        paidUsers: monthPaid,
+      });
+    }
   }
 
   // Ensure current month equals exact calculated live figures
@@ -1867,6 +1873,12 @@ app.post('/api/admin/seed-demo', requireAdminAuth, (req, res) => {
   const initial = generateInitialTeachers();
   saveLeads(initial);
   res.json({ success: true, count: initial.length, message: `${initial.length} comptes enseignants ont été initialisés avec succès.` });
+});
+
+// Protected: Clear database to start with pure live real-time data
+app.post('/api/admin/clear-leads', requireAdminAuth, (req, res) => {
+  saveLeads([]);
+  res.json({ success: true, count: 0, message: 'La base a été remise à zéro. Le tableau de bord affiche désormais uniquement les données réelles en direct.' });
 });
 
 // Redirect /admin to /dashboard SPA

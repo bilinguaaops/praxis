@@ -106,6 +106,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToApp }) =
   const [transactions, setTransactions] = useState<TransactionRecord[]>([]);
   const [settings, setSettings] = useState<any>(null);
   const [loadingData, setLoadingData] = useState(false);
+  const [isLiveSyncing, setIsLiveSyncing] = useState(false);
+  const [lastSyncTime, setLastSyncTime] = useState<Date>(new Date());
   const [toastMessage, setToastMessage] = useState<{ text: string; type: 'success' | 'error' | 'info' } | null>(null);
 
   // Filters & Search for CRM
@@ -187,19 +189,35 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToApp }) =
         return res.json();
       })
       .then(() => {
-        fetchDashboardData();
+        fetchDashboardData(false);
       })
       .catch(() => {
         handleLogout('Votre session a expiré. Veuillez saisir à nouveau le mot de passe maître.');
       });
   }, [isAuthenticated]);
 
-  // Load Dashboard Data
-  const fetchDashboardData = async () => {
+  // Real-Time Live Polling: Auto-refresh data every 5 seconds silently without UI locking
+  useEffect(() => {
+    if (!isAuthenticated) return;
+
+    const timer = setInterval(() => {
+      fetchDashboardData(true);
+    }, 5000);
+
+    return () => clearInterval(timer);
+  }, [isAuthenticated]);
+
+  // Load Dashboard Data (silent = true refreshes background without freezing UI)
+  const fetchDashboardData = async (silent = false) => {
     const token = getAdminToken();
     if (!token) return;
 
-    setLoadingData(true);
+    if (!silent) {
+      setLoadingData(true);
+    } else {
+      setIsLiveSyncing(true);
+    }
+
     try {
       const [statsRes, teachersRes, settingsRes] = await Promise.all([
         fetch('/api/admin/stats', { headers: { 'x-admin-token': token } }),
@@ -226,11 +244,15 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToApp }) =
       if (settingsData) {
         setSettings(settingsData);
       }
+      setLastSyncTime(new Date());
     } catch (err: any) {
       console.error('[Admin] Erreur chargement données:', err);
-      showToast('Erreur lors du chargement des données d’administration.', 'error');
+      if (!silent) {
+        showToast('Erreur lors du chargement des données d’administration.', 'error');
+      }
     } finally {
-      setLoadingData(false);
+      if (!silent) setLoadingData(false);
+      setIsLiveSyncing(false);
     }
   };
 
@@ -372,6 +394,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToApp }) =
             ticks: { color: '#64748B', font: { size: 11 } },
           },
           y: {
+            min: 0,
+            suggestedMax: chartMetric === 'mrr' ? 50 : 10,
             grid: { color: 'rgba(51, 65, 85, 0.25)' },
             ticks: {
               color: '#64748B',
@@ -404,23 +428,40 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToApp }) =
     const ctx = doughnutChartCanvasRef.current.getContext('2d');
     if (!ctx) return;
 
+    const totalAccounts = (free || 0) + (trial || 0) + (monthly || 0) + (annual || 0) + (institution || 0);
+
+    const labels =
+      totalAccounts === 0
+        ? ['En attente d’inscriptions réelles']
+        : ['Essai 7j', 'Pro Mensuel (9.99€)', 'Pro Annuel (99.99€)', 'Établissement (299€)', 'Gratuit (5 copies)'];
+
+    const chartData =
+      totalAccounts === 0
+        ? [1]
+        : [trial, monthly, annual, institution, free];
+
+    const chartColors =
+      totalAccounts === 0
+        ? ['#1E293B']
+        : [
+            '#F59E0B', // Trial (amber)
+            '#3B82F6', // Monthly (blue)
+            '#8B5CF6', // Annual (purple)
+            '#10B981', // Institution (emerald)
+            '#475569', // Free (slate)
+          ];
+
     doughnutChartInstanceRef.current = new Chart(ctx, {
       type: 'doughnut',
       data: {
-        labels: ['Essai 7j', 'Pro Mensuel (9.99€)', 'Pro Annuel (99.99€)', 'Établissement (299€)', 'Gratuit (5 copies)'],
+        labels,
         datasets: [
           {
-            data: [trial, monthly, annual, institution, free],
-            backgroundColor: [
-              '#F59E0B', // Trial (amber)
-              '#3B82F6', // Monthly (blue)
-              '#8B5CF6', // Annual (purple)
-              '#10B981', // Institution (emerald)
-              '#475569', // Free (slate)
-            ],
+            data: chartData,
+            backgroundColor: chartColors,
             borderColor: '#0B0F17',
             borderWidth: 3,
-            hoverOffset: 4,
+            hoverOffset: totalAccounts === 0 ? 0 : 4,
           },
         ],
       },
@@ -431,6 +472,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToApp }) =
         plugins: {
           legend: { display: false },
           tooltip: {
+            enabled: totalAccounts > 0,
             backgroundColor: '#1E293B',
             titleColor: '#F8FAFC',
             bodyColor: '#94A3B8',
@@ -711,6 +753,32 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToApp }) =
       fetchDashboardData();
     } catch (err: any) {
       showToast('Erreur réinitialisation démo.', 'error');
+    }
+  };
+
+  // Clear Database to start with 0 real-time records
+  const handleClearLeads = async () => {
+    if (
+      !window.confirm(
+        'Voulez-vous remettre la base de données à zéro ? Toutes les données de démonstration seront effacées et le tableau de bord affichera uniquement les vraies inscriptions en temps réel.'
+      )
+    ) {
+      return;
+    }
+
+    try {
+      const res = await fetch('/api/admin/clear-leads', {
+        method: 'POST',
+        headers: { 'x-admin-token': getAdminToken() },
+      });
+
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+
+      showToast(data.message || 'Base remise à zéro. Données 100% réelles.', 'success');
+      fetchDashboardData(false);
+    } catch (err: any) {
+      showToast('Erreur lors de la remise à zéro.', 'error');
     }
   };
 
@@ -1044,14 +1112,29 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToApp }) =
 
             {/* Right: Actions, Sync, Logout */}
             <div className="flex items-center gap-2">
+              {/* Live Real-Time Pulse Indicator */}
+              <div
+                className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-xl bg-emerald-950/70 border border-emerald-800/60 text-xs font-medium text-emerald-300 shadow-xs"
+                title="Synchronisation temps réel active (rafraîchissement automatique toutes les 5s)"
+              >
+                <span className="relative flex h-2 w-2">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                </span>
+                <span className="hidden md:inline">En direct</span>
+                <span className="font-mono text-[11px] text-emerald-400">
+                  {lastSyncTime.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+                </span>
+              </div>
+
               <button
                 type="button"
-                onClick={fetchDashboardData}
+                onClick={() => fetchDashboardData(false)}
                 disabled={loadingData}
                 className="p-2 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition-colors cursor-pointer"
-                title="Actualiser les données en temps réel"
+                title="Forcer l'actualisation immédiate"
               >
-                <RefreshCw className={`w-4 h-4 ${loadingData ? 'animate-spin text-blue-400' : ''}`} />
+                <RefreshCw className={`w-4 h-4 ${loadingData || isLiveSyncing ? 'animate-spin text-blue-400' : ''}`} />
               </button>
 
               <button
@@ -1075,6 +1158,37 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToApp }) =
         {/* ========================================================= */}
         {activeTab === 'overview' && (
           <div className="space-y-8">
+            {/* Real-time zero-teachers banner */}
+            {teachers.length === 0 && (
+              <div className="p-4 rounded-2xl bg-blue-950/40 border border-blue-800/60 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-lg">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-blue-600/20 text-blue-400 border border-blue-500/30 flex items-center justify-center shrink-0">
+                    <Zap className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <span className="relative flex h-2 w-2">
+                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                        <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                      </span>
+                      <p className="text-sm font-bold text-white">Dashboard connecté en temps réel (0 prof inscrit)</p>
+                    </div>
+                    <p className="text-xs text-slate-300 mt-0.5">
+                      Le tableau de bord est branché sur votre base réelle. Dès qu'un professeur testera votre SaaS ou s'inscrira, ses métriques s'afficheront instantanément ici sans recharger la page.
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setIsAddTeacherOpen(true)}
+                  className="px-3.5 py-2 bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold rounded-xl shrink-0 transition-all cursor-pointer shadow-sm flex items-center gap-1.5"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>Créer un premier enseignant</span>
+                </button>
+              </div>
+            )}
+
             {/* 4 HERO METRICS CARDS */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
               {/* Card 1: MRR */}
@@ -1094,10 +1208,16 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToApp }) =
                   <span className="text-xs text-slate-400 font-medium">/ mois</span>
                 </div>
                 <div className="mt-3 flex items-center justify-between text-xs pt-3 border-t border-slate-800">
-                  <span className="text-emerald-400 font-semibold flex items-center gap-1">
-                    <TrendingUp className="w-3.5 h-3.5" /> +18.4%
+                  <span className={`${(stats?.mrr || 0) > 0 ? 'text-emerald-400' : 'text-slate-400'} font-semibold flex items-center gap-1`}>
+                    {(stats?.mrr || 0) > 0 ? (
+                      <>
+                        <TrendingUp className="w-3.5 h-3.5" /> Croissance active
+                      </>
+                    ) : (
+                      '0 € récurrent'
+                    )}
                   </span>
-                  <span className="text-slate-400">vs mois précédent</span>
+                  <span className="text-slate-400">Temps réel</span>
                 </div>
               </div>
 
@@ -1441,8 +1561,31 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToApp }) =
                   <tbody className="divide-y divide-slate-800 text-xs">
                     {filteredTeachers.length === 0 ? (
                       <tr>
-                        <td colSpan={8} className="py-12 text-center text-slate-500">
-                          Aucun enseignant ne correspond aux critères de recherche.
+                        <td colSpan={8} className="py-14 text-center">
+                          {teachers.length === 0 ? (
+                            <div className="max-w-md mx-auto space-y-3">
+                              <div className="w-12 h-12 rounded-2xl bg-emerald-950/70 border border-emerald-800/60 text-emerald-400 flex items-center justify-center mx-auto">
+                                <span className="relative flex h-3 w-3">
+                                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                                  <span className="relative inline-flex rounded-full h-3 w-3 bg-emerald-500"></span>
+                                </span>
+                              </div>
+                              <p className="text-sm font-bold text-white">Écoute en temps réel active (0 professeur)</p>
+                              <p className="text-xs text-slate-400">
+                                Aucun enseignant inscrit pour le moment. Dès qu'un professeur créera un compte ou testera la correction de copies sur votre site, il apparaîtra ici instantanément en direct.
+                              </p>
+                              <button
+                                type="button"
+                                onClick={() => setIsAddTeacherOpen(true)}
+                                className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white font-medium rounded-xl text-xs transition-colors cursor-pointer inline-flex items-center gap-1.5"
+                              >
+                                <Plus className="w-3.5 h-3.5" />
+                                <span>Ajouter manuellement un enseignant</span>
+                              </button>
+                            </div>
+                          ) : (
+                            <span className="text-slate-500">Aucun enseignant ne correspond aux critères de recherche.</span>
+                          )}
                         </td>
                       </tr>
                     ) : (
@@ -1808,12 +1951,31 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToApp }) =
                 </p>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <div className="p-4 rounded-xl bg-[#0B0F17] border border-emerald-900/40 flex flex-col justify-between">
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+                      <h4 className="font-semibold text-white text-xs">Mode 100% Réel (Remise à zéro)</h4>
+                    </div>
+                    <p className="text-[11px] text-slate-400 mt-1">
+                      Efface les données d'essai pour n'afficher que les vrais profs s'inscrivant en direct via le site.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleClearLeads}
+                    className="mt-4 w-full py-2 bg-rose-950/40 hover:bg-rose-900/60 text-rose-300 text-xs font-semibold rounded-lg border border-rose-800/60 transition-colors cursor-pointer"
+                  >
+                    Vider la démo (0 prof)
+                  </button>
+                </div>
+
                 <div className="p-4 rounded-xl bg-[#0B0F17] border border-slate-800 flex flex-col justify-between">
                   <div>
                     <h4 className="font-semibold text-white text-xs">Jeu de Démonstration Réaliste</h4>
                     <p className="text-[11px] text-slate-400 mt-1">
-                      Réinitialise la base avec 12 professeurs certifiés (Maths, Français, SVT, SES), leurs écoles et transactions réelles.
+                      Réinitialise la base avec 12 professeurs types pour tester l'affichage CRM et les graphiques.
                     </p>
                   </div>
                   <button
@@ -1821,7 +1983,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToApp }) =
                     onClick={handleSeedDemo}
                     className="mt-4 w-full py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold rounded-lg border border-slate-700 transition-colors cursor-pointer"
                   >
-                    Recharger le jeu de démonstration
+                    Recharger le jeu de démo (12 profs)
                   </button>
                 </div>
 
@@ -1838,7 +2000,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToApp }) =
                     rel="noreferrer"
                     className="mt-4 w-full py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold rounded-lg border border-slate-700 text-center transition-colors block"
                   >
-                    Télécharger la sauvegarde JSON
+                    Télécharger sauvegarde JSON
                   </a>
                 </div>
               </div>
