@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { AssignmentConfig, StudentSubmission, ClassMetrics } from '../types';
 import {
   BarChart3,
@@ -22,6 +22,13 @@ import {
   Bookmark,
   AlertTriangle,
   ArrowRight,
+  ArrowLeftRight,
+  X,
+  RefreshCw,
+  ShieldCheck,
+  Lock,
+  Unlock,
+  FileText,
 } from 'lucide-react';
 
 interface Step4DashboardProps {
@@ -31,8 +38,11 @@ interface Step4DashboardProps {
   onSelectStudent: (submission: StudentSubmission) => void;
   onOpenPrint: () => void;
   onBackToCopies: () => void;
-  onSaveToHistory?: (teacherNotes: string) => void;
+  onSaveToHistory?: (teacherNotes: string, isValidated?: boolean) => void;
   initialTeacherNotes?: string;
+  onSwapSubmissions?: (subId1: string, subId2: string, mode?: 'names' | 'all') => void;
+  isValidated?: boolean;
+  onValidateClassCorrection?: () => void;
 }
 
 type FilterType = 'all' | 'struggling' | 'success' | 'pending' | 'needs_review';
@@ -46,6 +56,9 @@ export const Step4Dashboard: React.FC<Step4DashboardProps> = ({
   onBackToCopies,
   onSaveToHistory,
   initialTeacherNotes = '',
+  onSwapSubmissions,
+  isValidated = false,
+  onValidateClassCorrection,
 }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [filterType, setFilterType] = useState<FilterType>('all');
@@ -54,6 +67,63 @@ export const Step4Dashboard: React.FC<Step4DashboardProps> = ({
   const [teacherNotes, setTeacherNotes] = useState(initialTeacherNotes);
   const [savedBadge, setSavedBadge] = useState(false);
   const [isReviewBannerExpanded, setIsReviewBannerExpanded] = useState(false);
+  const [isSwapModalOpen, setIsSwapModalOpen] = useState(false);
+  const [swapStudent1Id, setSwapStudent1Id] = useState<string>('');
+  const [swapStudent2Id, setSwapStudent2Id] = useState<string>('');
+  const [swapSearch1, setSwapSearch1] = useState('');
+  const [swapSearch2, setSwapSearch2] = useState('');
+  const [swapMode, setSwapMode] = useState<'names' | 'all'>('names');
+  const [swapSuccessMsg, setSwapSuccessMsg] = useState<string | null>(null);
+  const [isValidatedState, setIsValidatedState] = useState(isValidated);
+  const [isConfirmValidationModalOpen, setIsConfirmValidationModalOpen] = useState(false);
+
+  useEffect(() => {
+    setIsValidatedState(isValidated);
+  }, [isValidated]);
+
+  // Auto-detect suspected inversions between pairs of submissions
+  const detectedInversions = useMemo(() => {
+    const pairs: Array<{ sub1: StudentSubmission; sub2: StudentSubmission; reason: string }> = [];
+    const handled = new Set<string>();
+
+    for (const s1 of submissions) {
+      if (handled.has(s1.id)) continue;
+      for (const s2 of submissions) {
+        if (s1.id === s2.id || handled.has(s2.id)) continue;
+
+        const name1 = s1.studentName.trim().toLowerCase();
+        const name2 = s2.studentName.trim().toLowerCase();
+        const file1 = (s1.fileName || '').toLowerCase();
+        const file2 = (s2.fileName || '').toLowerCase();
+        const app1 = (s1.result?.appreciation || '').toLowerCase();
+        const app2 = (s2.result?.appreciation || '').toLowerCase();
+        const hw1 = (s1.result?.nom_manuscrit_detecte || '').toLowerCase();
+        const hw2 = (s2.result?.nom_manuscrit_detecte || '').toLowerCase();
+
+        const s1MatchesS2 =
+          (name2.length >= 2 && file1.includes(name2) && !file1.includes(name1)) ||
+          (hw1 && hw1.includes(name2)) ||
+          (name2.length >= 3 && app1.includes(name2) && !app1.includes(name1));
+
+        const s2MatchesS1 =
+          (name1.length >= 2 && file2.includes(name1) && !file2.includes(name2)) ||
+          (hw2 && hw2.includes(name1)) ||
+          (name1.length >= 3 && app2.includes(name1) && !app2.includes(name2));
+
+        if (s1MatchesS2 || s2MatchesS1) {
+          pairs.push({
+            sub1: s1,
+            sub2: s2,
+            reason: `L'attribution semble inversée entre « ${s1.studentName} » (${s1.fileName}) et « ${s2.studentName} » (${s2.fileName}).`,
+          });
+          handled.add(s1.id);
+          handled.add(s2.id);
+          break;
+        }
+      }
+    }
+    return pairs;
+  }, [submissions]);
 
   const gradedList = useMemo(
     () => submissions.filter((s) => s.status === 'completed' && s.result),
@@ -277,6 +347,21 @@ export const Step4Dashboard: React.FC<Step4DashboardProps> = ({
     setTimeout(() => setCopiedCsvNotice(false), 2500);
   };
 
+  const handleSaveEvaluation = () => {
+    onSaveToHistory?.(teacherNotes, isValidatedState);
+    setSavedBadge(true);
+    setTimeout(() => setSavedBadge(false), 3000);
+  };
+
+  const handleConfirmValidation = () => {
+    setIsValidatedState(true);
+    setIsConfirmValidationModalOpen(false);
+    onValidateClassCorrection?.();
+    onSaveToHistory?.(teacherNotes, true);
+    setSavedBadge(true);
+    setTimeout(() => setSavedBadge(false), 3500);
+  };
+
   return (
     <div className="max-w-7xl mx-auto space-y-6 pb-16">
       {/* Top Banner with Quick Actions */}
@@ -295,10 +380,32 @@ export const Step4Dashboard: React.FC<Step4DashboardProps> = ({
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
+          {/* Valider la correction de la classe Button */}
+          <button
+            type="button"
+            onClick={() => {
+              if (isValidatedState) {
+                setIsValidatedState(false);
+              } else {
+                setIsConfirmValidationModalOpen(true);
+              }
+            }}
+            id="btn-validate-class-correction"
+            className={`inline-flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-xs font-extrabold transition-all cursor-pointer shadow-xs ${
+              isValidatedState
+                ? 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-emerald-600/20'
+                : 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-emerald-600/30 ring-2 ring-emerald-500/20 hover:scale-[1.02]'
+            }`}
+            title="Confirmer définitivement les notes et les archiver automatiquement dans l'historique global"
+          >
+            <ShieldCheck className="w-4 h-4" />
+            <span>{isValidatedState ? '✓ Correction validée' : 'Valider la correction de la classe'}</span>
+          </button>
+
           {onSaveToHistory && (
             <button
               type="button"
-              onClick={handleSaveToHistory}
+              onClick={handleSaveEvaluation}
               id="btn-save-history"
               className={`inline-flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer shadow-xs ${
                 savedBadge
@@ -332,8 +439,116 @@ export const Step4Dashboard: React.FC<Step4DashboardProps> = ({
             <Printer className="w-4 h-4" />
             <span>Imprimer les fiches élèves</span>
           </button>
+
+          {onSwapSubmissions && submissions.length > 1 && (
+            <button
+              type="button"
+              onClick={() => {
+                setSwapStudent1Id(submissions[0]?.id || '');
+                setSwapStudent2Id(submissions[1]?.id || '');
+                setIsSwapModalOpen(true);
+              }}
+              id="btn-open-swap-modal"
+              className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-300 text-xs font-bold transition-colors cursor-pointer shadow-xs"
+              title="Intervertir deux copies si des noms ont été intervertis"
+            >
+              <ArrowLeftRight className="w-4 h-4 text-amber-700" />
+              <span>Intervertir deux copies</span>
+            </button>
+          )}
         </div>
       </div>
+
+      {/* Validated Class Status Banner */}
+      {isValidatedState && (
+        <div className="p-4 bg-emerald-50 border-2 border-emerald-300 rounded-2xl text-emerald-950 text-xs flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-xs animate-in fade-in">
+          <div className="flex items-center gap-3">
+            <div className="p-2.5 bg-emerald-100 text-emerald-700 rounded-xl shrink-0">
+              <ShieldCheck className="w-5 h-5" />
+            </div>
+            <div>
+              <div className="font-extrabold text-emerald-900 text-sm flex items-center gap-2">
+                <span>Correction de la classe validée & archivée définitivement</span>
+                <span className="px-2 py-0.5 rounded-full bg-emerald-200 text-emerald-900 text-[10px] font-black uppercase">
+                  Verrouillée
+                </span>
+              </div>
+              <p className="text-emerald-800 text-xs mt-0.5">
+                Les notes ont été scellées et automatiquement archivées dans votre historique global pour éviter toute modification accidentelle.
+              </p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => setIsValidatedState(false)}
+            className="px-3.5 py-1.5 rounded-lg bg-white hover:bg-emerald-100 text-emerald-900 border border-emerald-300 text-xs font-bold transition-colors cursor-pointer shrink-0 flex items-center gap-1.5 shadow-2xs"
+          >
+            <Unlock className="w-3.5 h-3.5 text-emerald-700" />
+            <span>Déverrouiller pour ajuster</span>
+          </button>
+        </div>
+      )}
+
+      {/* Success banner after swap */}
+      {swapSuccessMsg && (
+        <div className="p-4 bg-emerald-50 border border-emerald-300 rounded-xl text-emerald-900 text-xs font-bold flex items-center justify-between animate-in fade-in">
+          <div className="flex items-center gap-2">
+            <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+            <span>{swapSuccessMsg}</span>
+          </div>
+          <button
+            type="button"
+            onClick={() => setSwapSuccessMsg(null)}
+            className="text-emerald-700 hover:text-emerald-900 cursor-pointer"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      )}
+
+      {/* Automated Inversion Alerts Banner */}
+      {detectedInversions.length > 0 && (
+        <div className="space-y-3">
+          {detectedInversions.map(({ sub1, sub2, reason }, idx) => (
+            <div
+              key={idx}
+              className="bg-indigo-50 border-2 border-indigo-300 rounded-2xl p-4 sm:p-5 text-indigo-950 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-xs animate-in fade-in"
+            >
+              <div className="flex items-start gap-3">
+                <div className="p-2 bg-indigo-100 rounded-xl text-indigo-700 shrink-0 mt-0.5">
+                  <ArrowLeftRight className="w-5 h-5" />
+                </div>
+                <div>
+                  <h4 className="text-sm font-bold text-indigo-900 flex items-center gap-2">
+                    <span>Inversion de copies détectée</span>
+                    <span className="px-2 py-0.5 rounded-full bg-indigo-200 text-indigo-900 text-[10px] font-extrabold uppercase">
+                      Action recommandée
+                    </span>
+                  </h4>
+                  <p className="text-xs text-indigo-800 mt-1">
+                    {reason} (Le nom sur la copie ou l'appréciation semble appartenir à l'autre élève).
+                  </p>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => {
+                  if (onSwapSubmissions) {
+                    onSwapSubmissions(sub1.id, sub2.id, 'names');
+                    setSwapSuccessMsg(`Copies réalignées : « ${sub1.studentName} » et « ${sub2.studentName} » ont été intervertis avec succès.`);
+                    setTimeout(() => setSwapSuccessMsg(null), 4000);
+                  }
+                }}
+                className="inline-flex items-center gap-1.5 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition-colors cursor-pointer shadow-xs shrink-0"
+              >
+                <ArrowLeftRight className="w-3.5 h-3.5" />
+                <span>Intervertir {sub1.studentName} et {sub2.studentName}</span>
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
 
       {/* Alert banner if any copy needs teacher review due to legibility */}
       {needsReviewCount > 0 && (
@@ -780,12 +995,38 @@ export const Step4Dashboard: React.FC<Step4DashboardProps> = ({
                         />
                       </div>
                       <div>
-                        <h3 className="font-extrabold text-slate-900 text-sm group-hover:text-blue-600 transition-colors">
-                          {sub.studentName}
-                        </h3>
-                        <span className="text-[11px] text-slate-500 font-medium truncate block max-w-[180px]">
-                          Copie de {sub.studentName} {sub.allPages && sub.allPages.length > 1 ? `(${sub.allPages.length} pages)` : '(1 page)'}
+                        <div className="flex items-center gap-2">
+                          <h3 className="font-extrabold text-slate-900 text-sm group-hover:text-blue-600 transition-colors">
+                            {sub.studentName}
+                          </h3>
+                          {onSwapSubmissions && submissions.length > 1 && (
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setSwapStudent1Id(sub.id);
+                                const other = submissions.find((s) => s.id !== sub.id);
+                                if (other) setSwapStudent2Id(other.id);
+                                setIsSwapModalOpen(true);
+                              }}
+                              className="p-1 rounded-md text-slate-400 hover:text-amber-600 hover:bg-amber-50 transition-colors"
+                              title={`Intervertir cette copie avec un autre élève`}
+                            >
+                              <ArrowLeftRight className="w-3 h-3" />
+                            </button>
+                          )}
+                        </div>
+                        <span className="text-[11px] text-slate-500 font-medium truncate block max-w-[180px]" title={sub.fileName}>
+                          {sub.fileName} {sub.allPages && sub.allPages.length > 1 ? `(${sub.allPages.length} p.)` : '(1 p.)'}
                         </span>
+                        {res?.nom_manuscrit_detecte && (
+                          <span
+                            className="inline-flex items-center gap-0.5 text-[10px] font-bold text-blue-700 bg-blue-50 px-1.5 py-0.5 rounded-md mt-0.5"
+                            title={`Prénom ou nom manuscrit repéré sur la copie papier : ${res.nom_manuscrit_detecte}`}
+                          >
+                            <span>✍️ En marge : {res.nom_manuscrit_detecte}</span>
+                          </span>
+                        )}
                       </div>
                     </div>
 
@@ -830,11 +1071,24 @@ export const Step4Dashboard: React.FC<Step4DashboardProps> = ({
                       </div>
                     )}
 
-                  {/* Appreciation Snippet */}
+                  {/* Appreciation & Trace Full Display */}
                   {isCompleted && (
-                    <p className="mt-3 text-xs text-slate-600 line-clamp-2 italic bg-slate-50/80 p-2 rounded-lg border border-slate-100">
-                      "{res.appreciation}"
-                    </p>
+                    <div className="mt-3 space-y-2">
+                      <div className="text-xs text-slate-700 italic bg-slate-50/80 p-2.5 rounded-lg border border-slate-100 leading-relaxed">
+                        <span className="font-semibold text-slate-800 not-italic block text-[11px] mb-0.5">Appréciation :</span>
+                        <span>"{res.appreciation}"</span>
+                      </div>
+
+                      {res.texte_transcrit_resume && (
+                        <div className="p-2 rounded-lg bg-amber-50/70 border border-amber-200/80 text-[11px] text-amber-950 font-mono leading-relaxed">
+                          <span className="font-bold text-[10px] uppercase tracking-wider text-amber-900 block mb-0.5 flex items-center gap-1">
+                            <FileText className="w-3 h-3 text-amber-700" />
+                            Trace manuscrite déchiffrée :
+                          </span>
+                          <span className="whitespace-pre-wrap">{res.texte_transcrit_resume}</span>
+                        </div>
+                      )}
+                    </div>
                   )}
 
                   {/* Skills Mini Badges */}
@@ -872,6 +1126,260 @@ export const Step4Dashboard: React.FC<Step4DashboardProps> = ({
           })}
         </div>
       </div>
+
+      {/* Quick Swap Modal with Searchable and Fully Scrollable Lists */}
+      {isSwapModalOpen && onSwapSubmissions && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-xs">
+          <div className="bg-white w-full max-w-xl rounded-2xl shadow-2xl border border-slate-200 p-6 space-y-4 animate-in fade-in zoom-in-95 max-h-[92vh] flex flex-col">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100 shrink-0">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-lg bg-amber-100 text-amber-800 flex items-center justify-center font-bold">
+                  <ArrowLeftRight className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="font-extrabold text-slate-900 text-base">
+                    Intervertir deux copies
+                  </h3>
+                  <p className="text-xs text-slate-500">
+                    Sélectionnez les deux élèves dont les copies doivent être échangées.
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsSwapModalOpen(false)}
+                className="text-slate-400 hover:text-slate-600 p-1.5 rounded-lg hover:bg-slate-100 transition-colors cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="space-y-4 flex-1 overflow-y-auto pr-1">
+              {/* Student 1 Picker */}
+              <div>
+                <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1.5">
+                  1. Première copie (sélectionnée : {submissions.find(s => s.id === swapStudent1Id)?.studentName || 'Aucune'})
+                </label>
+                <div className="relative mb-2">
+                  <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-2.5" />
+                  <input
+                    type="text"
+                    placeholder="Filtrer par nom ou fichier..."
+                    value={swapSearch1}
+                    onChange={(e) => setSwapSearch1(e.target.value)}
+                    className="w-full pl-8 pr-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs outline-hidden focus:bg-white focus:ring-1 focus:ring-blue-500"
+                  />
+                </div>
+                <div className="max-h-36 overflow-y-auto border border-slate-200 rounded-xl divide-y divide-slate-100 bg-slate-50/50 p-1">
+                  {submissions
+                    .filter((s) => {
+                      if (!swapSearch1.trim()) return true;
+                      const q = swapSearch1.toLowerCase();
+                      return s.studentName.toLowerCase().includes(q) || (s.fileName || '').toLowerCase().includes(q);
+                    })
+                    .map((s) => {
+                      const isSelected = s.id === swapStudent1Id;
+                      return (
+                        <button
+                          key={s.id}
+                          type="button"
+                          onClick={() => setSwapStudent1Id(s.id)}
+                          className={`w-full text-left p-2 rounded-lg flex items-center justify-between gap-2 transition-colors cursor-pointer text-xs ${
+                            isSelected ? 'bg-blue-50 text-blue-900 border border-blue-300 font-bold' : 'hover:bg-white text-slate-800'
+                          }`}
+                        >
+                          <div className="truncate">
+                            <span className="block truncate font-semibold">{s.studentName}</span>
+                            <span className="text-[10px] text-slate-400 block truncate">
+                              {s.fileName} {s.result ? `• ${s.result.note}/${s.result.note_sur}` : ''}
+                            </span>
+                          </div>
+                          {isSelected && <Check className="w-4 h-4 text-blue-600 shrink-0" />}
+                        </button>
+                      );
+                    })}
+                </div>
+              </div>
+
+              <div className="flex items-center justify-center">
+                <div className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center text-slate-500 shadow-2xs">
+                  <ArrowUpDown className="w-4 h-4" />
+                </div>
+              </div>
+
+              {/* Student 2 Picker */}
+              <div>
+                <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1.5">
+                  2. Deuxième copie à échanger (sélectionnée : {submissions.find(s => s.id === swapStudent2Id)?.studentName || 'Aucune'})
+                </label>
+                <div className="relative mb-2">
+                  <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-2.5" />
+                  <input
+                    type="text"
+                    placeholder="Filtrer par nom ou fichier..."
+                    value={swapSearch2}
+                    onChange={(e) => setSwapSearch2(e.target.value)}
+                    className="w-full pl-8 pr-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs outline-hidden focus:bg-white focus:ring-1 focus:ring-blue-500"
+                  />
+                </div>
+                <div className="max-h-36 overflow-y-auto border border-slate-200 rounded-xl divide-y divide-slate-100 bg-slate-50/50 p-1">
+                  {submissions
+                    .filter((s) => s.id !== swapStudent1Id)
+                    .filter((s) => {
+                      if (!swapSearch2.trim()) return true;
+                      const q = swapSearch2.toLowerCase();
+                      return s.studentName.toLowerCase().includes(q) || (s.fileName || '').toLowerCase().includes(q);
+                    })
+                    .map((s) => {
+                      const isSelected = s.id === swapStudent2Id;
+                      return (
+                        <button
+                          key={s.id}
+                          type="button"
+                          onClick={() => setSwapStudent2Id(s.id)}
+                          className={`w-full text-left p-2 rounded-lg flex items-center justify-between gap-2 transition-colors cursor-pointer text-xs ${
+                            isSelected ? 'bg-amber-50 text-amber-900 border border-amber-300 font-bold' : 'hover:bg-white text-slate-800'
+                          }`}
+                        >
+                          <div className="truncate">
+                            <span className="block truncate font-semibold">{s.studentName}</span>
+                            <span className="text-[10px] text-slate-400 block truncate">
+                              {s.fileName} {s.result ? `• ${s.result.note}/${s.result.note_sur}` : ''}
+                            </span>
+                          </div>
+                          {isSelected && <Check className="w-4 h-4 text-amber-600 shrink-0" />}
+                        </button>
+                      );
+                    })}
+                </div>
+              </div>
+
+              {/* Mode choice */}
+              <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 text-xs space-y-2">
+                <div className="font-semibold text-slate-800">Mode d'interversion :</div>
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="radio"
+                    name="swapMode"
+                    value="names"
+                    checked={swapMode === 'names'}
+                    onChange={() => setSwapMode('names')}
+                    className="text-blue-600"
+                  />
+                  <span className="text-slate-700">
+                    <strong>Échanger les noms d'élèves</strong> (recommandé : chaque copie conserve sa correction et sa note, mais change de destinataire)
+                  </span>
+                </label>
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="radio"
+                    name="swapMode"
+                    value="all"
+                    checked={swapMode === 'all'}
+                    onChange={() => setSwapMode('all')}
+                    className="text-blue-600"
+                  />
+                  <span className="text-slate-700">
+                    <strong>Échanger les fichiers et notes</strong> (conserve les noms d'élèves à leur place, échange leurs copies)
+                  </span>
+                </label>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-100 shrink-0">
+              <button
+                type="button"
+                onClick={() => setIsSwapModalOpen(false)}
+                className="px-4 py-2 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-100 transition-colors cursor-pointer"
+              >
+                Annuler
+              </button>
+              <button
+                type="button"
+                disabled={!swapStudent1Id || !swapStudent2Id || swapStudent1Id === swapStudent2Id}
+                onClick={() => {
+                  if (swapStudent1Id && swapStudent2Id && swapStudent1Id !== swapStudent2Id) {
+                    onSwapSubmissions(swapStudent1Id, swapStudent2Id, swapMode);
+                    setIsSwapModalOpen(false);
+                    const s1 = submissions.find((s) => s.id === swapStudent1Id);
+                    const s2 = submissions.find((s) => s.id === swapStudent2Id);
+                    setSwapSuccessMsg(`Copies de « ${s1?.studentName} » et « ${s2?.studentName} » interverties avec succès !`);
+                    setTimeout(() => setSwapSuccessMsg(null), 4000);
+                  }
+                }}
+                className={`px-4 py-2 rounded-xl text-xs font-bold shadow-xs transition-colors flex items-center gap-1.5 ${
+                  swapStudent1Id && swapStudent2Id && swapStudent1Id !== swapStudent2Id
+                    ? 'bg-blue-600 hover:bg-blue-700 text-white cursor-pointer'
+                    : 'bg-slate-200 text-slate-400 cursor-not-allowed'
+                }`}
+              >
+                <ArrowLeftRight className="w-3.5 h-3.5" />
+                <span>Intervertir maintenant</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Confirmation de la validation de la correction de la classe */}
+      {isConfirmValidationModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in">
+          <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 max-w-md w-full p-6 space-y-4">
+            <div className="flex items-center gap-3">
+              <div className="p-3 bg-emerald-100 text-emerald-700 rounded-xl shrink-0">
+                <ShieldCheck className="w-6 h-6" />
+              </div>
+              <div>
+                <h3 className="text-base font-extrabold text-slate-900">
+                  Valider la correction de la classe ?
+                </h3>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  {config.title} ({config.discipline} • {config.level})
+                </p>
+              </div>
+            </div>
+
+            <div className="bg-slate-50 border border-slate-200 rounded-xl p-3.5 text-xs text-slate-700 space-y-2">
+              <p className="leading-relaxed">
+                Cette validation certifie l'exactitude des notes pour l'ensemble des <strong>{submissions.length} élèves</strong> après votre relecture.
+              </p>
+              <ul className="space-y-1 text-slate-600 font-medium">
+                <li className="flex items-center gap-1.5">
+                  <Check className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                  <span>Verrouillage des notes pour éviter toute modification accidentelle.</span>
+                </li>
+                <li className="flex items-center gap-1.5">
+                  <Check className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                  <span>Archivage automatique dans l'historique global de l'application.</span>
+                </li>
+                <li className="flex items-center gap-1.5">
+                  <Check className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                  <span>Export Pronote/CSV et fiches élèves prêts à distribuer.</span>
+                </li>
+              </ul>
+            </div>
+
+            <div className="flex items-center justify-end gap-2.5 pt-2">
+              <button
+                type="button"
+                onClick={() => setIsConfirmValidationModalOpen(false)}
+                className="px-4 py-2.5 rounded-xl border border-slate-300 hover:bg-slate-100 text-slate-700 text-xs font-semibold transition-colors cursor-pointer"
+              >
+                Annuler
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmValidation}
+                id="btn-confirm-validation"
+                className="px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shadow-xs transition-colors cursor-pointer flex items-center gap-1.5"
+              >
+                <ShieldCheck className="w-4 h-4" />
+                <span>Confirmer et archiver la classe</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

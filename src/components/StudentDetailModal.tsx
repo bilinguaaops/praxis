@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { StudentSubmission, CorrectionResult, QuestionEvaluation, CompetenceItem } from '../types';
 import {
   X,
@@ -16,21 +16,32 @@ import {
   ZoomIn,
   ZoomOut,
   Maximize2,
+  Minimize2,
   ChevronLeft,
   ChevronRight,
   FileText,
+  ArrowLeftRight,
+  RefreshCw,
+  Search,
+  ShieldCheck,
 } from 'lucide-react';
 
 interface StudentDetailModalProps {
   submission: StudentSubmission;
+  allSubmissions?: StudentSubmission[];
   onClose: () => void;
   onSave: (updatedSubmission: StudentSubmission) => void;
+  onSwapSubmissions?: (subId1: string, subId2: string, mode?: 'names' | 'all') => void;
+  isValidated?: boolean;
 }
 
 export const StudentDetailModal: React.FC<StudentDetailModalProps> = ({
   submission,
+  allSubmissions = [],
   onClose,
   onSave,
+  onSwapSubmissions,
+  isValidated = false,
 }) => {
   const result = submission.result;
   if (!result) return null;
@@ -47,6 +58,94 @@ export const StudentDetailModal: React.FC<StudentDetailModalProps> = ({
   const [rotation, setRotation] = useState<number>(submission.rotation || 0);
   const [zoom, setZoom] = useState<number>(1);
   const [isSavedNotice, setIsSavedNotice] = useState(false);
+  const [showSwapDropdown, setShowSwapDropdown] = useState(false);
+  const [modalSwapSearch, setModalSwapSearch] = useState('');
+  const [isFullscreen, setIsFullscreen] = useState(false);
+
+  // Keyboard navigation when in fullscreen mode (Escape, Arrows, Zoom)
+  useEffect(() => {
+    if (!isFullscreen) return;
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setIsFullscreen(false);
+      } else if (e.key === 'ArrowLeft') {
+        setActivePageIndex((p) => (p > 0 ? p - 1 : pages.length - 1));
+      } else if (e.key === 'ArrowRight') {
+        setActivePageIndex((p) => (p < pages.length - 1 ? p + 1 : 0));
+      } else if (e.key === '+' || e.key === '=') {
+        setZoom((z) => Math.min(3.5, Number((z + 0.25).toFixed(2))));
+      } else if (e.key === '-') {
+        setZoom((z) => Math.max(0.4, Number((z - 0.25).toFixed(2))));
+      } else if (e.key === 'r' || e.key === 'R') {
+        setRotation((r) => (r + 90) % 360);
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isFullscreen, pages.length]);
+
+  // Sync state whenever submission prop updates (e.g. when swapped with another student)
+  useEffect(() => {
+    setStudentName(submission.studentName);
+    setGrade(submission.result?.note ?? 0);
+    setAppreciation(submission.result?.appreciation || '');
+    setQuestions(submission.result?.questions || []);
+    setCompetences(submission.result?.competences || []);
+    setTeacherNotes(submission.result?.teacherNotes || '');
+    setRotation(submission.rotation || 0);
+  }, [submission.id, submission.studentName, submission.result]);
+
+  // Detect if this copy seems to belong to another student in the batch
+  const suspectedOtherSubmission = useMemo(() => {
+    if (!allSubmissions || allSubmissions.length <= 1) return null;
+    const currentNameLower = studentName.trim().toLowerCase();
+    const currentFileLower = (submission.fileName || '').toLowerCase();
+    const appLower = appreciation.toLowerCase();
+    const handwrittenName = (result.nom_manuscrit_detecte || '').toLowerCase();
+
+    return (
+      allSubmissions.find((other) => {
+        if (other.id === submission.id) return false;
+        const otherNameLower = other.studentName.trim().toLowerCase();
+        const otherFileLower = (other.fileName || '').toLowerCase();
+        if (otherNameLower.length < 2) return false;
+
+        // 1. If AI handwritten detection physically read the other student's name on this paper
+        if (handwrittenName && handwrittenName.includes(otherNameLower)) {
+          return true;
+        }
+
+        // 2. If this submission's filename explicitly contains the other student's name (e.g. "Sass.pdf" labeled as "sean")
+        if (currentFileLower.includes(otherNameLower) && !currentFileLower.includes(currentNameLower)) {
+          return true;
+        }
+
+        // 3. If the other submission's filename contains this student's name (e.g. other file is "sean.pdf" labeled "Sass")
+        if (currentNameLower.length >= 2 && otherFileLower.includes(currentNameLower)) {
+          return true;
+        }
+
+        // 4. If AI appreciation specifically addresses the other student (e.g. "Sean, ton travail est sérieux..." while labeled "Sass")
+        const regex = new RegExp(`\\b${otherNameLower}\\b`, 'i');
+        if (regex.test(appLower) && !regex.test(currentNameLower)) {
+          return true;
+        }
+
+        return false;
+      }) || null
+    );
+  }, [allSubmissions, submission, studentName, appreciation, result.nom_manuscrit_detecte]);
+
+  const handleExecuteSwap = (targetSubId: string) => {
+    if (onSwapSubmissions) {
+      onSwapSubmissions(submission.id, targetSubId, 'names');
+      setShowSwapDropdown(false);
+      setIsSavedNotice(true);
+      setTimeout(() => setIsSavedNotice(false), 3000);
+    }
+  };
 
   const handleQuestionGradeChange = (index: number, newNote: number) => {
     const updated = [...questions];
@@ -98,7 +197,7 @@ export const StudentDetailModal: React.FC<StudentDetailModalProps> = ({
               <Sparkles className="w-4 h-4 text-white" />
             </div>
             <div>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 flex-wrap">
                 <input
                   type="text"
                   value={studentName}
@@ -108,6 +207,92 @@ export const StudentDetailModal: React.FC<StudentDetailModalProps> = ({
                 <span className="text-xs text-slate-400">
                   ({submission.fileName} {pages.length > 1 ? `• ${pages.length} pages` : ''})
                 </span>
+
+                {result.nom_manuscrit_detecte && (
+                  <span
+                    className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-blue-500/20 text-blue-300 border border-blue-400/30 text-[11px] font-semibold"
+                    title={`Nom manuscrit identifié en marge ou en-tête de la copie papier : ${result.nom_manuscrit_detecte}`}
+                  >
+                    <span>✍️ Nom en marge : {result.nom_manuscrit_detecte}</span>
+                  </span>
+                )}
+
+                {/* Quick swap button in header */}
+                {onSwapSubmissions && allSubmissions.length > 1 && (
+                  <div className="relative inline-block">
+                    <button
+                      type="button"
+                      onClick={() => setShowSwapDropdown(!showSwapDropdown)}
+                      id="btn-modal-swap-student"
+                      className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-400/40 text-xs font-semibold cursor-pointer transition-colors"
+                      title="Intervertir cette copie avec un autre élève"
+                    >
+                      <ArrowLeftRight className="w-3.5 h-3.5" />
+                      <span>Intervertir...</span>
+                    </button>
+
+                    {showSwapDropdown && (
+                      <div className="absolute top-full left-0 mt-1.5 w-80 bg-slate-900 border border-slate-700 rounded-xl shadow-2xl p-2.5 z-50 text-white text-xs space-y-2">
+                        <div className="px-1 text-slate-300 font-bold text-xs flex items-center justify-between border-b border-slate-800 pb-1.5">
+                          <span className="truncate">Échanger cette copie ({submission.fileName})</span>
+                          <button
+                            type="button"
+                            onClick={() => setShowSwapDropdown(false)}
+                            className="text-slate-400 hover:text-white p-0.5"
+                          >
+                            <X className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+
+                        <div className="relative">
+                          <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-2" />
+                          <input
+                            type="text"
+                            placeholder="Filtrer par nom ou fichier..."
+                            value={modalSwapSearch}
+                            onChange={(e) => setModalSwapSearch(e.target.value)}
+                            className="w-full pl-8 pr-2.5 py-1.5 bg-slate-800 border border-slate-700 rounded-lg text-xs text-white placeholder-slate-400 outline-hidden focus:ring-1 focus:ring-amber-400"
+                            autoFocus
+                          />
+                        </div>
+
+                        <div className="max-h-60 overflow-y-auto space-y-1 divide-y divide-slate-800/60 pr-1">
+                          {allSubmissions
+                            .filter((s) => s.id !== submission.id)
+                            .filter((s) => {
+                              if (!modalSwapSearch.trim()) return true;
+                              const q = modalSwapSearch.toLowerCase();
+                              return (
+                                s.studentName.toLowerCase().includes(q) ||
+                                (s.fileName || '').toLowerCase().includes(q)
+                              );
+                            })
+                            .map((other) => (
+                              <button
+                                key={other.id}
+                                type="button"
+                                onClick={() => {
+                                  handleExecuteSwap(other.id);
+                                  setShowSwapDropdown(false);
+                                }}
+                                className="w-full text-left px-2.5 py-2 rounded-lg hover:bg-slate-800 flex items-center justify-between gap-2 group cursor-pointer transition-colors"
+                              >
+                                <div className="truncate min-w-0">
+                                  <span className="font-bold text-slate-100 group-hover:text-amber-300 block truncate">
+                                    {other.studentName}
+                                  </span>
+                                  <span className="text-[10px] text-slate-400 block truncate">
+                                    {other.fileName} {other.result ? `• ${other.result.note}/${other.result.note_sur}` : ''}
+                                  </span>
+                                </div>
+                                <ArrowLeftRight className="w-3.5 h-3.5 text-slate-500 group-hover:text-amber-400 shrink-0" />
+                              </button>
+                            ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
               <p className="text-xs text-slate-400">
                 Aperçu de la copie manuscrite ({pages.length > 1 ? `Page ${activePageIndex + 1} sur ${pages.length}` : '1 page'}) et évaluation détaillée
@@ -116,6 +301,13 @@ export const StudentDetailModal: React.FC<StudentDetailModalProps> = ({
           </div>
 
           <div className="flex items-center gap-3">
+            {isValidated && (
+              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-emerald-500/20 text-emerald-300 border border-emerald-400/40 text-xs font-bold">
+                <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
+                <span>Correction validée</span>
+              </span>
+            )}
+
             {isSavedNotice && (
               <span className="text-xs font-semibold text-emerald-400 flex items-center gap-1">
                 <CheckCircle2 className="w-3.5 h-3.5" />
@@ -145,32 +337,32 @@ export const StudentDetailModal: React.FC<StudentDetailModalProps> = ({
         </div>
 
         {/* Modal Body: Split Screen */}
-        <div className="flex-1 flex flex-col lg:flex-row overflow-hidden divide-y lg:divide-y-0 lg:divide-x divide-slate-200">
+        <div className="flex-1 flex flex-col lg:flex-row overflow-hidden divide-y lg:divide-y-0 lg:divide-x divide-slate-200 min-h-0">
           {/* Left Panel: Original Student Copy Image */}
-          <div className="w-full lg:w-1/2 bg-slate-900 flex flex-col relative overflow-hidden">
+          <div className="w-full lg:w-1/2 h-[50vh] lg:h-full min-h-[380px] bg-slate-900 flex flex-col relative overflow-hidden shrink-0 lg:shrink">
             {/* Viewer Toolbar */}
-            <div className="absolute top-3 right-3 z-10 flex items-center gap-1 bg-slate-900/80 backdrop-blur-xs p-1 rounded-lg border border-slate-700 shadow-md">
+            <div className="absolute top-3 right-3 z-10 flex items-center gap-1 bg-slate-900/90 backdrop-blur-xs p-1 rounded-xl border border-slate-700 shadow-md">
               <button
                 type="button"
-                onClick={() => setZoom((z) => Math.min(2.5, z + 0.25))}
-                className="p-1.5 text-slate-300 hover:text-white hover:bg-slate-800 rounded transition-colors"
-                title="Zoomer"
+                onClick={() => setZoom((z) => Math.min(3, Number((z + 0.25).toFixed(2))))}
+                className="p-1.5 text-slate-300 hover:text-white hover:bg-slate-800 rounded-lg transition-colors cursor-pointer"
+                title="Zoomer (+)"
               >
                 <ZoomIn className="w-4 h-4" />
               </button>
               <button
                 type="button"
-                onClick={() => setZoom((z) => Math.max(0.6, z - 0.25))}
-                className="p-1.5 text-slate-300 hover:text-white hover:bg-slate-800 rounded transition-colors"
-                title="Dézoomer"
+                onClick={() => setZoom((z) => Math.max(0.5, Number((z - 0.25).toFixed(2))))}
+                className="p-1.5 text-slate-300 hover:text-white hover:bg-slate-800 rounded-lg transition-colors cursor-pointer"
+                title="Dézoomer (-)"
               >
                 <ZoomOut className="w-4 h-4" />
               </button>
               <button
                 type="button"
                 onClick={() => setRotation((r) => (r + 90) % 360)}
-                className="p-1.5 text-slate-300 hover:text-white hover:bg-slate-800 rounded transition-colors"
-                title="Faire pivoter"
+                className="p-1.5 text-slate-300 hover:text-white hover:bg-slate-800 rounded-lg transition-colors cursor-pointer"
+                title="Faire pivoter (90°)"
               >
                 <RotateCw className="w-4 h-4" />
               </button>
@@ -180,15 +372,25 @@ export const StudentDetailModal: React.FC<StudentDetailModalProps> = ({
                   setZoom(1);
                   setRotation(0);
                 }}
-                className="p-1.5 text-slate-300 hover:text-white hover:bg-slate-800 rounded transition-colors"
-                title="Réinitialiser la vue"
+                className="p-1.5 text-slate-300 hover:text-white hover:bg-slate-800 rounded-lg transition-colors cursor-pointer"
+                title="Réinitialiser le zoom et l'orientation"
+              >
+                <RefreshCw className="w-4 h-4" />
+              </button>
+              <div className="w-px h-4 bg-slate-700 mx-0.5" />
+              <button
+                type="button"
+                onClick={() => setIsFullscreen(true)}
+                id="btn-modal-fullscreen"
+                className="p-1.5 text-sky-400 hover:text-white hover:bg-blue-600 rounded-lg transition-colors cursor-pointer flex items-center gap-1"
+                title="Afficher la copie en plein écran (⤢) pour examiner les feuilles"
               >
                 <Maximize2 className="w-4 h-4" />
               </button>
             </div>
 
             {/* Viewer image container */}
-            <div className="flex-1 overflow-auto flex items-center justify-center p-4">
+            <div className="flex-1 overflow-auto flex items-center justify-center p-4 min-h-0 min-w-0">
               <img
                 src={pages[activePageIndex] || submission.imageDataUrl}
                 alt={submission.studentName}
@@ -201,55 +403,125 @@ export const StudentDetailModal: React.FC<StudentDetailModalProps> = ({
               />
             </div>
 
-            {/* Footer with page navigation */}
-            <div className="px-4 py-2 bg-slate-950/80 border-t border-slate-800 text-[11px] text-slate-400 flex items-center justify-between">
+            {/* Footer with page navigation and Fullscreen button */}
+            <div className="px-4 py-2 bg-slate-950/90 border-t border-slate-800 text-[11px] text-slate-400 flex flex-wrap items-center justify-between gap-2">
               {pages.length > 1 ? (
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-1.5">
                   <button
                     type="button"
                     onClick={() => setActivePageIndex((p) => (p > 0 ? p - 1 : pages.length - 1))}
-                    className="p-1 hover:text-blue-400 transition-colors bg-slate-800 rounded"
+                    className="p-1 hover:text-blue-400 transition-colors bg-slate-800 rounded cursor-pointer"
                     title="Page précédente"
                   >
                     <ChevronLeft className="w-3.5 h-3.5" />
                   </button>
                   <span className="font-bold text-slate-200">
-                    Page {activePageIndex + 1} sur {pages.length}
+                    Page {activePageIndex + 1}/{pages.length}
                   </span>
                   <button
                     type="button"
                     onClick={() => setActivePageIndex((p) => (p < pages.length - 1 ? p + 1 : 0))}
-                    className="p-1 hover:text-blue-400 transition-colors bg-slate-800 rounded"
+                    className="p-1 hover:text-blue-400 transition-colors bg-slate-800 rounded cursor-pointer"
                     title="Page suivante"
                   >
                     <ChevronRight className="w-3.5 h-3.5" />
                   </button>
+                  <div className="hidden sm:flex items-center gap-1 ml-1">
+                    {pages.map((_, idx) => (
+                      <button
+                        key={idx}
+                        type="button"
+                        onClick={() => setActivePageIndex(idx)}
+                        className={`px-2 py-0.5 rounded text-[10px] font-bold transition-colors cursor-pointer ${
+                          idx === activePageIndex
+                            ? 'bg-blue-600 text-white'
+                            : 'bg-slate-800 text-slate-400 hover:text-white'
+                        }`}
+                      >
+                        P.{idx + 1}
+                      </button>
+                    ))}
+                  </div>
                 </div>
               ) : (
                 <span>Document scanné original</span>
               )}
-              <div className="flex items-center gap-2">
-                <span className="text-slate-400">Lisibilité déchiffrée :</span>
-                <span
-                  className={`inline-flex items-center gap-1 px-2 py-0.5 rounded font-bold text-[10px] uppercase tracking-wider ${
-                    result.lisibilite === 'excellente' || result.lisibilite === 'bonne'
-                      ? 'bg-emerald-950 text-emerald-300 border border-emerald-800'
-                      : result.lisibilite === 'moyenne'
-                      ? 'bg-amber-950 text-amber-300 border border-amber-800'
-                      : 'bg-rose-950 text-rose-300 border border-rose-800'
-                  }`}
+
+              <div className="flex items-center gap-3">
+                <div className="flex items-center gap-1.5">
+                  <span className="text-slate-400 hidden sm:inline">Lisibilité :</span>
+                  <span
+                    className={`inline-flex items-center gap-1 px-2 py-0.5 rounded font-bold text-[10px] uppercase tracking-wider ${
+                      result.lisibilite === 'excellente' || result.lisibilite === 'bonne'
+                        ? 'bg-emerald-950 text-emerald-300 border border-emerald-800'
+                        : result.lisibilite === 'moyenne'
+                        ? 'bg-amber-950 text-amber-300 border border-amber-800'
+                        : 'bg-rose-950 text-rose-300 border border-rose-800'
+                    }`}
+                  >
+                    {(result.lisibilite === 'faible' || result.lisibilite === 'illisible' || result.lisibilite === 'moyenne') && (
+                      <AlertTriangle className="w-3 h-3 text-amber-400" />
+                    )}
+                    <span>{result.lisibilite || 'bonne'}</span>
+                  </span>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => setIsFullscreen(true)}
+                  className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-white text-[11px] font-bold transition-colors cursor-pointer border border-slate-700"
+                  title="Examiner les feuilles de la copie en plein écran"
                 >
-                  {(result.lisibilite === 'faible' || result.lisibilite === 'illisible' || result.lisibilite === 'moyenne') && (
-                    <AlertTriangle className="w-3 h-3 text-amber-400" />
-                  )}
-                  <span>{result.lisibilite || 'bonne'}</span>
-                </span>
+                  <Maximize2 className="w-3.5 h-3.5 text-sky-400" />
+                  <span>Plein écran</span>
+                </button>
               </div>
             </div>
           </div>
 
           {/* Right Panel: AI Assessment and Editable Criteria */}
           <div className="w-full lg:w-1/2 bg-slate-50 overflow-y-auto p-6 space-y-6">
+            {/* Proactive Inversion / Name Mismatch Alert */}
+            {suspectedOtherSubmission && (
+              <div
+                id="alert-student-inversion"
+                className="bg-indigo-50 border-2 border-indigo-400 rounded-xl p-4.5 shadow-sm space-y-3 text-indigo-950 animate-in fade-in duration-200"
+              >
+                <div className="flex items-center justify-between gap-2 flex-wrap">
+                  <div className="flex items-center gap-2 font-black text-xs sm:text-sm text-indigo-900">
+                    <ArrowLeftRight className="w-4 h-4 text-indigo-600 shrink-0" />
+                    <span>Inversion de copie détectée</span>
+                  </div>
+                  <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase bg-indigo-200 text-indigo-900 border border-indigo-300">
+                    Correction rapide
+                  </span>
+                </div>
+
+                <p className="text-xs text-indigo-900 leading-relaxed font-medium">
+                  L'IA s'adresse à <strong>« {suspectedOtherSubmission.studentName} »</strong> dans l'appréciation ou sur la copie, mais ce devoir (<em>{submission.fileName}</em>) est actuellement attribué à <strong>« {studentName} »</strong>.
+                </p>
+
+                <div className="flex flex-wrap items-center gap-2 pt-1 border-t border-indigo-200">
+                  <button
+                    type="button"
+                    onClick={() => handleExecuteSwap(suspectedOtherSubmission.id)}
+                    className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold shadow-xs transition-colors cursor-pointer"
+                  >
+                    <ArrowLeftRight className="w-3.5 h-3.5" />
+                    <span>Intervertir cette copie avec celle de {suspectedOtherSubmission.studentName}</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setStudentName(suspectedOtherSubmission.studentName)}
+                    className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-white hover:bg-indigo-100 text-indigo-800 border border-indigo-300 text-xs font-semibold transition-colors cursor-pointer"
+                  >
+                    <span>Renommer cet élève en « {suspectedOtherSubmission.studentName} »</span>
+                  </button>
+                </div>
+              </div>
+            )}
+
             {/* Prominent Human Verification / Legibility Notice */}
             {(result.verification_humaine_recommandee ||
               result.lisibilite === 'moyenne' ||
@@ -273,13 +545,42 @@ export const StudentDetailModal: React.FC<StudentDetailModalProps> = ({
                   {result.avertissement_lisibilite ||
                     "L'IA a éprouvé des difficultés à déchiffrer avec certitude certains calculs, mots ou passages manuscrits sur cette copie. Ne vous fiez pas à 100% à la note automatique et vérifiez directement la copie originale ci-contre."}
                 </p>
-                <div className="text-[11px] text-amber-900/80 italic pt-1 border-t border-amber-200/70 flex items-center justify-between">
+                <div className="text-[11px] text-amber-900/80 italic pt-1 border-t border-amber-200/70">
                   <span>💡 Vous pouvez ajuster les points question par question ci-dessous.</span>
-                  {result.texte_transcrit_resume && (
-                    <span className="text-[10px] truncate max-w-[240px]" title={result.texte_transcrit_resume}>
-                      Trace : {result.texte_transcrit_resume}
-                    </span>
-                  )}
+                </div>
+
+                {result.texte_transcrit_resume && (
+                  <div className="mt-2 pt-2 border-t border-amber-300/80 space-y-1.5">
+                    <div className="text-xs font-bold text-amber-950 flex items-center gap-1.5">
+                      <FileText className="w-4 h-4 text-amber-700 shrink-0" />
+                      <span>Trace & transcription déchiffrée par l'IA (intégrale) :</span>
+                    </div>
+                    <div className="text-xs text-amber-950 bg-amber-100/90 p-3 rounded-lg border border-amber-300 font-mono whitespace-pre-wrap leading-relaxed">
+                      {result.texte_transcrit_resume}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Complete Transcription Trace if not already shown in legibility alert */}
+            {result.texte_transcrit_resume && !(
+              result.verification_humaine_recommandee ||
+              result.lisibilite === 'moyenne' ||
+              result.lisibilite === 'faible' ||
+              result.lisibilite === 'illisible' ||
+              result.avertissement_lisibilite
+            ) && (
+              <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 shadow-xs space-y-2">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-xs font-bold uppercase tracking-wider text-slate-700 flex items-center gap-1.5">
+                    <FileText className="w-4 h-4 text-blue-600" />
+                    <span>Trace & transcription de la copie manuscrite</span>
+                  </h3>
+                  <span className="text-[10px] text-slate-400 font-semibold">Texte déchiffré par l'IA</span>
+                </div>
+                <div className="text-xs text-slate-800 bg-white p-3 rounded-lg border border-slate-200 font-mono whitespace-pre-wrap leading-relaxed">
+                  {result.texte_transcrit_resume}
                 </div>
               </div>
             )}
@@ -532,6 +833,208 @@ export const StudentDetailModal: React.FC<StudentDetailModalProps> = ({
           </div>
         </div>
       </div>
+
+      {/* Fullscreen Reader Mode: Allows the teacher to inspect sheets across the entire screen */}
+      {isFullscreen && (
+        <div
+          id="student-copy-fullscreen-viewer"
+          className="fixed inset-0 z-[100] bg-slate-950/98 flex flex-col text-white animate-in fade-in duration-150 select-none"
+        >
+          {/* Fullscreen Header */}
+          <div className="px-6 py-3 bg-slate-900/95 border-b border-slate-800 flex items-center justify-between shrink-0 gap-4">
+            <div className="flex items-center gap-3 min-w-0">
+              <div className="w-8 h-8 rounded-lg bg-blue-600 flex items-center justify-center font-bold text-sm shrink-0">
+                <FileText className="w-4 h-4 text-white" />
+              </div>
+              <div className="min-w-0">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="font-extrabold text-white text-base truncate">{studentName}</span>
+                  <span className="text-xs text-slate-400 truncate">({submission.fileName})</span>
+                  <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-blue-500/20 text-blue-300 border border-blue-400/30">
+                    Page {activePageIndex + 1} sur {pages.length}
+                  </span>
+                </div>
+                <p className="text-[11px] text-slate-400 hidden sm:block">
+                  Mode Examen Plein Écran — Vérifiez l'écriture manuscrite et les réponses de l'élève en haute définition.
+                </p>
+              </div>
+            </div>
+
+            {/* Quick Page Jump Buttons (multi-page) */}
+            {pages.length > 1 && (
+              <div className="hidden lg:flex items-center gap-1.5 bg-slate-800/90 p-1 rounded-xl border border-slate-700">
+                <button
+                  type="button"
+                  onClick={() => setActivePageIndex((p) => (p > 0 ? p - 1 : pages.length - 1))}
+                  className="p-1.5 text-slate-300 hover:text-white hover:bg-slate-700 rounded-lg transition-colors cursor-pointer"
+                  title="Page précédente (←)"
+                >
+                  <ChevronLeft className="w-4 h-4" />
+                </button>
+                {pages.map((_, idx) => (
+                  <button
+                    key={idx}
+                    type="button"
+                    onClick={() => setActivePageIndex(idx)}
+                    className={`px-3 py-1 rounded-lg text-xs font-bold transition-colors cursor-pointer ${
+                      idx === activePageIndex
+                        ? 'bg-blue-600 text-white shadow-xs'
+                        : 'text-slate-400 hover:text-white hover:bg-slate-700'
+                    }`}
+                  >
+                    Page {idx + 1}
+                  </button>
+                ))}
+                <button
+                  type="button"
+                  onClick={() => setActivePageIndex((p) => (p < pages.length - 1 ? p + 1 : 0))}
+                  className="p-1.5 text-slate-300 hover:text-white hover:bg-slate-700 rounded-lg transition-colors cursor-pointer"
+                  title="Page suivante (→)"
+                >
+                  <ChevronRight className="w-4 h-4" />
+                </button>
+              </div>
+            )}
+
+            {/* View Controls & Exit Button */}
+            <div className="flex items-center gap-2 shrink-0">
+              <div className="flex items-center gap-1 bg-slate-800/90 p-1 rounded-xl border border-slate-700">
+                <button
+                  type="button"
+                  onClick={() => setZoom((z) => Math.max(0.4, Number((z - 0.25).toFixed(2))))}
+                  className="p-1.5 text-slate-300 hover:text-white hover:bg-slate-700 rounded-lg transition-colors cursor-pointer"
+                  title="Dézoomer (-)"
+                >
+                  <ZoomOut className="w-4 h-4" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setZoom(1);
+                    setRotation(0);
+                  }}
+                  className="px-2 py-1 text-xs font-mono font-bold text-slate-300 hover:text-white hover:bg-slate-700 rounded-lg transition-colors cursor-pointer"
+                  title="Cliquer pour réinitialiser le zoom (100%)"
+                >
+                  {Math.round(zoom * 100)}%
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setZoom((z) => Math.min(3.5, Number((z + 0.25).toFixed(2))))}
+                  className="p-1.5 text-slate-300 hover:text-white hover:bg-slate-700 rounded-lg transition-colors cursor-pointer"
+                  title="Zoomer (+)"
+                >
+                  <ZoomIn className="w-4 h-4" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setRotation((r) => (r + 90) % 360)}
+                  className="p-1.5 text-slate-300 hover:text-white hover:bg-slate-700 rounded-lg transition-colors cursor-pointer"
+                  title="Faire pivoter de 90° (R)"
+                >
+                  <RotateCw className="w-4 h-4" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setZoom(1);
+                    setRotation(0);
+                  }}
+                  className="p-1.5 text-slate-300 hover:text-white hover:bg-slate-700 rounded-lg transition-colors cursor-pointer"
+                  title="Réinitialiser zoom et orientation"
+                >
+                  <RefreshCw className="w-4 h-4" />
+                </button>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setIsFullscreen(false)}
+                id="btn-close-fullscreen-reader"
+                className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold transition-colors cursor-pointer shadow-md"
+                title="Quitter le plein écran (Touche Échap)"
+              >
+                <Minimize2 className="w-4 h-4" />
+                <span className="hidden sm:inline">Quitter plein écran (Échap)</span>
+              </button>
+            </div>
+          </div>
+
+          {/* Fullscreen Viewer Area with Zoom/Pan */}
+          <div className="flex-1 relative overflow-auto flex items-center justify-center p-4 sm:p-8">
+            {/* Floating Left Arrow */}
+            {pages.length > 1 && (
+              <button
+                type="button"
+                onClick={() => setActivePageIndex((p) => (p > 0 ? p - 1 : pages.length - 1))}
+                className="absolute left-4 sm:left-8 top-1/2 -translate-y-1/2 z-20 p-3 rounded-full bg-slate-900/85 hover:bg-blue-600 text-white border border-slate-700 shadow-2xl transition-all cursor-pointer hover:scale-110"
+                title="Page précédente (Flèche gauche)"
+              >
+                <ChevronLeft className="w-6 h-6" />
+              </button>
+            )}
+
+            {/* High Definition Page Image */}
+            <img
+              src={pages[activePageIndex] || submission.imageDataUrl}
+              alt={submission.studentName}
+              style={{
+                transform: `rotate(${rotation}deg) scale(${zoom})`,
+                transformOrigin: 'center center',
+                transition: 'transform 0.15s ease-out',
+              }}
+              className="max-h-[88vh] max-w-[88vw] object-contain rounded-lg shadow-2xl select-none"
+            />
+
+            {/* Floating Right Arrow */}
+            {pages.length > 1 && (
+              <button
+                type="button"
+                onClick={() => setActivePageIndex((p) => (p < pages.length - 1 ? p + 1 : 0))}
+                className="absolute right-4 sm:right-8 top-1/2 -translate-y-1/2 z-20 p-3 rounded-full bg-slate-900/85 hover:bg-blue-600 text-white border border-slate-700 shadow-2xl transition-all cursor-pointer hover:scale-110"
+                title="Page suivante (Flèche droite)"
+              >
+                <ChevronRight className="w-6 h-6" />
+              </button>
+            )}
+          </div>
+
+          {/* Bottom Bar: Shortcuts & Mobile page selector */}
+          <div className="px-6 py-2 bg-slate-900/90 border-t border-slate-800 text-[11px] text-slate-400 flex items-center justify-between shrink-0">
+            <span className="hidden sm:inline">
+              Raccourcis clavier : <strong>← / →</strong> pour feuille précédente / suivante, <strong>+ / -</strong> pour zoomer, <strong>R</strong> pour pivoter, <strong>Échap</strong> pour quitter.
+            </span>
+            {pages.length > 1 && (
+              <div className="flex lg:hidden items-center gap-1 mx-auto sm:mx-0">
+                <button
+                  type="button"
+                  onClick={() => setActivePageIndex((p) => (p > 0 ? p - 1 : pages.length - 1))}
+                  className="p-1 text-slate-300 hover:text-white bg-slate-800 rounded"
+                >
+                  <ChevronLeft className="w-3.5 h-3.5" />
+                </button>
+                <span className="font-bold text-slate-200 px-2">
+                  Page {activePageIndex + 1} / {pages.length}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setActivePageIndex((p) => (p < pages.length - 1 ? p + 1 : 0))}
+                  className="p-1 text-slate-300 hover:text-white bg-slate-800 rounded"
+                >
+                  <ChevronRight className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            )}
+            <button
+              type="button"
+              onClick={() => setIsFullscreen(false)}
+              className="text-xs text-slate-400 hover:text-white underline cursor-pointer"
+            >
+              Fermer le plein écran
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

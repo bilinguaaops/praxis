@@ -1,12 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { Sparkles, GraduationCap, CheckCircle2, RotateCcw, FileText, BarChart3, UploadCloud, Settings2, Users, TrendingUp, History, Sun, Moon, Shield, User, LogOut, UserCheck } from 'lucide-react';
+import { Sparkles, GraduationCap, CheckCircle2, RotateCcw, FileText, BarChart3, UploadCloud, Settings2, Users, TrendingUp, History, Sun, Moon, HelpCircle, User, LogOut, UserCheck } from 'lucide-react';
 import { MainView, LeadData } from '../types';
 
 interface HeaderProps {
   currentStep: number;
   onStepClick: (step: number) => void;
   onReset: () => void;
-  onLoadDemo: () => void;
   completedCount: number;
   totalCount: number;
   activeView: MainView;
@@ -21,7 +20,6 @@ export const Header: React.FC<HeaderProps> = ({
   currentStep,
   onStepClick,
   onReset,
-  onLoadDemo,
   completedCount,
   totalCount,
   activeView,
@@ -67,13 +65,18 @@ export const Header: React.FC<HeaderProps> = ({
         {/* Top bar with Brand, Modules & Utilities */}
         <div className="flex items-center justify-between h-16 gap-3">
           {/* Brand */}
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-blue-700 via-indigo-600 to-blue-500 flex items-center justify-center text-white shadow-sm ring-1 ring-blue-700/20">
+          <button
+            type="button"
+            onClick={() => onViewChange('landing')}
+            className="flex items-center gap-3 text-left group cursor-pointer focus:outline-none"
+            title="Retour à l'accueil"
+          >
+            <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-blue-700 via-indigo-600 to-blue-500 flex items-center justify-center text-white shadow-sm ring-1 ring-blue-700/20 group-hover:scale-105 transition-transform">
               <GraduationCap className="w-6 h-6" />
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <span className="font-extrabold text-lg sm:text-xl tracking-tight text-slate-900">
+                <span className="font-extrabold text-lg sm:text-xl tracking-tight text-slate-900 group-hover:text-blue-700 transition-colors">
                   PRAXIS
                 </span>
                 <span className="hidden md:inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold bg-blue-50 text-blue-700 border border-blue-200/60">
@@ -82,13 +85,25 @@ export const Header: React.FC<HeaderProps> = ({
                 </span>
               </div>
               <p className="text-[11px] text-slate-500 hidden sm:block">
-                Correction intelligente de copies, analyse de classe & suivi des élèves
+                Correction intelligente de copies & analyse de classe
               </p>
             </div>
-          </div>
+          </button>
 
           {/* Center: Main Module Navigation Tabs */}
           <nav className="hidden lg:flex items-center gap-1 bg-slate-100 p-1 rounded-xl border border-slate-200/80">
+            <button
+              type="button"
+              onClick={() => onViewChange('landing')}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                activeView === 'landing'
+                  ? 'bg-white text-blue-700 shadow-xs'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              <span>Accueil</span>
+            </button>
+
             <button
               type="button"
               onClick={() => onViewChange('corr')}
@@ -144,21 +159,24 @@ export const Header: React.FC<HeaderProps> = ({
                 </span>
               )}
             </button>
+
+            <button
+              type="button"
+              onClick={() => onViewChange('faq')}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                activeView === 'faq'
+                  ? 'bg-white text-blue-700 shadow-xs'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+              title="Foire Aux Questions et guide pédagogique Praxis"
+            >
+              <HelpCircle className="w-3.5 h-3.5" />
+              <span>FAQ</span>
+            </button>
           </nav>
 
           {/* Right Tools & Actions */}
           <div className="flex items-center gap-1.5 sm:gap-2">
-            <button
-              type="button"
-              onClick={onLoadDemo}
-              id="btn-load-demo"
-              className="inline-flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 text-xs font-semibold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 rounded-lg transition-colors cursor-pointer"
-              title="Charger une évaluation de démonstration prête"
-            >
-              <FileText className="w-3.5 h-3.5" />
-              <span className="hidden sm:inline">Exemple démo</span>
-            </button>
-
             <button
               type="button"
               onClick={onReset}
@@ -179,18 +197,6 @@ export const Header: React.FC<HeaderProps> = ({
             >
               {isDark ? <Sun className="w-4 h-4 text-amber-500" /> : <Moon className="w-4 h-4" />}
             </button>
-
-            {/* Admin Dashboard shortcut */}
-            <a
-              href="/admin"
-              target="_blank"
-              rel="noreferrer"
-              className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-bold text-slate-700 bg-slate-100 hover:bg-slate-200 border border-slate-300 rounded-lg transition-colors"
-              title="Accéder au panneau d'administration propriétaire (code secret requis)"
-            >
-              <Shield className="w-3.5 h-3.5 text-indigo-600" />
-              <span className="hidden sm:inline">Admin</span>
-            </a>
 
             {/* Teacher Connection Status */}
             {currentLead ? (
@@ -233,11 +239,20 @@ export const Header: React.FC<HeaderProps> = ({
         </div>
 
         {/* Mobile Navigation Tabs (visible under lg) */}
-        <div className="lg:hidden flex items-center justify-around py-2 border-t border-slate-100 gap-1 text-xs">
+        <div className="lg:hidden flex items-center justify-around py-2 border-t border-slate-100 gap-1 text-xs overflow-x-auto">
+          <button
+            type="button"
+            onClick={() => onViewChange('landing')}
+            className={`px-2.5 py-1 rounded-lg font-bold shrink-0 ${
+              activeView === 'landing' ? 'bg-blue-50 text-blue-700' : 'text-slate-600'
+            }`}
+          >
+            Accueil
+          </button>
           <button
             type="button"
             onClick={() => onViewChange('corr')}
-            className={`px-3 py-1 rounded-lg font-bold ${
+            className={`px-2.5 py-1 rounded-lg font-bold shrink-0 ${
               activeView === 'corr' ? 'bg-blue-50 text-blue-700' : 'text-slate-600'
             }`}
           >
@@ -246,7 +261,7 @@ export const Header: React.FC<HeaderProps> = ({
           <button
             type="button"
             onClick={() => onViewChange('classes')}
-            className={`px-3 py-1 rounded-lg font-bold ${
+            className={`px-2.5 py-1 rounded-lg font-bold shrink-0 ${
               activeView === 'classes' ? 'bg-blue-50 text-blue-700' : 'text-slate-600'
             }`}
           >
@@ -255,7 +270,7 @@ export const Header: React.FC<HeaderProps> = ({
           <button
             type="button"
             onClick={() => onViewChange('suivi')}
-            className={`px-3 py-1 rounded-lg font-bold ${
+            className={`px-2.5 py-1 rounded-lg font-bold shrink-0 ${
               activeView === 'suivi' ? 'bg-blue-50 text-blue-700' : 'text-slate-600'
             }`}
           >
@@ -264,7 +279,7 @@ export const Header: React.FC<HeaderProps> = ({
           <button
             type="button"
             onClick={() => onViewChange('hist')}
-            className={`px-3 py-1 rounded-lg font-bold flex items-center gap-1 ${
+            className={`px-2.5 py-1 rounded-lg font-bold shrink-0 flex items-center gap-1 ${
               activeView === 'hist' ? 'bg-blue-50 text-blue-700' : 'text-slate-600'
             }`}
           >
@@ -274,6 +289,15 @@ export const Header: React.FC<HeaderProps> = ({
                 {savedEvalsCount}
               </span>
             )}
+          </button>
+          <button
+            type="button"
+            onClick={() => onViewChange('faq')}
+            className={`px-2.5 py-1 rounded-lg font-bold shrink-0 ${
+              activeView === 'faq' ? 'bg-blue-50 text-blue-700' : 'text-slate-600'
+            }`}
+          >
+            FAQ
           </button>
         </div>
 

@@ -1,5 +1,5 @@
-import React, { useState, useRef } from 'react';
-import { StudentSubmission, AssignmentConfig } from '../types';
+import React, { useState, useRef, useMemo } from 'react';
+import { StudentSubmission, AssignmentConfig, ClassGroup } from '../types';
 import { convertPdfToImages, extractStudentNameFromFileName, compressImageFile } from '../lib/pdfUtils';
 import {
   UploadCloud,
@@ -18,6 +18,9 @@ import {
   ChevronLeft,
   ChevronRight,
   FileCheck2,
+  ArrowLeftRight,
+  Search,
+  X,
 } from 'lucide-react';
 
 interface Step2UploadProps {
@@ -25,8 +28,10 @@ interface Step2UploadProps {
   onSubmissionsChange: (submissions: StudentSubmission[]) => void;
   onNext: () => void;
   onBack: () => void;
-  onLoadDemo: () => void;
+  isRegistered?: boolean;
   config?: AssignmentConfig;
+  classes?: ClassGroup[];
+  onSwapSubmissions?: (subId1: string, subId2: string, mode?: 'names' | 'all') => void;
 }
 
 export const Step2Upload: React.FC<Step2UploadProps> = ({
@@ -34,14 +39,29 @@ export const Step2Upload: React.FC<Step2UploadProps> = ({
   onSubmissionsChange,
   onNext,
   onBack,
-  onLoadDemo,
+  isRegistered = false,
   config,
+  classes = [],
+  onSwapSubmissions,
 }) => {
   const [isDragging, setIsDragging] = useState(false);
   const [isProcessingPdf, setIsProcessingPdf] = useState(false);
   const [pdfProgressText, setPdfProgressText] = useState('');
   const [activeCardPages, setActiveCardPages] = useState<Record<string, number>>({});
+  const [swapModalTargetSub, setSwapModalTargetSub] = useState<StudentSubmission | null>(null);
+  const [swapSearchQuery, setSwapSearchQuery] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // All known students from classes for datalist
+  const allClassStudents = useMemo(() => {
+    const list: string[] = [];
+    classes.forEach((c) => {
+      c.students.forEach((st) => {
+        if (!list.includes(st)) list.push(st);
+      });
+    });
+    return list;
+  }, [classes]);
 
   const handleFiles = async (files: FileList | null) => {
     if (!files || files.length === 0) return;
@@ -215,16 +235,6 @@ export const Step2Upload: React.FC<Step2UploadProps> = ({
         </div>
 
         <div className="flex items-center gap-2 shrink-0">
-          <button
-            type="button"
-            onClick={onLoadDemo}
-            id="btn-load-demo-step2"
-            className="inline-flex items-center gap-2 px-3.5 py-2 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 text-xs font-semibold transition-colors cursor-pointer"
-          >
-            <Sparkles className="w-3.5 h-3.5 text-indigo-600" />
-            <span>Charger 3 copies d'exemple</span>
-          </button>
-
           {submissions.length > 0 && (
             showClearConfirm ? (
               <div className="flex items-center gap-1.5 bg-rose-50 border border-rose-200 rounded-lg p-1">
@@ -374,14 +384,91 @@ export const Step2Upload: React.FC<Step2UploadProps> = ({
       {/* Copies Grid */}
       {submissions.length > 0 ? (
         <div className="space-y-4">
-          <div className="flex items-center justify-between">
-            <h2 className="text-sm font-bold text-slate-800 uppercase tracking-wider flex items-center gap-2">
-              <span>Copies prêtes pour la correction ({submissions.length})</span>
-            </h2>
-            <span className="text-xs text-slate-500">
-              Vous pouvez renommer un élève directement dans le champ prévu
-            </span>
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white p-3.5 rounded-xl border border-slate-200">
+            <div>
+              <h2 className="text-sm font-bold text-slate-800 uppercase tracking-wider flex items-center gap-2">
+                <span>Copies prêtes pour la correction ({submissions.length})</span>
+              </h2>
+              <span className="text-xs text-slate-500">
+                Vous pouvez renommer un élève ou intervertir deux copies directement
+              </span>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2">
+              {/* Quick Class Roster Linker */}
+              {classes.length > 0 && (
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-semibold text-slate-600">Associer classe :</span>
+                  <select
+                    defaultValue=""
+                    onChange={(e) => {
+                      const selected = classes.find((c) => c.id === e.target.value);
+                      if (selected) {
+                        const used = new Set<string>();
+                        const updated = submissions.map((sub) => {
+                          const fLower = (sub.fileName || '').toLowerCase();
+                          const curLower = (sub.studentName || '').toLowerCase();
+                          const match = selected.students.find(
+                            (st) =>
+                              !used.has(st) &&
+                              (fLower.includes(st.toLowerCase()) || curLower === st.toLowerCase())
+                          );
+                          if (match) {
+                            used.add(match);
+                            return { ...sub, studentName: match };
+                          }
+                          return sub;
+                        });
+
+                        const remaining = selected.students.filter((st) => !used.has(st));
+                        let remIdx = 0;
+                        const finalized = updated.map((sub) => {
+                          if (used.has(sub.studentName)) return sub;
+                          const next = remaining[remIdx++];
+                          return next ? { ...sub, studentName: next } : sub;
+                        });
+
+                        onSubmissionsChange(finalized);
+                      }
+                    }}
+                    className="text-xs font-bold px-3 py-1.5 bg-slate-50 border border-slate-300 rounded-lg text-slate-800 focus:ring-2 focus:ring-blue-500 outline-hidden cursor-pointer"
+                  >
+                    <option value="" disabled>
+                      Choisir une classe pour pré-remplir...
+                    </option>
+                    {classes.map((c) => (
+                      <option key={c.id} value={c.id}>
+                        {c.name} ({c.students.length} élèves)
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              {/* Intervertir deux copies button */}
+              {onSwapSubmissions && submissions.length > 1 && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSwapModalTargetSub(submissions[0]);
+                    setSwapSearchQuery('');
+                  }}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200 rounded-lg text-xs font-bold transition-colors cursor-pointer"
+                  title="Ouvrir la liste pour intervertir deux copies facilement"
+                >
+                  <ArrowLeftRight className="w-3.5 h-3.5 text-amber-600" />
+                  <span>Intervertir des copies</span>
+                </button>
+              )}
+            </div>
           </div>
+
+          {/* Datalist for autocomplete */}
+          <datalist id="class-students-datalist">
+            {allClassStudents.map((st) => (
+              <option key={st} value={st} />
+            ))}
+          </datalist>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-3 gap-4">
             {submissions.map((sub, index) => {
@@ -394,10 +481,10 @@ export const Step2Upload: React.FC<Step2UploadProps> = ({
                 <div
                   key={sub.id}
                   id={`student-card-${sub.id}`}
-                  className="bg-white rounded-xl border border-slate-200 shadow-2xs overflow-hidden flex flex-col hover:border-slate-300 transition-all group"
+                  className="bg-white rounded-xl border border-slate-200 shadow-2xs flex flex-col hover:border-slate-300 transition-all group relative"
                 >
                   {/* Image Preview with page navigation */}
-                  <div className="relative aspect-4/3 bg-slate-100 overflow-hidden flex items-center justify-center border-b border-slate-100">
+                  <div className="relative aspect-4/3 bg-slate-100 overflow-hidden rounded-t-xl flex items-center justify-center border-b border-slate-100">
                     <img
                       src={currentDisplayImage}
                       alt={sub.studentName}
@@ -497,14 +584,33 @@ export const Step2Upload: React.FC<Step2UploadProps> = ({
                         </label>
                       </div>
 
-                      <input
-                        id={`name-input-${sub.id}`}
-                        type="text"
-                        value={sub.studentName}
-                        onChange={(e) => handleNameChange(sub.id, e.target.value)}
-                        placeholder="Nom de l'élève..."
-                        className="w-full px-2.5 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-sm font-semibold text-slate-900 focus:bg-white focus:ring-2 focus:ring-blue-500 outline-hidden transition-all"
-                      />
+                      <div className="relative">
+                        <div className="flex items-center gap-1.5">
+                          <input
+                            id={`name-input-${sub.id}`}
+                            type="text"
+                            list="class-students-datalist"
+                            value={sub.studentName}
+                            onChange={(e) => handleNameChange(sub.id, e.target.value)}
+                            placeholder="Nom de l'élève..."
+                            className="w-full px-2.5 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-sm font-semibold text-slate-900 focus:bg-white focus:ring-2 focus:ring-blue-500 outline-hidden transition-all"
+                          />
+
+                          {onSwapSubmissions && submissions.length > 1 && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setSwapModalTargetSub(sub);
+                                setSwapSearchQuery('');
+                              }}
+                              className="p-1.5 rounded-lg border border-slate-200 text-slate-400 hover:text-amber-600 hover:bg-amber-50 hover:border-amber-300 transition-colors cursor-pointer shrink-0"
+                              title="Intervertir cette copie avec un autre élève"
+                            >
+                              <ArrowLeftRight className="w-3.5 h-3.5" />
+                            </button>
+                          )}
+                        </div>
+                      </div>
                     </div>
 
                     <div className="flex items-center justify-between text-[11px] text-slate-500 pt-1.5 border-t border-slate-100">
@@ -524,42 +630,161 @@ export const Step2Upload: React.FC<Step2UploadProps> = ({
         </div>
       ) : (
         <div className="p-8 text-center bg-slate-50 border border-slate-200 rounded-xl">
-          <AlertCircle className="w-8 h-8 text-slate-400 mx-auto mb-2" />
+          <UploadCloud className="w-8 h-8 text-slate-400 mx-auto mb-2" />
           <p className="text-sm font-semibold text-slate-700">Aucune copie déposée pour le moment</p>
           <p className="text-xs text-slate-500 mt-1">
-            Déposez des images ou cliquez sur "Charger 3 copies d'exemple" pour tester immédiatement la correction IA.
+            Déposez les scans PDF ou photos de vos vraies copies d'élèves ci-dessus pour préparer la correction IA.
           </p>
         </div>
       )}
 
       {/* Navigation Footer */}
-      <div className="flex items-center justify-between pt-6 border-t border-slate-200">
+      <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-6 border-t border-slate-200">
         <button
           type="button"
           onClick={onBack}
           id="btn-step2-back"
-          className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl border border-slate-300 text-slate-700 hover:bg-slate-100 text-sm font-semibold transition-colors cursor-pointer"
+          className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl border border-slate-300 text-slate-700 hover:bg-slate-100 text-sm font-semibold transition-colors cursor-pointer"
         >
           <ArrowLeft className="w-4 h-4" />
           <span>Retour à la configuration</span>
         </button>
 
-        <button
-          type="button"
-          onClick={onNext}
-          disabled={submissions.length === 0}
-          id="btn-step2-launch"
-          className={`inline-flex items-center gap-2 px-6 py-3 rounded-xl font-bold text-sm transition-all shadow-xs cursor-pointer ${
-            submissions.length > 0
-              ? 'bg-blue-600 hover:bg-blue-700 text-white shadow-blue-600/20 hover:shadow-md'
-              : 'bg-slate-200 text-slate-400 cursor-not-allowed'
-          }`}
-        >
-          <Sparkles className="w-4 h-4" />
-          <span>Lancer la correction IA ({submissions.length} {submissions.length > 1 ? 'copies' : 'copie'})</span>
-          <ArrowRight className="w-4 h-4" />
-        </button>
+        <div className="flex flex-col items-center sm:items-end gap-1.5 w-full sm:w-auto">
+          <button
+            type="button"
+            onClick={onNext}
+            disabled={submissions.length === 0}
+            id="btn-step2-launch"
+            className={`w-full sm:w-auto inline-flex items-center justify-center gap-2 px-6 py-3 rounded-xl font-bold text-sm transition-all shadow-xs cursor-pointer ${
+              submissions.length > 0
+                ? 'bg-blue-600 hover:bg-blue-700 text-white shadow-blue-600/20 hover:shadow-md'
+                : 'bg-slate-200 text-slate-400 cursor-not-allowed'
+            }`}
+          >
+            <Sparkles className="w-4 h-4" />
+            <span>
+              {isRegistered
+                ? `Lancer la correction IA (${submissions.length} ${submissions.length > 1 ? 'copies' : 'copie'})`
+                : `S'inscrire et lancer la correction IA (${submissions.length} ${submissions.length > 1 ? 'copies' : 'copie'})`}
+            </span>
+            <ArrowRight className="w-4 h-4" />
+          </button>
+
+          {!isRegistered && submissions.length > 0 && (
+            <span className="text-[11px] text-amber-700 font-medium">
+              🔒 Inscription gratuite obligatoire pour lancer la correction de la démo
+            </span>
+          )}
+        </div>
       </div>
+
+      {/* Dedicated Swap Copies Modal with search filter and full scrolling */}
+      {swapModalTargetSub && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in">
+          <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 max-w-lg w-full p-5 space-y-4 max-h-[90vh] flex flex-col">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100 shrink-0">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-xl bg-amber-100 text-amber-800 flex items-center justify-center shrink-0">
+                  <ArrowLeftRight className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-extrabold text-slate-900 text-sm">
+                    Intervertir la copie
+                  </h3>
+                  <p className="text-xs text-slate-500">
+                    Copie sélectionnée : <strong className="text-slate-800">{swapModalTargetSub.studentName}</strong> ({swapModalTargetSub.fileName})
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSwapModalTargetSub(null)}
+                className="p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg cursor-pointer transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="relative shrink-0">
+              <Search className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
+              <input
+                type="text"
+                placeholder="Rechercher par nom d'élève ou fichier (ex: Sean, Sass)..."
+                value={swapSearchQuery}
+                onChange={(e) => setSwapSearchQuery(e.target.value)}
+                className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-900 focus:bg-white focus:ring-2 focus:ring-blue-500 outline-hidden"
+                autoFocus
+              />
+            </div>
+
+            <div className="text-[11px] font-bold text-slate-500 uppercase tracking-wider px-1 shrink-0">
+              Sélectionnez la copie avec laquelle permuter ({submissions.filter((s) => s.id !== swapModalTargetSub.id).length} élèves) :
+            </div>
+
+            {/* Scrollable list with zero clipping and high visibility */}
+            <div className="overflow-y-auto space-y-2 pr-1 flex-1 min-h-0 divide-y divide-slate-100 max-h-72">
+              {submissions
+                .filter((s) => s.id !== swapModalTargetSub.id)
+                .filter((s) => {
+                  if (!swapSearchQuery.trim()) return true;
+                  const q = swapSearchQuery.toLowerCase();
+                  return (
+                    s.studentName.toLowerCase().includes(q) ||
+                    (s.fileName || '').toLowerCase().includes(q)
+                  );
+                })
+                .map((other) => (
+                  <div
+                    key={other.id}
+                    className="pt-2 first:pt-0 flex items-center justify-between gap-3 p-2.5 rounded-xl hover:bg-slate-50 border border-transparent hover:border-slate-200 transition-colors"
+                  >
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div className="w-10 h-10 rounded-lg bg-slate-100 border border-slate-200 overflow-hidden shrink-0 flex items-center justify-center">
+                        <img
+                          src={other.imageDataUrl}
+                          alt=""
+                          className="w-full h-full object-cover"
+                        />
+                      </div>
+                      <div className="truncate">
+                        <span className="font-bold text-slate-900 text-sm block truncate">
+                          {other.studentName}
+                        </span>
+                        <span className="text-xs text-slate-500 truncate block">
+                          Fichier : {other.fileName} {other.allPages && other.allPages.length > 1 ? `(${other.allPages.length} pages)` : '(1 page)'}
+                        </span>
+                      </div>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        onSwapSubmissions?.(swapModalTargetSub.id, other.id, 'names');
+                        setSwapModalTargetSub(null);
+                      }}
+                      className="px-3.5 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-600 text-white text-xs font-extrabold transition-colors cursor-pointer shrink-0 flex items-center gap-1.5 shadow-2xs"
+                    >
+                      <ArrowLeftRight className="w-3.5 h-3.5" />
+                      <span>Échanger</span>
+                    </button>
+                  </div>
+                ))}
+            </div>
+
+            <div className="pt-3 border-t border-slate-100 flex items-center justify-between shrink-0 text-xs text-slate-500">
+              <span>Permute instantanément les attributions de copies.</span>
+              <button
+                type="button"
+                onClick={() => setSwapModalTargetSub(null)}
+                className="px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold transition-colors cursor-pointer"
+              >
+                Fermer
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

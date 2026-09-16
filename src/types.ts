@@ -84,6 +84,7 @@ export interface CorrectionResult {
   competences: CompetenceItem[];
   questions: QuestionEvaluation[];
   texte_transcrit_resume?: string;
+  nom_manuscrit_detecte?: string;
   lisibilite?: 'excellente' | 'bonne' | 'moyenne' | 'faible' | 'illisible';
   avertissement_lisibilite?: string;
   verification_humaine_recommandee?: boolean;
@@ -101,11 +102,24 @@ export interface ClassMetrics {
   successRate: number; // percentage >= 50%
 }
 
+export interface ClassEvaluation {
+  id: string;
+  title: string;
+  date: string;
+  discipline?: string;
+  maxGrade: number;
+  grades: Record<string, number>; // studentName -> grade
+  savedEvaluationId?: string;
+}
+
 export interface ClassGroup {
   id: string;
   name: string;
+  level?: string;
+  discipline?: string;
   students: string[];
   createdAt: string;
+  evaluations?: ClassEvaluation[];
 }
 
 export interface SavedEvaluation {
@@ -119,6 +133,10 @@ export interface SavedEvaluation {
   submissions: StudentSubmission[];
   metrics: ClassMetrics;
   teacherComments?: string;
+  classId?: string;
+  className?: string;
+  isValidated?: boolean;
+  validatedAt?: string;
 }
 
 export interface LeadData {
@@ -128,4 +146,66 @@ export interface LeadData {
   school?: string;
 }
 
-export type MainView = 'corr' | 'classes' | 'suivi' | 'hist';
+export type MainView = 'landing' | 'corr' | 'classes' | 'suivi' | 'hist' | 'dashboard' | 'faq';
+
+export type SaaSPlan = 'free' | 'trial' | 'monthly' | 'annual' | 'institution';
+export type AccountStatus = 'active' | 'trial' | 'paused' | 'inactive' | 'canceled';
+
+export interface TransactionRecord {
+  id: string;
+  teacherId: string;
+  teacherName: string;
+  teacherEmail: string;
+  date: string;
+  amount: number;
+  currency: string;
+  plan: SaaSPlan;
+  status: 'succeeded' | 'refunded' | 'pending';
+  paymentMethod: string;
+  description: string;
+  refundReason?: string;
+  refundedAt?: string;
+}
+
+export interface TeacherAccount {
+  id: string;
+  name: string;
+  email: string;
+  whatsapp: string;
+  school: string;
+  city?: string;
+  plan: SaaSPlan;
+  status: AccountStatus;
+  notes: string;
+  createdAt: string;
+  lastActiveAt?: string;
+  copiesCorrected: number;
+  quota: number;
+  totalSpent: number;
+  renewalDate?: string;
+  trialDaysLeft?: number;
+  transactions?: TransactionRecord[];
+}
+
+export interface AdminKPISummary {
+  mrr: number;
+  arr: number;
+  totalTeachers: number;
+  freeCount: number;
+  trialCount: number;
+  paidCount: number;
+  activeSubscribers: number;
+  conversionRate: number;
+  newTeachers30d: number;
+  growthRate30d: number;
+  activeTrials: number;
+  arpu: number;
+  mrrMonthlyHistory: Array<{ month: string; mrr: number; users: number; paidUsers: number }>;
+  planDistribution: {
+    free: number;
+    trial: number;
+    monthly: number;
+    annual: number;
+    institution: number;
+  };
+}

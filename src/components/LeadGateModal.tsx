@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Sparkles, GraduationCap, X, Check, Lock, ArrowRight, LogIn, UserPlus } from 'lucide-react';
+import { Sparkles, GraduationCap, X, Lock, ArrowRight, LogIn, UserPlus, CheckCircle2, ShieldCheck } from 'lucide-react';
 import { LeadData } from '../types';
 
 interface LeadGateModalProps {
@@ -16,6 +16,7 @@ export const LeadGateModal: React.FC<LeadGateModalProps> = ({
   const [mode, setMode] = useState<'register' | 'login'>('register');
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
+  const [discipline, setDiscipline] = useState('');
   const [whatsapp, setWhatsapp] = useState('');
   const [school, setSchool] = useState('');
   const [loading, setLoading] = useState(false);
@@ -26,7 +27,7 @@ export const LeadGateModal: React.FC<LeadGateModalProps> = ({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!email.trim() && !whatsapp.trim()) {
-      setErrorMsg('Veuillez renseigner au moins votre email ou numéro WhatsApp.');
+      setErrorMsg('Veuillez renseigner votre adresse email.');
       return;
     }
 
@@ -38,8 +39,9 @@ export const LeadGateModal: React.FC<LeadGateModalProps> = ({
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          name: name.trim() || (mode === 'login' ? 'Enseignant' : 'Enseignant'),
+          name: name.trim() || 'Enseignant',
           email: email.trim(),
+          discipline: discipline.trim(),
           whatsapp: whatsapp.trim(),
           school: school.trim(),
         }),
@@ -77,31 +79,33 @@ export const LeadGateModal: React.FC<LeadGateModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/75 backdrop-blur-sm animate-in fade-in duration-200">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-xs animate-in fade-in duration-200">
       <div className="bg-white w-full max-w-md rounded-2xl shadow-2xl border border-slate-200 overflow-hidden relative">
-        {/* Close / Skip button */}
+        {/* Close button */}
         <button
           type="button"
           onClick={onClose}
           id="btn-close-lead-modal"
           className="absolute top-4 right-4 p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer z-10"
-          title="Fermer"
+          title="Fermer et rester sur les copies"
         >
           <X className="w-5 h-5" />
         </button>
 
         {/* Modal Header */}
-        <div className="p-6 text-center border-b border-slate-100 bg-gradient-to-b from-blue-50/70 to-white">
-          <div className="w-12 h-12 rounded-2xl bg-blue-600 text-white flex items-center justify-center mx-auto mb-3 shadow-md">
-            <GraduationCap className="w-6 h-6" />
+        <div className="p-6 text-center border-b border-slate-100 bg-gradient-to-b from-blue-50/80 to-white">
+          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-100 text-emerald-800 text-xs font-bold mb-3 border border-emerald-200">
+            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+            <span>Démo 100% Gratuite • Aucun paiement</span>
           </div>
+
           <h3 className="text-xl font-extrabold text-slate-900 tracking-tight">
-            Bienvenue sur PRAXIS
+            {mode === 'register' ? 'Inscription Enseignant Démo' : 'Connexion Enseignant'}
           </h3>
-          <p className="text-xs text-slate-500 mt-1 max-w-xs mx-auto leading-relaxed">
+          <p className="text-xs text-slate-600 mt-1.5 max-w-xs mx-auto leading-relaxed">
             {mode === 'register'
-              ? 'Renseignez vos coordonnées pour activer la correction IA instantanée et recevoir le compte-rendu pédagogique de votre classe.'
-              : 'Connectez-vous pour retrouver vos corrections et vos devoirs sauvegardés.'}
+              ? 'Veuillez renseigner vos coordonnées pour lancer la correction IA. Accès direct et immédiat pour tester vos vraies copies.'
+              : 'Connectez-vous pour retrouver votre profil et lancer la correction de vos copies.'}
           </p>
 
           {/* Mode switch */}
@@ -136,18 +140,18 @@ export const LeadGateModal: React.FC<LeadGateModalProps> = ({
         </div>
 
         {/* Form */}
-        <form onSubmit={handleSubmit} className="p-6 space-y-4">
+        <form onSubmit={handleSubmit} className="p-6 space-y-3.5">
           {mode === 'register' && (
             <div>
               <label className="block text-xs font-bold text-slate-700 mb-1">
-                Nom complet ou Titre
+                Nom complet ou Titre <span className="text-rose-500">*</span>
               </label>
               <input
                 type="text"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
-                placeholder="Ex : M. Dupont / Mme Traoré"
-                className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs text-slate-900 focus:bg-white focus:ring-2 focus:ring-blue-500 outline-none transition-all"
+                placeholder="Ex : M. Dupont, Mme Traoré..."
+                className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs text-slate-900 focus:bg-white focus:ring-2 focus:ring-blue-500 outline-hidden transition-all"
                 required={mode === 'register'}
               />
             </div>
@@ -155,15 +159,15 @@ export const LeadGateModal: React.FC<LeadGateModalProps> = ({
 
           <div>
             <label className="block text-xs font-bold text-slate-700 mb-1 flex items-center justify-between">
-              <span>Adresse Email Professionnelle</span>
+              <span>Adresse Email Professionnelle ou Personnelle</span>
               <span className="text-rose-500 font-bold">*</span>
             </label>
             <input
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              placeholder="votre.email@ac-paris.fr ou ecole.org"
-              className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs text-slate-900 focus:bg-white focus:ring-2 focus:ring-blue-500 outline-none transition-all"
+              placeholder="votre.email@ac-academie.fr ou gmail.com"
+              className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs text-slate-900 focus:bg-white focus:ring-2 focus:ring-blue-500 outline-hidden transition-all"
               required
             />
           </div>
@@ -171,16 +175,29 @@ export const LeadGateModal: React.FC<LeadGateModalProps> = ({
           {mode === 'register' && (
             <>
               <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">
+                  Matière enseignée <span className="font-normal text-slate-400">(optionnel)</span>
+                </label>
+                <input
+                  type="text"
+                  value={discipline}
+                  onChange={(e) => setDiscipline(e.target.value)}
+                  placeholder="Ex : Mathématiques, Français, Histoire..."
+                  className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs text-slate-900 focus:bg-white focus:ring-2 focus:ring-blue-500 outline-hidden transition-all"
+                />
+              </div>
+
+              <div>
                 <label className="block text-xs font-bold text-slate-700 mb-1 flex items-center justify-between">
-                  <span>Numéro WhatsApp (Support & Accès direct)</span>
-                  <span className="text-emerald-600 font-medium text-[11px]">📱 Recommandé</span>
+                  <span>Numéro WhatsApp / Téléphone</span>
+                  <span className="font-normal text-slate-400 text-[11px]">Optionnel</span>
                 </label>
                 <input
                   type="tel"
                   value={whatsapp}
                   onChange={(e) => setWhatsapp(e.target.value)}
-                  placeholder="+33 6 12 34 56 78 ou +225 07..."
-                  className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs text-slate-900 focus:bg-white focus:ring-2 focus:ring-blue-500 outline-none transition-all"
+                  placeholder="+33 6 12 34 56 78"
+                  className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs text-slate-900 focus:bg-white focus:ring-2 focus:ring-blue-500 outline-hidden transition-all"
                 />
               </div>
 
@@ -192,8 +209,8 @@ export const LeadGateModal: React.FC<LeadGateModalProps> = ({
                   type="text"
                   value={school}
                   onChange={(e) => setSchool(e.target.value)}
-                  placeholder="Ex : Collège Jean Moulin, Abidjan, Lyon..."
-                  className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs text-slate-900 focus:bg-white focus:ring-2 focus:ring-blue-500 outline-none transition-all"
+                  placeholder="Ex : Collège Jean Moulin, Lycée Victor Hugo..."
+                  className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs text-slate-900 focus:bg-white focus:ring-2 focus:ring-blue-500 outline-hidden transition-all"
                 />
               </div>
             </>
@@ -213,28 +230,32 @@ export const LeadGateModal: React.FC<LeadGateModalProps> = ({
               className="w-full py-3 px-4 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-sm shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-60"
             >
               {loading ? (
-                <span>Validation en cours...</span>
+                <span>Validation de votre accès...</span>
               ) : (
                 <>
                   <Sparkles className="w-4 h-4" />
-                  <span>{mode === 'register' ? 'Accéder à la correction' : 'Se connecter & Accéder'}</span>
+                  <span>
+                    {mode === 'register'
+                      ? "Valider l'inscription et lancer la correction"
+                      : 'Se connecter et lancer la correction'}
+                  </span>
                   <ArrowRight className="w-4 h-4" />
                 </>
               )}
             </button>
           </div>
 
-          <div className="flex items-center justify-between text-[11px] text-slate-400 pt-1">
-            <span className="flex items-center gap-1">
-              <Lock className="w-3 h-3 text-slate-400" />
-              Données strictement confidentielles
+          <div className="flex items-center justify-between text-[11px] text-slate-500 pt-1">
+            <span className="flex items-center gap-1 text-slate-500">
+              <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
+              100% gratuit • Sans carte bancaire
             </span>
             <button
               type="button"
               onClick={onClose}
-              className="text-slate-500 hover:text-slate-800 underline cursor-pointer"
+              className="text-slate-400 hover:text-slate-600 cursor-pointer"
             >
-              Passer pour le moment
+              Fermer
             </button>
           </div>
         </form>

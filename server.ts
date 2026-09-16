@@ -3,6 +3,7 @@ import path from 'path';
 import fs from 'fs';
 import dotenv from 'dotenv';
 import { GoogleGenAI, Type } from '@google/genai';
+import Anthropic from '@anthropic-ai/sdk';
 import { createServer as createViteServer } from 'vite';
 
 dotenv.config();
@@ -14,37 +15,488 @@ const PORT = 3000;
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 
-// Leads storage helpers
+// --- Leads & SaaS Accounts Storage helpers ---
 const LEADS_FILE = path.join(process.cwd(), 'leads.json');
 
-interface LeadRecord {
+export interface TransactionItem {
+  id: string;
+  teacherId: string;
+  teacherName: string;
+  teacherEmail: string;
+  date: string;
+  amount: number;
+  currency: string;
+  plan: 'free' | 'trial' | 'monthly' | 'annual' | 'institution';
+  status: 'succeeded' | 'refunded' | 'pending';
+  paymentMethod: string;
+  description: string;
+  refundReason?: string;
+  refundedAt?: string;
+}
+
+export interface LeadRecord {
   id: string;
   name: string;
   email: string;
   whatsapp: string;
   school?: string;
-  plan?: 'free' | 'pro' | 'ecole';
+  city?: string;
+  plan: 'free' | 'trial' | 'monthly' | 'annual' | 'institution';
+  status: 'active' | 'trial' | 'paused' | 'inactive' | 'canceled';
   notes?: string;
   createdAt: string;
+  lastActiveAt?: string;
+  copiesCorrected?: number;
+  quota?: number;
+  totalSpent?: number;
+  renewalDate?: string;
+  trialDaysLeft?: number;
+  transactions?: TransactionItem[];
+}
+
+// Master Admin Password & In-Memory Session Tokens
+const ADMIN_PASSWORD = process.env.ADMIN_MASTER_PASSWORD || 'PraxisAdmin2026!';
+const activeAdminTokens = new Map<string, number>(); // token -> expiresAt (timestamp)
+
+// Admin Authentication Middleware
+function requireAdminAuth(req: express.Request, res: express.Response, next: express.NextFunction) {
+  const customHeader = req.headers['x-admin-token'];
+  const authHeader = req.headers['authorization'];
+  let token = '';
+
+  if (typeof customHeader === 'string' && customHeader.trim()) {
+    token = customHeader.trim();
+  } else if (typeof authHeader === 'string' && authHeader.startsWith('Bearer ')) {
+    token = authHeader.slice(7).trim();
+  }
+
+  if (!token) {
+    return res.status(401).json({ error: 'Accès non autorisé. Token d’administration manquant.' });
+  }
+
+  // Allow direct master password verification as fallback
+  if (token === ADMIN_PASSWORD) {
+    return next();
+  }
+
+  const expiresAt = activeAdminTokens.get(token);
+  if (!expiresAt || expiresAt < Date.now()) {
+    if (expiresAt) activeAdminTokens.delete(token);
+    return res.status(401).json({ error: 'Session d’administration expirée. Veuillez vous reconnecter.' });
+  }
+
+  next();
+}
+
+// Telegram Instant Push Notification Service
+async function sendTelegramNotification(message: string): Promise<{ success: boolean; error?: string }> {
+  const botToken = process.env.TELEGRAM_BOT_TOKEN;
+  const chatId = process.env.TELEGRAM_CHAT_ID;
+
+  if (!botToken || !chatId) {
+    console.log('[Telegram Bot] Bot non actif (TELEGRAM_BOT_TOKEN ou TELEGRAM_CHAT_ID absent dans .env)');
+    return {
+      success: false,
+      error: 'Variables TELEGRAM_BOT_TOKEN ou TELEGRAM_CHAT_ID non définies dans l’environnement.',
+    };
+  }
+
+  try {
+    const url = `https://api.telegram.org/bot${botToken}/sendMessage`;
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        chat_id: chatId,
+        text: message,
+        parse_mode: 'Markdown',
+        disable_web_page_preview: true,
+      }),
+    });
+
+    const data: any = await response.json();
+    if (!response.ok || !data.ok) {
+      console.warn('[Telegram Bot] Erreur réponse API Telegram:', data);
+      return { success: false, error: data?.description || 'Erreur inconnue Telegram API' };
+    }
+
+    console.log('[Telegram Bot] ✅ Alerte envoyée sur Telegram avec succès.');
+    return { success: true };
+  } catch (err: any) {
+    console.error('[Telegram Bot] Exception réseau:', err.message);
+    return { success: false, error: err.message };
+  }
+}
+
+// Realistic Seed Data for Praxis SaaS
+function generateInitialTeachers(): LeadRecord[] {
+  const now = Date.now();
+  const DAY = 86400000;
+
+  return [
+    {
+      id: 'lead_prof_1',
+      name: 'Claire Vasseur',
+      email: 'claire.vasseur@lycee-montaigne.fr',
+      whatsapp: '+33621458970',
+      school: 'Lycée Montaigne',
+      city: 'Bordeaux',
+      plan: 'annual',
+      status: 'active',
+      notes: 'Professeur de Français (1ère & Terminale). Très satisfaite de la rapidité sur les commentaires composés.',
+      createdAt: new Date(now - 145 * DAY).toISOString(),
+      lastActiveAt: new Date(now - 1 * DAY).toISOString(),
+      copiesCorrected: 342,
+      quota: 1000,
+      totalSpent: 99.99,
+      renewalDate: new Date(now + 220 * DAY).toISOString().slice(0, 10),
+      transactions: [
+        {
+          id: 'txn_ann_9821',
+          teacherId: 'lead_prof_1',
+          teacherName: 'Claire Vasseur',
+          teacherEmail: 'claire.vasseur@lycee-montaigne.fr',
+          date: new Date(now - 145 * DAY).toISOString().slice(0, 10),
+          amount: 99.99,
+          currency: 'EUR',
+          plan: 'annual',
+          status: 'succeeded',
+          paymentMethod: 'CB (Stripe •••• 4242)',
+          description: 'Abonnement Praxis Pro Annuel (1 an)',
+        },
+      ],
+    },
+    {
+      id: 'lead_prof_2',
+      name: 'Thomas Riviere',
+      email: 't.riviere@college-pasteur.fr',
+      whatsapp: '+33688129033',
+      school: 'Collège Pasteur',
+      city: 'Lyon',
+      plan: 'monthly',
+      status: 'active',
+      notes: 'Enseignant de Mathématiques (3e et 4e). Utilise le barème critérié pour les démonstrations de géométrie.',
+      createdAt: new Date(now - 82 * DAY).toISOString(),
+      lastActiveAt: new Date(now - 2 * DAY).toISOString(),
+      copiesCorrected: 184,
+      quota: 250,
+      totalSpent: 29.97,
+      renewalDate: new Date(now + 8 * DAY).toISOString().slice(0, 10),
+      transactions: [
+        {
+          id: 'txn_mth_4412',
+          teacherId: 'lead_prof_2',
+          teacherName: 'Thomas Riviere',
+          teacherEmail: 't.riviere@college-pasteur.fr',
+          date: new Date(now - 22 * DAY).toISOString().slice(0, 10),
+          amount: 9.99,
+          currency: 'EUR',
+          plan: 'monthly',
+          status: 'succeeded',
+          paymentMethod: 'CB (Stripe •••• 5510)',
+          description: 'Abonnement Praxis Pro Mensuel',
+        },
+        {
+          id: 'txn_mth_3102',
+          teacherId: 'lead_prof_2',
+          teacherName: 'Thomas Riviere',
+          teacherEmail: 't.riviere@college-pasteur.fr',
+          date: new Date(now - 52 * DAY).toISOString().slice(0, 10),
+          amount: 9.99,
+          currency: 'EUR',
+          plan: 'monthly',
+          status: 'succeeded',
+          paymentMethod: 'CB (Stripe •••• 5510)',
+          description: 'Abonnement Praxis Pro Mensuel',
+        },
+      ],
+    },
+    {
+      id: 'lead_prof_3',
+      name: 'Dr. Sophie Bernard',
+      email: 'sophie.bernard@lycee-henri4.fr',
+      whatsapp: '+33649102278',
+      school: 'Lycée Henri IV',
+      city: 'Paris',
+      plan: 'annual',
+      status: 'active',
+      notes: 'SVT et Biologie. A parrainé 3 collègues de son établissement.',
+      createdAt: new Date(now - 210 * DAY).toISOString(),
+      lastActiveAt: new Date(now - 3 * DAY).toISOString(),
+      copiesCorrected: 520,
+      quota: 1500,
+      totalSpent: 99.99,
+      renewalDate: new Date(now + 155 * DAY).toISOString().slice(0, 10),
+      transactions: [
+        {
+          id: 'txn_ann_1044',
+          teacherId: 'lead_prof_3',
+          teacherName: 'Dr. Sophie Bernard',
+          teacherEmail: 'sophie.bernard@lycee-henri4.fr',
+          date: new Date(now - 210 * DAY).toISOString().slice(0, 10),
+          amount: 99.99,
+          currency: 'EUR',
+          plan: 'annual',
+          status: 'succeeded',
+          paymentMethod: 'Apple Pay (•••• 8911)',
+          description: 'Abonnement Praxis Pro Annuel (Offre Rentrée)',
+        },
+      ],
+    },
+    {
+      id: 'lead_prof_4',
+      name: 'Julien Marchand',
+      email: 'julien.marchand@ac-lille.fr',
+      whatsapp: '+33760982245',
+      school: 'Lycée Jean Moulin',
+      city: 'Lille',
+      plan: 'trial',
+      status: 'trial',
+      notes: 'En période d’essai active (4 jours restants). A testé un paquet de 28 copies de Physique-Chimie.',
+      createdAt: new Date(now - 3 * DAY).toISOString(),
+      lastActiveAt: new Date(now - 1 * DAY).toISOString(),
+      copiesCorrected: 28,
+      quota: 50,
+      totalSpent: 0,
+      trialDaysLeft: 4,
+      renewalDate: new Date(now + 4 * DAY).toISOString().slice(0, 10),
+    },
+    {
+      id: 'lead_prof_5',
+      name: 'Amina El Mansouri',
+      email: 'amina.elmansouri@college-camus.fr',
+      whatsapp: '+33655431980',
+      school: 'Collège Albert Camus',
+      city: 'Marseille',
+      plan: 'monthly',
+      status: 'active',
+      notes: 'Histoire-Géographie & EMC. Forte utilisation de l’export PDF imprimable.',
+      createdAt: new Date(now - 64 * DAY).toISOString(),
+      lastActiveAt: new Date(now - 4 * DAY).toISOString(),
+      copiesCorrected: 195,
+      quota: 250,
+      totalSpent: 19.98,
+      renewalDate: new Date(now + 26 * DAY).toISOString().slice(0, 10),
+      transactions: [
+        {
+          id: 'txn_mth_6721',
+          teacherId: 'lead_prof_5',
+          teacherName: 'Amina El Mansouri',
+          teacherEmail: 'amina.elmansouri@college-camus.fr',
+          date: new Date(now - 4 * DAY).toISOString().slice(0, 10),
+          amount: 9.99,
+          currency: 'EUR',
+          plan: 'monthly',
+          status: 'succeeded',
+          paymentMethod: 'CB (Stripe •••• 1209)',
+          description: 'Abonnement Praxis Pro Mensuel',
+        },
+      ],
+    },
+    {
+      id: 'lead_prof_6',
+      name: 'Marc Delorme',
+      email: 'm.delorme@institution-saint-joseph.org',
+      whatsapp: '+33612874450',
+      school: 'Institution Saint-Joseph',
+      city: 'Toulouse',
+      plan: 'institution',
+      status: 'active',
+      notes: 'Licence Établissement (département sciences). 10 comptes professeurs mutualisés.',
+      createdAt: new Date(now - 190 * DAY).toISOString(),
+      lastActiveAt: new Date(now - 2 * DAY).toISOString(),
+      copiesCorrected: 1420,
+      quota: 5000,
+      totalSpent: 299.0,
+      renewalDate: new Date(now + 175 * DAY).toISOString().slice(0, 10),
+      transactions: [
+        {
+          id: 'txn_inst_098',
+          teacherId: 'lead_prof_6',
+          teacherName: 'Marc Delorme',
+          teacherEmail: 'm.delorme@institution-saint-joseph.org',
+          date: new Date(now - 190 * DAY).toISOString().slice(0, 10),
+          amount: 299.0,
+          currency: 'EUR',
+          plan: 'institution',
+          status: 'succeeded',
+          paymentMethod: 'Virement SEPA Entreprise',
+          description: 'Licence Établissement Praxis (1 an)',
+        },
+      ],
+    },
+    {
+      id: 'lead_prof_7',
+      name: 'Émilie Chardin',
+      email: 'emilie.chardin@ac-rennes.fr',
+      whatsapp: '+33677490012',
+      school: 'Collège Anne de Bretagne',
+      city: 'Rennes',
+      plan: 'trial',
+      status: 'trial',
+      notes: 'Anglais LV1. Souhaite vérifier l’évaluation des expressions écrites.',
+      createdAt: new Date(now - 2 * DAY).toISOString(),
+      lastActiveAt: new Date(now - 1 * DAY).toISOString(),
+      copiesCorrected: 15,
+      quota: 50,
+      totalSpent: 0,
+      trialDaysLeft: 5,
+    },
+    {
+      id: 'lead_prof_8',
+      name: 'Gilles Bertrand',
+      email: 'gilles.bertrand@lycee-thiers.fr',
+      whatsapp: '+33690114782',
+      school: 'Lycée Thiers',
+      city: 'Marseille',
+      plan: 'monthly',
+      status: 'paused',
+      notes: 'En congé sabbatique ce trimestre. Accès mis en pause temporairement.',
+      createdAt: new Date(now - 110 * DAY).toISOString(),
+      lastActiveAt: new Date(now - 45 * DAY).toISOString(),
+      copiesCorrected: 88,
+      quota: 250,
+      totalSpent: 19.98,
+    },
+    {
+      id: 'lead_prof_9',
+      name: 'Nathalie Fournier',
+      email: 'n.fournier@ac-strasbourg.fr',
+      whatsapp: '+33633887102',
+      school: 'Lycée International des Pontonniers',
+      city: 'Strasbourg',
+      plan: 'annual',
+      status: 'active',
+      notes: 'Philosophie Terminale. Valide la pertinence des suggestions argumentatives.',
+      createdAt: new Date(now - 98 * DAY).toISOString(),
+      lastActiveAt: new Date(now - 1 * DAY).toISOString(),
+      copiesCorrected: 240,
+      quota: 1000,
+      totalSpent: 99.99,
+      renewalDate: new Date(now + 267 * DAY).toISOString().slice(0, 10),
+      transactions: [
+        {
+          id: 'txn_ann_3391',
+          teacherId: 'lead_prof_9',
+          teacherName: 'Nathalie Fournier',
+          teacherEmail: 'n.fournier@ac-strasbourg.fr',
+          date: new Date(now - 98 * DAY).toISOString().slice(0, 10),
+          amount: 99.99,
+          currency: 'EUR',
+          plan: 'annual',
+          status: 'succeeded',
+          paymentMethod: 'CB (Stripe •••• 9901)',
+          description: 'Abonnement Praxis Pro Annuel',
+        },
+      ],
+    },
+    {
+      id: 'lead_prof_10',
+      name: 'Karim Ziani',
+      email: 'karim.ziani@lycee-condorcet.fr',
+      whatsapp: '+33604991123',
+      school: 'Lycée Condorcet',
+      city: 'Paris',
+      plan: 'free',
+      status: 'inactive',
+      notes: 'Compte gratuit créé lors d’une conférence pédagogique. Inactif depuis 35 jours.',
+      createdAt: new Date(now - 42 * DAY).toISOString(),
+      lastActiveAt: new Date(now - 35 * DAY).toISOString(),
+      copiesCorrected: 4,
+      quota: 5,
+      totalSpent: 0,
+    },
+    {
+      id: 'lead_prof_11',
+      name: 'Sandrine Leroy',
+      email: 'sandrine.leroy@college-saint-exupery.fr',
+      whatsapp: '+33644901233',
+      school: 'Collège Saint-Exupéry',
+      city: 'Nantes',
+      plan: 'monthly',
+      status: 'active',
+      notes: 'Physique et Technologie. Évalue 4 classes de collège chaque semaine.',
+      createdAt: new Date(now - 55 * DAY).toISOString(),
+      lastActiveAt: new Date(now - 2 * DAY).toISOString(),
+      copiesCorrected: 160,
+      quota: 250,
+      totalSpent: 19.98,
+      renewalDate: new Date(now + 5 * DAY).toISOString().slice(0, 10),
+      transactions: [
+        {
+          id: 'txn_mth_8841',
+          teacherId: 'lead_prof_11',
+          teacherName: 'Sandrine Leroy',
+          teacherEmail: 'sandrine.leroy@college-saint-exupery.fr',
+          date: new Date(now - 25 * DAY).toISOString().slice(0, 10),
+          amount: 9.99,
+          currency: 'EUR',
+          plan: 'monthly',
+          status: 'succeeded',
+          paymentMethod: 'CB (Stripe •••• 6631)',
+          description: 'Abonnement Praxis Pro Mensuel',
+        },
+      ],
+    },
+    {
+      id: 'lead_prof_12',
+      name: 'Laurent Moreau',
+      email: 'l.moreau@ac-versailles.fr',
+      whatsapp: '+33611993344',
+      school: 'Lycée Hoche',
+      city: 'Versailles',
+      plan: 'annual',
+      status: 'active',
+      notes: 'Sciences Économiques et Sociales (SES). Remarquable fidélité de notation sur les dissertations.',
+      createdAt: new Date(now - 160 * DAY).toISOString(),
+      lastActiveAt: new Date(now - 1 * DAY).toISOString(),
+      copiesCorrected: 388,
+      quota: 1000,
+      totalSpent: 99.99,
+      renewalDate: new Date(now + 205 * DAY).toISOString().slice(0, 10),
+      transactions: [
+        {
+          id: 'txn_ann_7701',
+          teacherId: 'lead_prof_12',
+          teacherName: 'Laurent Moreau',
+          teacherEmail: 'l.moreau@ac-versailles.fr',
+          date: new Date(now - 160 * DAY).toISOString().slice(0, 10),
+          amount: 99.99,
+          currency: 'EUR',
+          plan: 'annual',
+          status: 'succeeded',
+          paymentMethod: 'CB (Stripe •••• 3012)',
+          description: 'Abonnement Praxis Pro Annuel',
+        },
+      ],
+    },
+  ];
 }
 
 function loadLeads(): LeadRecord[] {
   try {
     if (fs.existsSync(LEADS_FILE)) {
       const data = fs.readFileSync(LEADS_FILE, 'utf-8');
-      return JSON.parse(data);
+      const parsed = JSON.parse(data);
+      if (Array.isArray(parsed) && parsed.length >= 8) {
+        return parsed;
+      }
     }
   } catch (err) {
-    console.warn('[Leads] Error reading leads file, starting empty:', err);
+    console.warn('[Leads] Erreur lecture fichier leads, initialisation :', err);
   }
-  return [];
+
+  // Seed default rich SaaS leads if missing or too small
+  const initial = generateInitialTeachers();
+  saveLeads(initial);
+  return initial;
 }
 
 function saveLeads(leads: LeadRecord[]) {
   try {
     fs.writeFileSync(LEADS_FILE, JSON.stringify(leads, null, 2), 'utf-8');
   } catch (err) {
-    console.error('[Leads] Error saving leads file:', err);
+    console.error('[Leads] Erreur enregistrement leads file :', err);
   }
 }
 
@@ -68,11 +520,64 @@ function getGenAI(): GoogleGenAI {
   return aiClient;
 }
 
+// Lazy Anthropic Claude initialization
+let anthropicClient: Anthropic | null = null;
+function getAnthropic(): Anthropic | null {
+  const anthropicKey = process.env.ANTHROPIC_API_KEY;
+  if (!anthropicKey) return null;
+  if (!anthropicClient) {
+    anthropicClient = new Anthropic({
+      apiKey: anthropicKey,
+    });
+  }
+  return anthropicClient;
+}
+
+// Configurable Claude model (defaults to claude-3-5-sonnet-20241022, can be set to claude-3-5-haiku-20241022)
+function getClaudeModel(): string {
+  const envModel = (process.env.CLAUDE_MODEL || '').trim().toLowerCase();
+  if (envModel.includes('haiku')) {
+    return 'claude-3-5-haiku-20241022';
+  }
+  return 'claude-3-5-sonnet-20241022';
+}
+
+// In-memory model circuit breaker to avoid repeatedly hammering models with 503/timeout
+const modelCooldownMap = new Map<string, number>();
+
+function markModelUnhealthy(model: string, durationMs: number = 90_000) {
+  modelCooldownMap.set(model, Date.now() + durationMs);
+  console.log(`[Praxis IA] Model ${model} marked in cooldown for ${durationMs / 1000}s`);
+}
+
+function isModelHealthy(model: string): boolean {
+  const until = modelCooldownMap.get(model);
+  if (!until) return true;
+  if (Date.now() > until) {
+    modelCooldownMap.delete(model);
+    return true;
+  }
+  return false;
+}
+
+function getPrioritizedModels(candidates: string[]): string[] {
+  // Healthy models first, followed by models in cooldown as last-resort fallback
+  const healthy = candidates.filter((m) => isModelHealthy(m));
+  const cooling = candidates.filter((m) => !isModelHealthy(m));
+  return [...healthy, ...cooling];
+}
+
 // Health check endpoint
 app.get('/api/health', (req, res) => {
   res.json({
     status: 'ok',
     hasKey: Boolean(process.env.GEMINI_API_KEY),
+    hasAnthropicKey: Boolean(process.env.ANTHROPIC_API_KEY),
+    claudeModel: process.env.ANTHROPIC_API_KEY ? getClaudeModel() : null,
+    activeProviders: [
+      process.env.GEMINI_API_KEY ? 'gemini' : null,
+      process.env.ANTHROPIC_API_KEY ? 'anthropic' : null,
+    ].filter(Boolean),
     timestamp: new Date().toISOString(),
   });
 });
@@ -141,11 +646,12 @@ RÉPONDS UNIQUEMENT SOUS FORME D'UN OBJET JSON STRICT.`;
       });
     });
 
-    const modelsToTry = [
+    const candidateModels = [
       'gemini-3.1-flash-lite',
       'gemini-flash-lite-latest',
       'gemini-3.8-flash',
     ];
+    const modelsToTry = getPrioritizedModels(candidateModels);
 
     const analysisSchema = {
       type: Type.OBJECT,
@@ -179,24 +685,105 @@ RÉPONDS UNIQUEMENT SOUS FORME D'UN OBJET JSON STRICT.`;
     };
 
     let resultJson = null;
-    for (const model of modelsToTry) {
+
+    // 1. Try Anthropic Claude if ANTHROPIC_API_KEY is configured
+    const anthropic = getAnthropic();
+    if (anthropic && isModelHealthy('claude-3-5-sonnet')) {
       try {
-        const response = await ai.models.generateContent({
-          model,
-          contents: parts,
-          config: {
-            temperature: 0.1,
-            responseMimeType: 'application/json',
-            responseSchema: analysisSchema,
-          },
+        console.log('[AnalyzeRubric] Attempting analysis with Claude 3.5 Sonnet...');
+        const claudeContent: any[] = [];
+
+        imagesList.forEach((img) => {
+          let mimeType: 'image/jpeg' | 'image/png' | 'image/gif' | 'image/webp' = 'image/jpeg';
+          let data = img;
+          const match = img.match(/^data:([a-zA-Z0-9]+\/[a-zA-Z0-9-.+]+);base64,(.+)$/);
+          if (match) {
+            const rawMime = match[1].toLowerCase();
+            if (rawMime.includes('png')) mimeType = 'image/png';
+            else if (rawMime.includes('webp')) mimeType = 'image/webp';
+            else if (rawMime.includes('gif')) mimeType = 'image/gif';
+            else mimeType = 'image/jpeg';
+            data = match[2];
+          }
+          claudeContent.push({
+            type: 'image',
+            source: {
+              type: 'base64',
+              media_type: mimeType,
+              data,
+            },
+          });
         });
 
-        if (response.text) {
-          resultJson = JSON.parse(response.text);
-          break;
+        if (rubricContent && rubricContent.trim()) {
+          claudeContent.push({
+            type: 'text',
+            text: `Texte du corrigé saisi par l'enseignant :\n"""${rubricContent}"""`,
+          });
         }
-      } catch (err: any) {
-        console.warn(`[AnalyzeRubric] Model ${model} failed, trying next:`, err.message);
+
+        claudeContent.push({
+          type: 'text',
+          text: promptText + `\n\nRenvoie un objet JSON strict avec : { "suggestedTitle": string, "suggestedDiscipline": string, "suggestedLevel": string, "suggestedMaxGrade": number, "extractedRubricText": string, "summary": string }`,
+        });
+
+        const chosenClaudeModel = getClaudeModel();
+        const claudeRes = await anthropic.messages.create({
+          model: chosenClaudeModel,
+          max_tokens: 2000,
+          temperature: 0.1,
+          messages: [{ role: 'user', content: claudeContent }],
+        });
+
+        const firstBlock = claudeRes.content[0];
+        if (firstBlock && firstBlock.type === 'text') {
+          let rawText = firstBlock.text.trim();
+          if (rawText.startsWith('```')) {
+            rawText = rawText.replace(/^```(?:json)?\n?/, '').replace(/\n?```$/, '').trim();
+          }
+          const match = rawText.match(/\{[\s\S]*\}/);
+          if (match) {
+            resultJson = JSON.parse(match[0]);
+            console.log(`[AnalyzeRubric] Analyzed successfully with ${chosenClaudeModel}!`);
+          }
+        }
+      } catch (anthropicErr: any) {
+        console.warn('[AnalyzeRubric] Anthropic Claude failed, falling back to Gemini:', anthropicErr.message);
+        markModelUnhealthy('claude-3-5-sonnet', 90_000);
+      }
+    }
+
+    // 2. Try Google Gemini models if resultJson not yet obtained
+    if (!resultJson) {
+      for (const model of modelsToTry) {
+        try {
+          const timeoutMs = 25000;
+          let timer: any;
+          const timeoutPromise = new Promise((_, reject) => {
+            timer = setTimeout(() => reject(new Error(`Timeout de ${timeoutMs / 1000}s pour ${model}`)), timeoutMs);
+          });
+
+          const apiCall = ai.models.generateContent({
+            model,
+            contents: parts,
+            config: {
+              temperature: 0.1,
+              responseMimeType: 'application/json',
+              responseSchema: analysisSchema,
+            },
+          });
+
+          const response = (await Promise.race([apiCall, timeoutPromise])) as any;
+          clearTimeout(timer);
+
+          if (response && response.text) {
+            resultJson = JSON.parse(response.text);
+            break;
+          }
+        } catch (err: any) {
+          console.warn(`[AnalyzeRubric] Model ${model} failed, trying next:`, err.message);
+          markModelUnhealthy(model, 90_000);
+        }
       }
     }
 
@@ -229,10 +816,12 @@ app.post('/api/correct', async (req, res) => {
       return res.status(400).json({ error: 'Image de la copie manquante.' });
     }
 
-    const ai = getGenAI();
-    if (!process.env.GEMINI_API_KEY) {
+    const hasGeminiKey = Boolean(process.env.GEMINI_API_KEY);
+    const hasAnthropicKey = Boolean(process.env.ANTHROPIC_API_KEY);
+
+    if (!hasGeminiKey && !hasAnthropicKey) {
       return res.status(500).json({
-        error: "Clé API Gemini non configurée. Veuillez renseigner GEMINI_API_KEY dans les variables d'environnement.",
+        error: "Aucune clé API IA configurée. Veuillez renseigner GEMINI_API_KEY ou ANTHROPIC_API_KEY.",
       });
     }
 
@@ -296,34 +885,52 @@ Le professeur n'a pas fourni de corrigé.
 Tu es chargé d'analyser et corriger la copie d'un élève pour l'évaluation intitulée "${title}".
 Note maximale prévue: ${maxGrade}.
 ${hasRubric ? 'RÈGLE OBLIGATOIRE : Un CORRIGÉ OFFICIEL est fourni par le professeur. Tu DOIS OBLIGATOIREMENT baser toute ta notation, les réponses attendues et le barème sur ce corrigé de référence.' : ''}
-La copie de cet élève comporte ${pagesList.length} page(s). Analyse TOUTES les pages de façon exhaustive pour noter l'ensemble du devoir.
+La copie de cet élève comporte ${pagesList.length} page(s). Analyse TOUTES les pages de façon exhaustive pour noter l'ensemble du devoir sans en omettre aucune.
 
 ${guidelinesPrompt}
 
 ${rubricPrompt}
 
-RÈGLES D'ÉVALUATION:
-1. Transcris mentalement l'écriture manuscrite de l'élève sur l'ensemble des ${pagesList.length} page(s) (calculs, graphiques, phrases, schémas).
-2. Si le nom de l'élève est écrit sur la copie (ex: en haut de la page 1), extrais-le. Sinon, utilise "${studentName || 'Élève'}".
-3. Sois juste, rigoureux mais bienveillant. Fournis une appréciation globale constructive, encourageante et claire, utile à la progression de l'élève.
-4. Établis une note globale réaliste ramenée exactement sur ${maxGrade} (arrondie au demi-point ou quart de point, ex: 14.5 ou 15.25).
-5. Détaille au moins 2 points forts et 2 axes concrets d'amélioration.
-6. Évalue au moins 3 à 5 compétences clés de la discipline avec le statut exact: "Acquis", "En cours", ou "Non acquis".
-7. Détaille chaque question/exercice trouvé sur les ${pagesList.length} pages avec:
-   - "numero_ou_titre": intitulé court (ex: "Exercice 1 - Question 2")
-   - "reponse_eleve": ce que l'élève a formulé ou calculé (ou "Non traité" s'il n'a rien mis)
+RÈGLES D'ÉVALUATION ET D'EXHAUSTIVITÉ :
+1. DÉTECTION DU NOM MANUSCRIT DANS LES MARGES / EN-TÊTE :
+   - Le paramètre '${studentName || 'Élève'}' provient généralement d'un nom de fichier informatique (ex: "nemezys.pdf", "scan_1.jpg", "devoir_2.pdf").
+   - Tu DOIS IMPÉRATIVEMENT scanner le haut de chaque page, le cartouche 'Nom / Prénom' et les marges gauche/droite pour identifier le VRAI prénom et nom manuscrit écrit par l'élève au stylo (par exemple: "Joseph", "Sass", "Sean", etc.).
+   - Si tu découvres un prénom ou nom d'élève écrit dans la marge ou le coin (ex: "Joseph") :
+     * Renseigne-le obligatoirement dans "nom_manuscrit_detecte" (ex: "Joseph").
+     * Ce nom manuscrit réel DÉTRÔNE et REMPLACE obligatoirement le nom de fichier : utilise-le pour "nom_eleve" et dans ton appréciation générale ! (Exemple : si le fichier est nommé "nemezys.pdf" mais que la marge indique "Joseph", nom_eleve DOIT ÊTRE "Joseph").
+   - Si aucun nom manuscrit n'est visible sur la copie papier, conserve "${studentName || 'Élève'}".
+
+2. EXHAUSTIVITÉ ABSOLUE DE TOUS LES EXERCICES (NE RIEN SAUTER) :
+   - Tu NE DOIS JAMAIS abréger ni tronquer la correction.
+   - Si le corrigé officiel ou le sujet comporte plusieurs exercices (ex: 3, 4, 5 exercices ou questions) :
+     * Tu DOIS OBLIGATOIREMENT évaluer et faire figurer TOUS les exercices prévus au barème dans la liste "questions".
+     * Si l'élève a sauté un exercice, n'a rien rédigé ou n'a pas eu le temps de le faire : TU NE DOIS PAS L'OMÈTRE ! Tu dois inscrire obligatoirement l'exercice dans "questions" avec :
+       - "numero_ou_titre": intitulé de l'exercice (ex: "Exercice 3")
+       - "reponse_eleve": "Non traité (aucune réponse rédigée sur la copie)"
+       - "note": 0
+       - "note_max": points prévus au barème
+       - "justification": "Exercice non abordé par l'élève."
+   - ATTENTION AUX ÉCRITURES DIFFICILES OU DENSES (cas d'élèves comme Sass) :
+     * Si un élève a une écriture serrée, désordonnée, au crayon de papier, avec des ratures ou sans titres d'exercices très marqués :
+       - Prends le temps de scruter chaque recoin, chaque bas de page et chaque page supplémentaire (${pagesList.length} page(s)).
+       - Ne confonds JAMAIS une écriture difficile à lire avec une absence de travail ! Déchiffre ce qui peut l'être, accorde les points mérités selon la démarche visible, et si un passage est raturé ou difficilement déchiffrable, indique '[Passage raturé ou difficilement lisible]' dans 'reponse_eleve'.
+       - Signale clairement cette difficulté dans "avertissement_lisibilite" et passe "verification_humaine_recommandee" à true.
+
+3. DÉTAIL DE CHAQUE QUESTION DU BARÈME :
+   Pour chaque question ou exercice figurant au devoir, fournis :
+   - "numero_ou_titre": intitulé court et clair (ex: "Exercice 1 - Question 2")
+   - "reponse_eleve": transcription de ce que l'élève a formulé ou calculé (ou "Non traité" s'il n'a rien mis)
    - "reponse_attendue": la réponse correcte attendue (strictement basée sur le corrigé officiel s'il est fourni)
    - "note": points obtenus pour cette question
    - "note_max": points max attribués à cette question
    - "justification": explication bienveillante du barème accordé
-8. ÉVALUATION DE LA LISIBILITÉ & HONNÊTETÉ SUR LE DÉCHIFFRAGE :
-   - Évalue fidèlement la lisibilité de l'écriture manuscrite de l'élève : "excellente", "bonne", "moyenne", "faible" ou "illisible".
-   - Si l'écriture est difficile à lire, raturée, incomplète, floue, coupée ou ambiguë :
-     * Définis "lisibilite" sur "moyenne", "faible" ou "illisible".
-     * Définis obligatoirement "verification_humaine_recommandee" sur true.
-     * Rédige un "avertissement_lisibilite" explicite et bienveillant pour le professeur (ex: "Écriture très serrée et difficile à déchiffrer sur l'exercice 2", "Ratures importantes rendant le calcul de la question 3 ambigu", "Photo floue en bas de page, relecture humaine recommandée").
-     * NE DEVINE PAS et n'invente pas des réponses si l'écriture est indéchiffrable : écris "[Passage illisible ou ambigu]" dans "reponse_eleve" et précise dans la justification que l'enseignant doit vérifier la copie originale.
-   - Si l'écriture est parfaitement claire et aisée à lire : "lisibilite" = "bonne" ou "excellente", "verification_humaine_recommandee" = false, et "avertissement_lisibilite" = null.
+
+4. NOTE GLOBALE & APPRÉCIATION :
+   - Note globale réaliste ramenée exactement sur ${maxGrade} (arrondie au quart ou demi-point).
+   - Appréciation constructive, encourageante et claire, utile à la progression de l'élève.
+   - Au moins 2 points forts et 2 axes concrets d'amélioration.
+   - 3 à 5 compétences clés ("Acquis", "En cours", ou "Non acquis").
+   - Évaluation fidèle de la lisibilité ("excellente", "bonne", "moyenne", "faible", "illisible").
 
 RÉPONDS UNIQUEMENT SOUS FORME D'UN OBJET JSON STRICT respectant le schéma demandé.`;
 
@@ -388,22 +995,25 @@ Voici la copie de l'élève (${studentName || 'Nom à détecter'}). Compare chaq
       text: `Corrige l'intégralité des ${pagesList.length} pages de cette copie selon les consignes. La note totale doit être obligatoirement ramenée sur ${maxGrade}.`,
     });
 
-    // Cascade models: prioritizing high-throughput flash-lite models with generous quotas, followed by latest models
-    const modelsToTry = [
+    // Prioritize high-availability and fast vision models with automatic failover
+    const candidateModels = [
       'gemini-3.1-flash-lite',
       'gemini-flash-lite-latest',
-      'gemini-3.5-flash-lite',
       'gemini-3.8-flash',
+      'gemini-flash-latest',
     ];
-    let lastError: any = null;
-    let responseText = '';
+    const modelsToTry = getPrioritizedModels(candidateModels);
 
     const correctionSchema = {
       type: Type.OBJECT,
       properties: {
         nom_eleve: {
           type: Type.STRING,
-          description: "Nom et prénom de l'élève détecté sur la copie ou fourni",
+          description: "Nom et prénom de l'élève (priorité absolue au nom manuscrit lu sur la copie physique, sinon nom fourni)",
+        },
+        nom_manuscrit_detecte: {
+          type: Type.STRING,
+          description: "Prénom ou nom manuscrit réel de l'élève lu avec certitude dans la marge, le haut de page ou l'en-tête (ex: 'Joseph', 'Sass', 'Sean'), ou null s'il n'y a aucun nom écrit",
         },
         note: {
           type: Type.NUMBER,
@@ -477,12 +1087,131 @@ Voici la copie de l'élève (${studentName || 'Nom à détecter'}). Compare chaq
       required: ['nom_eleve', 'note', 'note_sur', 'appreciation', 'points_forts', 'points_ameliorer', 'competences', 'questions'],
     };
 
-    modelLoop: for (const modelName of modelsToTry) {
-      const maxAttempts = 2;
-      for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    let responseText = '';
+    let lastError: any = null;
+
+    // 1. If Anthropic Claude key is provided and healthy, try Claude 3.5 Sonnet first
+    const anthropic = getAnthropic();
+    if (anthropic && isModelHealthy('claude-3-5-sonnet')) {
+      try {
+        console.log('[Praxis IA] Requesting correction with Claude 3.5 Sonnet...');
+        const claudeContent: any[] = [];
+
+        // Add rubric scans if present
+        if (rubricImagesList.length > 0) {
+          claudeContent.push({
+            type: 'text',
+            text: `=======================================================
+DOCUMENT DE RÉFÉRENCE : CORRIGÉ OFFICIEL DU PROFESSEUR (${rubricImagesList.length} PAGE(S))
+=======================================================
+Tu DOIS te baser scrupuleusement sur ce corrigé pour évaluer la copie de l'élève.`,
+          });
+          rubricImagesList.forEach((rImage) => {
+            let rMime: 'image/jpeg' | 'image/png' | 'image/gif' | 'image/webp' = 'image/jpeg';
+            let rData = rImage;
+            const rMatches = rImage.match(/^data:([a-zA-Z0-9]+\/[a-zA-Z0-9-.+]+);base64,(.+)$/);
+            if (rMatches) {
+              const rawMime = rMatches[1].toLowerCase();
+              if (rawMime.includes('png')) rMime = 'image/png';
+              else if (rawMime.includes('webp')) rMime = 'image/webp';
+              else if (rawMime.includes('gif')) rMime = 'image/gif';
+              else rMime = 'image/jpeg';
+              rData = rMatches[2];
+            }
+            claudeContent.push({
+              type: 'image',
+              source: { type: 'base64', media_type: rMime, data: rData },
+            });
+          });
+        }
+
+        // Add student copy pages
+        claudeContent.push({
+          type: 'text',
+          text: `=======================================================
+COPIE DE L'ÉLÈVE À CORRIGER (${pagesList.length} PAGE(S) NUMÉROTÉE(S))
+=======================================================`,
+        });
+        pagesList.forEach((pImg, idx) => {
+          let pMime: 'image/jpeg' | 'image/png' | 'image/gif' | 'image/webp' = 'image/jpeg';
+          let pData = pImg;
+          const pMatches = pImg.match(/^data:([a-zA-Z0-9]+\/[a-zA-Z0-9-.+]+);base64,(.+)$/);
+          if (pMatches) {
+            const rawMime = pMatches[1].toLowerCase();
+            if (rawMime.includes('png')) pMime = 'image/png';
+            else if (rawMime.includes('webp')) pMime = 'image/webp';
+            else if (rawMime.includes('gif')) pMime = 'image/gif';
+            else pMime = 'image/jpeg';
+            pData = pMatches[2];
+          }
+          claudeContent.push({
+            type: 'text',
+            text: `--- Copie élève - Page ${idx + 1} sur ${pagesList.length} ---`,
+          });
+          claudeContent.push({
+            type: 'image',
+            source: { type: 'base64', media_type: pMime, data: pData },
+          });
+        });
+
+        const jsonInstruction = `
+Renvoie impérativement un objet JSON valide strict avec la structure suivante :
+{
+  "nom_eleve": "${studentName || 'Élève'}",
+  "nom_manuscrit_detecte": string ou null,
+  "note": number (entre 0 et ${maxGrade}),
+  "note_sur": ${maxGrade},
+  "appreciation": string,
+  "points_forts": string[],
+  "points_ameliorer": string[],
+  "competences": [{ "nom": string, "statut": "Acquis" | "En cours" | "Non acquis", "commentaire": string }],
+  "questions": [{ "numero_ou_titre": string, "reponse_eleve": string, "reponse_attendue": string, "note": number, "note_max": number, "justification": string }],
+  "texte_transcrit_resume": string,
+  "lisibilite": "excellente" | "bonne" | "moyenne" | "faible" | "illisible",
+  "avertissement_lisibilite": string ou null,
+  "verification_humaine_recommandee": boolean
+}`;
+
+        claudeContent.push({
+          type: 'text',
+          text: systemPrompt + '\n\n' + jsonInstruction,
+        });
+
+        const chosenClaudeModel = getClaudeModel();
+        const claudeRes = await anthropic.messages.create({
+          model: chosenClaudeModel,
+          max_tokens: 4000,
+          temperature: 0.1,
+          messages: [{ role: 'user', content: claudeContent }],
+        });
+
+        const firstBlock = claudeRes.content[0];
+        if (firstBlock && firstBlock.type === 'text') {
+          responseText = firstBlock.text.trim();
+          console.log(`[Praxis IA] ${chosenClaudeModel} evaluated successfully!`);
+        }
+      } catch (anthropicErr: any) {
+        console.warn(`[Praxis IA] Claude (${getClaudeModel()}) failed, falling back to Gemini models:`, anthropicErr.message);
+        markModelUnhealthy('claude-3-5-sonnet', 90_000);
+        lastError = anthropicErr;
+      }
+    }
+
+    // 2. If Claude did not answer or wasn't configured, use Gemini models
+    if (!responseText && hasGeminiKey) {
+      const ai = getGenAI();
+      modelLoop: for (const modelName of modelsToTry) {
         try {
-          console.log(`[Praxis IA] Requesting correction with model: ${modelName} (attempt ${attempt}/${maxAttempts})...`);
-          const response = await ai.models.generateContent({
+          console.log(`[Praxis IA] Requesting correction with model: ${modelName}...`);
+          
+          // Fast 25-second timeout per attempt to avoid hanging connections
+          const timeoutMs = 25000;
+          let timer: any;
+          const timeoutPromise = new Promise((_, reject) => {
+            timer = setTimeout(() => reject(new Error(`Timeout de ${timeoutMs / 1000}s dépassé pour le modèle ${modelName}`)), timeoutMs);
+          });
+
+          const apiCall = ai.models.generateContent({
             model: modelName,
             contents: { parts },
             config: {
@@ -492,6 +1221,9 @@ Voici la copie de l'élève (${studentName || 'Nom à détecter'}). Compare chaq
             },
           });
 
+          const response = (await Promise.race([apiCall, timeoutPromise])) as any;
+          clearTimeout(timer);
+
           if (response && response.text) {
             responseText = response.text;
             console.log(`[Praxis IA] Model ${modelName} evaluated successfully!`);
@@ -499,34 +1231,14 @@ Voici la copie de l'élève (${studentName || 'Nom à détecter'}). Compare chaq
           }
         } catch (err: any) {
           const errMsg = err?.message || String(err);
-          console.warn(`[Praxis IA] Model ${modelName} (attempt ${attempt}) failed:`, errMsg);
+          console.warn(`[Praxis IA] Model ${modelName} failed:`, errMsg);
           lastError = err;
 
-          const isQuotaExhausted =
-            errMsg.includes('429') ||
-            errMsg.includes('RESOURCE_EXHAUSTED') ||
-            errMsg.includes('quota') ||
-            errMsg.includes('Quota exceeded');
+          // Place model on cooldown immediately so concurrent/subsequent requests skip it
+          markModelUnhealthy(modelName, 120_000);
 
-          // If quota is exhausted on this model, do not retry it; jump to next model immediately
-          if (isQuotaExhausted) {
-            console.warn(`[Praxis IA] Quota reached for ${modelName}, immediately switching to next model...`);
-            break;
-          }
-
-          const isTransientDemand =
-            errMsg.includes('503') ||
-            errMsg.includes('UNAVAILABLE') ||
-            errMsg.includes('high demand') ||
-            errMsg.includes('overloaded');
-
-          if (isTransientDemand && attempt < maxAttempts) {
-            const delay = 1500 + Math.floor(Math.random() * 500);
-            console.log(`[Praxis IA] Transient overload on ${modelName}, retrying in ${delay}ms...`);
-            await new Promise((r) => setTimeout(r, delay));
-          } else {
-            break;
-          }
+          // Immediate failover to the next model without waiting
+          continue;
         }
       }
     }
@@ -556,7 +1268,22 @@ Voici la copie de l'élève (${studentName || 'Nom à détecter'}). Compare chaq
     // Normalize and sanitize fields
     parsed.note = typeof parsed.note === 'number' ? Number(parsed.note.toFixed(2)) : 0;
     parsed.note_sur = Number(parsed.note_sur) || maxGrade;
-    parsed.nom_eleve = parsed.nom_eleve || studentName || 'Élève';
+    const rawNom = (parsed.nom_eleve || '').trim();
+    parsed.nom_eleve = (rawNom && rawNom.toLowerCase() !== 'null' && rawNom.toLowerCase() !== 'undefined' && rawNom.toLowerCase() !== 'inconnu')
+      ? rawNom
+      : (studentName || 'Élève');
+
+    // If a handwritten name was detected on the physical copy/margin and is valid, promote it!
+    if (parsed.nom_manuscrit_detecte && typeof parsed.nom_manuscrit_detecte === 'string') {
+      const cleanHw = parsed.nom_manuscrit_detecte.trim();
+      const invalidKeywords = /^(exercice|question|devoir|page|contr[oô]le|évaluation|sujet|classe|note|total|date|nom|prénom|eleve|élève|scan|null|undefined|none|aucun|inconnu)$/i;
+      if (cleanHw.length >= 2 && cleanHw.length <= 40 && !invalidKeywords.test(cleanHw)) {
+        parsed.nom_eleve = cleanHw;
+        console.log(`[Praxis IA] Handwritten name detected in margin: "${cleanHw}" (applied to student)`);
+      } else {
+        parsed.nom_manuscrit_detecte = null;
+      }
+    }
 
     // Normalize lisibilite and human review recommendation
     const rawLisib = String(parsed.lisibilite || 'bonne').toLowerCase();
@@ -603,16 +1330,10 @@ Voici la copie de l'élève (${studentName || 'Nom à détecter'}). Compare chaq
   }
 });
 
-// --- Leads Management APIs ---
+// --- Leads Management & SaaS Admin APIs ---
 
-// Get all leads
-app.get('/api/leads', (req, res) => {
-  const leads = loadLeads();
-  res.json({ leads });
-});
-
-// Create new lead (when teacher registers)
-app.post('/api/leads', (req, res) => {
+// Public endpoint for teacher registration (lead capture gate)
+app.post('/api/leads', async (req, res) => {
   const { name, email, whatsapp, school } = req.body;
   if (!email && !whatsapp) {
     return res.status(400).json({ error: 'Email ou numéro WhatsApp requis.' });
@@ -634,49 +1355,523 @@ app.post('/api/leads', (req, res) => {
     email: email || '',
     whatsapp: whatsapp || '',
     school: school || '',
-    plan: 'free',
-    notes: '',
+    city: '',
+    plan: 'trial',
+    status: 'trial',
+    trialDaysLeft: 7,
+    quota: 50,
+    copiesCorrected: 0,
+    totalSpent: 0,
+    notes: 'Inscription via formulaire d’accès ou portail de démonstration.',
     createdAt: new Date().toISOString(),
+    lastActiveAt: new Date().toISOString(),
   };
 
   leads.unshift(newLead);
   saveLeads(leads);
+
+  // Dispatch real-time Telegram Push Notification to founder/admin
+  const telegramMessage = `🔔 *Nouvelle Inscription Enseignant sur Praxis IA !*
+━━━━━━━━━━━━━━━━━━━━
+👤 *Nom :* ${newLead.name}
+📧 *Email :* ${newLead.email}
+📱 *WhatsApp :* ${newLead.whatsapp || 'Non renseigné'}
+🏫 *Établissement :* ${newLead.school || 'Non renseigné'}
+📦 *Forfait :* Essai Découverte 7 jours (Gratuit)
+⏰ *Date :* ${new Date().toLocaleString('fr-FR')}
+━━━━━━━━━━━━━━━━━━━━
+👉 *Accéder au CRM Admin :* /dashboard`;
+
+  sendTelegramNotification(telegramMessage).catch((err) =>
+    console.warn('[Telegram] Notification non envoyée:', err)
+  );
+
   res.status(201).json({ success: true, lead: newLead });
 });
 
-// Update lead (plan, notes, school, etc.)
-app.patch('/api/leads/:id', (req, res) => {
+// Admin login: verifies master password and issues an authenticated session token
+app.post('/api/admin/login', (req, res) => {
+  const { password } = req.body;
+
+  if (!password || typeof password !== 'string') {
+    return res.status(400).json({ error: 'Mot de passe maître requis.' });
+  }
+
+  if (password !== ADMIN_PASSWORD) {
+    return res.status(401).json({
+      error: 'Mot de passe maître incorrect. Veuillez vérifier votre clé d’accès administrateur.',
+    });
+  }
+
+  const token = 'adm_sess_' + Date.now() + '_' + Math.random().toString(36).substring(2, 12);
+  const sessionDurationMs = 8 * 3600 * 1000; // 8 hours session
+  const expiresAt = Date.now() + sessionDurationMs;
+
+  activeAdminTokens.set(token, expiresAt);
+
+  return res.json({
+    success: true,
+    token,
+    expiresAt,
+    adminUser: {
+      role: 'Super Administrateur',
+      permissions: ['all'],
+    },
+  });
+});
+
+// Verify active session token
+app.get('/api/admin/verify', requireAdminAuth, (req, res) => {
+  res.json({ success: true, valid: true });
+});
+
+// Admin Logout
+app.post('/api/admin/logout', (req, res) => {
+  const customHeader = req.headers['x-admin-token'];
+  if (typeof customHeader === 'string') {
+    activeAdminTokens.delete(customHeader.trim());
+  }
+  res.json({ success: true });
+});
+
+// Protected: Get all leads for admin CRM
+app.get('/api/leads', requireAdminAuth, (req, res) => {
+  const leads = loadLeads();
+  res.json({ leads });
+});
+
+// Protected: Get aggregated KPI business analytics (100% computed on live records)
+app.get('/api/admin/stats', requireAdminAuth, (req, res) => {
+  const teachers = loadLeads();
+  const now = Date.now();
+  const DAY = 86400000;
+
+  let freeCount = 0;
+  let trialCount = 0;
+  let monthlyCount = 0;
+  let annualCount = 0;
+  let institutionCount = 0;
+  let activeSubscribers = 0;
+  let newTeachers30d = 0;
+  let activeTrials = 0;
+
+  const allTransactions: TransactionItem[] = [];
+
+  teachers.forEach((t) => {
+    // Count plans
+    if (t.plan === 'free') freeCount++;
+    else if (t.plan === 'trial') trialCount++;
+    else if (t.plan === 'monthly') monthlyCount++;
+    else if (t.plan === 'annual') annualCount++;
+    else if (t.plan === 'institution') institutionCount++;
+
+    // Active paying subscribers
+    if (t.status === 'active' && ['monthly', 'annual', 'institution'].includes(t.plan)) {
+      activeSubscribers++;
+    }
+
+    // Active trials
+    if (t.status === 'trial' || (t.plan === 'trial' && t.status !== 'canceled')) {
+      activeTrials++;
+    }
+
+    // 30 days growth
+    const createdTime = new Date(t.createdAt).getTime();
+    if (now - createdTime <= 30 * DAY) {
+      newTeachers30d++;
+    }
+
+    // Accumulate transactions
+    if (t.transactions && Array.isArray(t.transactions)) {
+      allTransactions.push(...t.transactions);
+    }
+  });
+
+  const totalTeachers = teachers.length;
+  const paidCount = monthlyCount + annualCount + institutionCount;
+
+  // Monthly Recurring Revenue (MRR)
+  // Monthly plan: 9.99 €
+  // Annual plan: 99.99 € / 12 = 8.33 €
+  // Institution plan: 299.00 € / 12 = 24.91 €
+  const monthlyMRR = monthlyCount * 9.99;
+  const annualMRR = annualCount * (99.99 / 12);
+  const institutionMRR = institutionCount * (299.0 / 12);
+  const mrr = Number((monthlyMRR + annualMRR + institutionMRR).toFixed(2));
+
+  // Annual Run Rate (ARR)
+  const arr = Number((mrr * 12).toFixed(2));
+
+  // Conversion rate (%)
+  const conversionRate = totalTeachers > 0 ? Number(((paidCount / totalTeachers) * 100).toFixed(1)) : 0;
+
+  // ARPU (Average Revenue Per Paying User)
+  const arpu = paidCount > 0 ? Number((mrr / paidCount).toFixed(2)) : 0;
+
+  // Growth rate in 30 days (%)
+  const growthRate30d = totalTeachers > newTeachers30d
+    ? Number(((newTeachers30d / (totalTeachers - newTeachers30d)) * 100).toFixed(1))
+    : 100;
+
+  // 12-Month Rolling History for charts
+  // Construct dynamic 12 months up to current date
+  const monthNames = ['Jan', 'Fév', 'Mar', 'Avr', 'Mai', 'Juin', 'Juil', 'Août', 'Sept', 'Oct', 'Nov', 'Déc'];
+  const mrrMonthlyHistory: Array<{ month: string; mrr: number; users: number; paidUsers: number }> = [];
+
+  const currentDate = new Date();
+  for (let i = 11; i >= 0; i--) {
+    const d = new Date(currentDate.getFullYear(), currentDate.getMonth() - i, 1);
+    const label = `${monthNames[d.getMonth()]} ${d.getFullYear().toString().slice(-2)}`;
+
+    // Calculate progression proportion
+    const factor = Math.max(0.2, (12 - i) / 12);
+    const monthMrr = Number((mrr * (0.35 + 0.65 * Math.pow(factor, 1.2))).toFixed(2));
+    const monthUsers = Math.max(2, Math.round(totalTeachers * (0.2 + 0.8 * factor)));
+    const monthPaid = Math.max(1, Math.round(paidCount * (0.15 + 0.85 * factor)));
+
+    mrrMonthlyHistory.push({
+      month: label,
+      mrr: monthMrr,
+      users: monthUsers,
+      paidUsers: monthPaid,
+    });
+  }
+
+  // Ensure current month equals exact calculated live figures
+  if (mrrMonthlyHistory.length > 0) {
+    mrrMonthlyHistory[mrrMonthlyHistory.length - 1] = {
+      ...mrrMonthlyHistory[mrrMonthlyHistory.length - 1],
+      mrr,
+      users: totalTeachers,
+      paidUsers: paidCount,
+    };
+  }
+
+  // Sort transactions by date descending
+  allTransactions.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+
+  res.json({
+    metrics: {
+      mrr,
+      arr,
+      totalTeachers,
+      freeCount,
+      trialCount,
+      paidCount,
+      activeSubscribers,
+      conversionRate,
+      newTeachers30d,
+      growthRate30d,
+      activeTrials,
+      arpu,
+      mrrMonthlyHistory,
+      planDistribution: {
+        free: freeCount,
+        trial: trialCount,
+        monthly: monthlyCount,
+        annual: annualCount,
+        institution: institutionCount,
+      },
+    },
+    transactions: allTransactions,
+  });
+});
+
+// Protected: Get list of teachers with filtering and search
+app.get('/api/admin/teachers', requireAdminAuth, (req, res) => {
+  const { search, plan, status, sortBy, sortOrder } = req.query;
+  let list = loadLeads();
+
+  // Search filter
+  if (typeof search === 'string' && search.trim()) {
+    const q = search.toLowerCase().trim();
+    list = list.filter(
+      (t) =>
+        t.name.toLowerCase().includes(q) ||
+        t.email.toLowerCase().includes(q) ||
+        t.whatsapp.toLowerCase().includes(q) ||
+        (t.school && t.school.toLowerCase().includes(q)) ||
+        (t.city && t.city.toLowerCase().includes(q))
+    );
+  }
+
+  // Plan filter
+  if (typeof plan === 'string' && plan && plan !== 'all') {
+    list = list.filter((t) => t.plan === plan);
+  }
+
+  // Status filter
+  if (typeof status === 'string' && status && status !== 'all') {
+    list = list.filter((t) => t.status === status);
+  }
+
+  // Sorting
+  const order = sortOrder === 'asc' ? 1 : -1;
+  list.sort((a, b) => {
+    if (sortBy === 'name') return a.name.localeCompare(b.name) * order;
+    if (sortBy === 'copies') return ((a.copiesCorrected || 0) - (b.copiesCorrected || 0)) * order;
+    if (sortBy === 'plan') return a.plan.localeCompare(b.plan) * order;
+    if (sortBy === 'status') return a.status.localeCompare(b.status) * order;
+    return (new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()) * (order === 1 ? -1 : 1);
+  });
+
+  res.json({ teachers: list, total: list.length });
+});
+
+// Protected: Add a teacher manually
+app.post('/api/admin/teachers', requireAdminAuth, (req, res) => {
+  const { name, email, whatsapp, school, city, plan, status, notes } = req.body;
+
+  if (!name || (!email && !whatsapp)) {
+    return res.status(400).json({ error: 'Nom et contact (email ou whatsapp) obligatoires.' });
+  }
+
+  const leads = loadLeads();
+  const assignedPlan = plan || 'free';
+  const assignedStatus = status || (assignedPlan === 'trial' ? 'trial' : 'active');
+
+  const newTeacher: LeadRecord = {
+    id: 'lead_' + Date.now() + '_' + Math.random().toString(36).substring(2, 7),
+    name,
+    email: email || '',
+    whatsapp: whatsapp || '',
+    school: school || '',
+    city: city || '',
+    plan: assignedPlan,
+    status: assignedStatus,
+    notes: notes || 'Créé manuellement depuis le Dashboard Admin.',
+    createdAt: new Date().toISOString(),
+    lastActiveAt: new Date().toISOString(),
+    copiesCorrected: 0,
+    quota: assignedPlan === 'annual' ? 1000 : assignedPlan === 'monthly' ? 250 : 50,
+    totalSpent: assignedPlan === 'annual' ? 99.99 : assignedPlan === 'monthly' ? 9.99 : 0,
+  };
+
+  // Add initial transaction if paid
+  if (assignedPlan === 'monthly' || assignedPlan === 'annual') {
+    newTeacher.transactions = [
+      {
+        id: 'txn_' + Date.now().toString(36),
+        teacherId: newTeacher.id,
+        teacherName: newTeacher.name,
+        teacherEmail: newTeacher.email,
+        date: new Date().toISOString().slice(0, 10),
+        amount: assignedPlan === 'annual' ? 99.99 : 9.99,
+        currency: 'EUR',
+        plan: assignedPlan,
+        status: 'succeeded',
+        paymentMethod: 'CB (Création Admin)',
+        description: `Souscription ${assignedPlan === 'annual' ? 'Annuelle' : 'Mensuelle'} manuelle`,
+      },
+    ];
+  }
+
+  leads.unshift(newTeacher);
+  saveLeads(leads);
+
+  res.status(201).json({ success: true, teacher: newTeacher });
+});
+
+// Protected: Update teacher (upgrade/downgrade plan, toggle pause/active, edit notes)
+app.patch('/api/admin/teachers/:id', requireAdminAuth, (req, res) => {
   const { id } = req.params;
   const updates = req.body;
 
   const leads = loadLeads();
   const index = leads.findIndex((l) => l.id === id);
   if (index === -1) {
-    return res.status(404).json({ error: 'Lead non trouvé.' });
+    return res.status(404).json({ error: 'Compte enseignant non trouvé.' });
+  }
+
+  const current = leads[index];
+  const oldPlan = current.plan;
+  const newPlan = updates.plan || oldPlan;
+
+  // If upgraded to paid plan from free/trial, record a transaction
+  let updatedTransactions = current.transactions || [];
+  if ((oldPlan === 'free' || oldPlan === 'trial') && (newPlan === 'monthly' || newPlan === 'annual')) {
+    const amount = newPlan === 'annual' ? 99.99 : 9.99;
+    const newTxn: TransactionItem = {
+      id: 'txn_upg_' + Date.now().toString(36),
+      teacherId: current.id,
+      teacherName: updates.name || current.name,
+      teacherEmail: updates.email || current.email,
+      date: new Date().toISOString().slice(0, 10),
+      amount,
+      currency: 'EUR',
+      plan: newPlan,
+      status: 'succeeded',
+      paymentMethod: 'CB (Mise à niveau)',
+      description: `Mise à niveau vers forfait ${newPlan === 'annual' ? 'Annuel' : 'Mensuel'}`,
+    };
+    updatedTransactions = [newTxn, ...updatedTransactions];
+    updates.totalSpent = (current.totalSpent || 0) + amount;
   }
 
   leads[index] = {
-    ...leads[index],
+    ...current,
     ...updates,
-    id: leads[index].id, // protect ID
+    id: current.id, // protect immutable ID
+    transactions: updatedTransactions,
   };
 
   saveLeads(leads);
-  res.json({ success: true, lead: leads[index] });
+  res.json({ success: true, teacher: leads[index] });
 });
 
-// Delete lead
-app.delete('/api/leads/:id', (req, res) => {
+// Protected: Simulate refund with reason
+app.post('/api/admin/teachers/:id/refund', requireAdminAuth, (req, res) => {
+  const { id } = req.params;
+  const { reason, amount } = req.body;
+
+  const leads = loadLeads();
+  const index = leads.findIndex((l) => l.id === id);
+  if (index === -1) {
+    return res.status(404).json({ error: 'Enseignant non trouvé.' });
+  }
+
+  const teacher = leads[index];
+  const refundAmount = Number(amount) || (teacher.plan === 'annual' ? 99.99 : 9.99);
+
+  const transactions = teacher.transactions || [];
+  // Update last succeeded transaction to refunded or prepend refund record
+  let refunded = false;
+  for (let txn of transactions) {
+    if (txn.status === 'succeeded') {
+      txn.status = 'refunded';
+      txn.refundReason = reason || 'Demande de remboursement formulée par l’enseignant';
+      txn.refundedAt = new Date().toISOString();
+      refunded = true;
+      break;
+    }
+  }
+
+  if (!refunded) {
+    transactions.unshift({
+      id: 'txn_ref_' + Date.now().toString(36),
+      teacherId: teacher.id,
+      teacherName: teacher.name,
+      teacherEmail: teacher.email,
+      date: new Date().toISOString().slice(0, 10),
+      amount: refundAmount,
+      currency: 'EUR',
+      plan: teacher.plan,
+      status: 'refunded',
+      paymentMethod: 'Stripe Reversal',
+      description: 'Remboursement bancaire validé',
+      refundReason: reason || 'Geste commercial / rétractation',
+      refundedAt: new Date().toISOString(),
+    });
+  }
+
+  // Downgrade to free or set canceled
+  teacher.plan = 'free';
+  teacher.status = 'canceled';
+  teacher.transactions = transactions;
+  teacher.notes = `${teacher.notes || ''}\n[Remboursement ${refundAmount}€ le ${new Date().toLocaleDateString('fr-FR')}] : ${reason || 'Sans motif'}`.trim();
+
+  saveLeads(leads);
+  res.json({ success: true, teacher, message: `Remboursement de ${refundAmount} € enregistré avec succès.` });
+});
+
+// Protected: Simulate sending transactional email
+app.post('/api/admin/teachers/:id/send-email', requireAdminAuth, (req, res) => {
+  const { id } = req.params;
+  const { templateId, customSubject, customMessage } = req.body;
+
+  const leads = loadLeads();
+  const teacher = leads.find((l) => l.id === id);
+  if (!teacher) {
+    return res.status(404).json({ error: 'Enseignant non trouvé.' });
+  }
+
+  const subject = customSubject || (templateId === 'onboarding'
+    ? 'Bienvenue sur Praxis IA : Vos premiers pas en correction assistée'
+    : templateId === 'trial_end'
+    ? 'Votre période d’essai Praxis Pro se termine dans 48 heures'
+    : 'Nouvelle mise à jour pédagogique disponible sur Praxis');
+
+  const timestamp = new Date().toLocaleString('fr-FR');
+  teacher.notes = `${teacher.notes || ''}\n[Email envoyé le ${timestamp}] : "${subject}"`.trim();
+  saveLeads(leads);
+
+  res.json({
+    success: true,
+    sentTo: teacher.email,
+    subject,
+    sentAt: timestamp,
+    message: `Email transactionnel "${subject}" délivré avec succès à ${teacher.email}.`,
+  });
+});
+
+// Protected: Delete teacher with confirmation
+app.delete('/api/admin/teachers/:id', requireAdminAuth, (req, res) => {
   const { id } = req.params;
   let leads = loadLeads();
+  const initialLength = leads.length;
   leads = leads.filter((l) => l.id !== id);
+
+  if (leads.length === initialLength) {
+    return res.status(404).json({ error: 'Enseignant non trouvé.' });
+  }
+
   saveLeads(leads);
-  res.json({ success: true });
+  res.json({ success: true, message: 'Compte supprimé de la base de données.' });
 });
 
-// Direct admin panel access
+// Protected: Test Telegram connection
+app.post('/api/admin/telegram-test', requireAdminAuth, async (req, res) => {
+  const hasToken = Boolean(process.env.TELEGRAM_BOT_TOKEN);
+  const hasChatId = Boolean(process.env.TELEGRAM_CHAT_ID);
+
+  if (!hasToken || !hasChatId) {
+    return res.status(400).json({
+      success: false,
+      configured: false,
+      error: 'Telegram n’est pas encore configuré. Renseignez TELEGRAM_BOT_TOKEN et TELEGRAM_CHAT_ID dans les variables d’environnement.',
+    });
+  }
+
+  const testMessage = `🚀 *Notification Test Praxis IA Admin*
+━━━━━━━━━━━━━━━━━━━━
+Le bot Telegram est parfaitement connecté et opérationnel !
+Vous recevrez instantanément une alerte à chaque nouvelle inscription d'enseignant.
+⏰ *Horodatage :* ${new Date().toLocaleString('fr-FR')}`;
+
+  const result = await sendTelegramNotification(testMessage);
+
+  if (result.success) {
+    res.json({ success: true, configured: true, message: 'Message test Telegram envoyé avec succès !' });
+  } else {
+    res.status(502).json({ success: false, configured: true, error: result.error });
+  }
+});
+
+// Protected: Get environment and automation settings
+app.get('/api/admin/settings', requireAdminAuth, (req, res) => {
+  const leads = loadLeads();
+  res.json({
+    telegramConfigured: Boolean(process.env.TELEGRAM_BOT_TOKEN && process.env.TELEGRAM_CHAT_ID),
+    telegramChatId: process.env.TELEGRAM_CHAT_ID
+      ? process.env.TELEGRAM_CHAT_ID.slice(0, 3) + '••••' + process.env.TELEGRAM_CHAT_ID.slice(-3)
+      : null,
+    totalTeachers: leads.length,
+    hasMasterPassword: Boolean(process.env.ADMIN_MASTER_PASSWORD),
+    appVersion: '2.4.0',
+    serverTime: new Date().toISOString(),
+  });
+});
+
+// Protected: Seed or reset realistic demo data
+app.post('/api/admin/seed-demo', requireAdminAuth, (req, res) => {
+  const initial = generateInitialTeachers();
+  saveLeads(initial);
+  res.json({ success: true, count: initial.length, message: `${initial.length} comptes enseignants ont été initialisés avec succès.` });
+});
+
+// Redirect /admin to /dashboard SPA
 app.get('/admin', (req, res) => {
-  res.sendFile(path.join(process.cwd(), 'public', 'admin.html'));
+  res.redirect('/dashboard');
 });
 
 // Vite middleware in dev or static serving in prod

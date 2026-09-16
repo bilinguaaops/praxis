@@ -12,6 +12,7 @@ import {
   X,
   BookOpen,
   RotateCcw,
+  ShieldCheck,
 } from 'lucide-react';
 import { SavedEvaluation } from '../types';
 
@@ -369,6 +370,12 @@ export const HistoriqueView: React.FC<HistoriqueViewProps> = ({
                         <span className="px-2 py-0.5 rounded text-[10px] font-semibold bg-slate-100 text-slate-600">
                           {ev.level}
                         </span>
+                        {ev.isValidated && (
+                          <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-300 flex items-center gap-1 shadow-2xs">
+                            <ShieldCheck className="w-3 h-3 text-emerald-600" />
+                            <span>Correction validée</span>
+                          </span>
+                        )}
                       </div>
 
                       <div className="flex flex-wrap items-center gap-4 text-xs text-slate-400">

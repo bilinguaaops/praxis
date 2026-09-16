@@ -13,6 +13,8 @@ import {
   FileText,
   Clock,
   ShieldCheck,
+  Play,
+  Pause,
 } from 'lucide-react';
 
 interface Step3ProgressProps {
@@ -31,11 +33,21 @@ export const Step3Progress: React.FC<Step3ProgressProps> = ({
   onViewDashboard,
 }) => {
   const [activeStudentId, setActiveStudentId] = useState<string | null>(null);
-  const [isRunning, setIsRunning] = useState<boolean>(true);
+  const [isRunning, setIsRunning] = useState<boolean>(false);
   const [logs, setLogs] = useState<string[]>([]);
   const isCancelledRef = useRef(false);
   const submissionsRef = useRef(submissions);
   submissionsRef.current = submissions;
+
+  // Thread-safe update helper that prevents stale closures from reverting other student states
+  const updateSubmissions = (
+    updater: (prev: StudentSubmission[]) => StudentSubmission[]
+  ) => {
+    const updated = updater(submissionsRef.current);
+    submissionsRef.current = updated;
+    onSubmissionsChange(updated);
+    return updated;
+  };
 
   const addLog = (msg: string) => {
     setLogs((prev) => [
@@ -44,166 +56,113 @@ export const Step3Progress: React.FC<Step3ProgressProps> = ({
     ]);
   };
 
-  // Helper to correct a single student
+  // Helper to correct a single student with an 80-second timeout guard
   const correctStudent = async (sub: StudentSubmission): Promise<CorrectionResult> => {
     addLog(`Envoi de la copie de "${sub.studentName}" au moteur Gemini Vision...`);
 
-    const response = await fetch('/api/correct', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        studentName: sub.studentName,
-        studentImage: sub.imageDataUrl,
-        allPages: sub.allPages && sub.allPages.length > 0 ? sub.allPages : [sub.imageDataUrl],
-        assignmentConfig: config,
-      }),
-    });
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => {
+      controller.abort();
+    }, 80000);
 
-    if (!response.ok) {
-      const errorJson = await response.json().catch(() => ({ error: 'Erreur réseau ou réponse invalide' }));
-      throw new Error(errorJson.error || `Erreur serveur HTTP ${response.status}`);
+    try {
+      const response = await fetch('/api/correct', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        signal: controller.signal,
+        body: JSON.stringify({
+          studentName: sub.studentName,
+          studentImage: sub.imageDataUrl,
+          allPages: sub.allPages && sub.allPages.length > 0 ? sub.allPages : [sub.imageDataUrl],
+          assignmentConfig: config,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorJson = await response.json().catch(() => ({ error: 'Erreur réseau ou réponse serveur' }));
+        throw new Error(errorJson.error || `Erreur serveur HTTP ${response.status}`);
+      }
+
+      const data = await response.json();
+      if (!data.success || !data.data) {
+        throw new Error(data.error || "Données d'évaluation manquantes");
+      }
+
+      return data.data as CorrectionResult;
+    } catch (err: any) {
+      if (err.name === 'AbortError') {
+        throw new Error("Délai d'analyse dépassé (80s). Veuillez relancer cette copie.");
+      }
+      throw err;
+    } finally {
+      clearTimeout(timeoutId);
     }
-
-    const data = await response.json();
-    if (!data.success || !data.data) {
-      throw new Error(data.error || "Données d'évaluation manquantes");
-    }
-
-    return data.data as CorrectionResult;
   };
 
-  // Process all pending submissions sequentially or in parallel batches
-  useEffect(() => {
-    let active = true;
-    isCancelledRef.current = false;
+  // Reconciliation for inverted pairwise copies
+  const runReconciliation = () => {
+    const currentBatch = [...submissionsRef.current];
+    let swappedCount = 0;
+    for (let a = 0; a < currentBatch.length; a++) {
+      for (let b = a + 1; b < currentBatch.length; b++) {
+        const subA = currentBatch[a];
+        const subB = currentBatch[b];
+        if (!subA.result || !subB.result) continue;
 
-    const runBatch = async () => {
-      setIsRunning(true);
-      addLog(`Démarrage de la correction groupée pour ${submissions.length} copies...`);
+        const nameA = subA.studentName.trim().toLowerCase();
+        const nameB = subB.studentName.trim().toLowerCase();
+        const hwA = (subA.result.nom_manuscrit_detecte || '').toLowerCase();
+        const hwB = (subB.result.nom_manuscrit_detecte || '').toLowerCase();
+        const fileA = (subA.fileName || '').toLowerCase();
+        const fileB = (subB.fileName || '').toLowerCase();
 
-      for (let i = 0; i < submissions.length; i++) {
-        if (!active || isCancelledRef.current) break;
+        const aIsActuallyB = (hwA && hwA.includes(nameB)) || (fileA.includes(nameB) && !fileA.includes(nameA));
+        const bIsActuallyA = (hwB && hwB.includes(nameA)) || (fileB.includes(nameA) && !fileB.includes(nameB));
 
-        const sub = submissions[i];
-        // Skip already completed unless requested to re-run
-        if (sub.status === 'completed' && sub.result) {
-          continue;
-        }
-
-        setActiveStudentId(sub.id);
-
-        // Mark as analyzing
-        onSubmissionsChange(
-          submissions.map((s) => (s.id === sub.id ? { ...s, status: 'analyzing', errorMessage: undefined } : s))
-        );
-
-        let result: CorrectionResult | null = null;
-        let lastErrorMsg = '';
-
-        for (let attempt = 1; attempt <= 2; attempt++) {
-          if (!active || isCancelledRef.current) break;
-          try {
-            result = await correctStudent(sub);
-            break;
-          } catch (err: any) {
-            lastErrorMsg = err.message || 'Échec de la correction';
-            if (attempt < 2 && active && !isCancelledRef.current) {
-              addLog(`⚠️ Temporisation de 3s et relance pour "${sub.studentName}"...`);
-              await new Promise((r) => setTimeout(r, 3000));
-            }
-          }
-        }
-
-        if (!active || isCancelledRef.current) break;
-
-        if (result) {
-          addLog(`✅ Copie de "${result.nom_eleve || sub.studentName}" corrigée avec succès : Note ${result.note}/${result.note_sur}`);
-
-          if (
-            result.verification_humaine_recommandee ||
-            result.lisibilite === 'faible' ||
-            result.lisibilite === 'illisible' ||
-            result.lisibilite === 'moyenne'
-          ) {
-            addLog(`⚠️ Signalement lisibilité pour "${result.nom_eleve || sub.studentName}" : écriture ${result.lisibilite || 'délicate'} (relecture conseillée)`);
-          }
-
-          // Update submission with result
-          onSubmissionsChange(
-            submissionsRef.current.map((s) =>
-              s.id === sub.id
-                ? {
-                    ...s,
-                    status: 'completed',
-                    studentName: result!.nom_eleve || s.studentName,
-                    result: result!,
-                  }
-                : s
-            )
-          );
-        } else {
-          console.error(`Error correcting student ${sub.studentName}:`, lastErrorMsg);
-          addLog(`❌ Échec de l'analyse pour "${sub.studentName}" : ${lastErrorMsg}`);
-
-          onSubmissionsChange(
-            submissionsRef.current.map((s) =>
-              s.id === sub.id
-                ? {
-                    ...s,
-                    status: 'error',
-                    errorMessage: lastErrorMsg || 'Échec de la correction',
-                  }
-                : s
-            )
-          );
-        }
-
-        // Add a gentle pause before next student to prevent RPM quota spikes
-        if (i < submissions.length - 1 && active && !isCancelledRef.current) {
-          addLog(`⏳ Temporisation anti-quota (2s) avant la copie suivante...`);
-          await new Promise((r) => setTimeout(r, 2000));
+        if (aIsActuallyB && bIsActuallyA) {
+          const originalNameA = subA.studentName;
+          const originalNameB = subB.studentName;
+          currentBatch[a] = {
+            ...subA,
+            studentName: originalNameB,
+            result: { ...subA.result, nom_eleve: originalNameB },
+          };
+          currentBatch[b] = {
+            ...subB,
+            studentName: originalNameA,
+            result: { ...subB.result, nom_eleve: originalNameA },
+          };
+          swappedCount++;
+          addLog(`🔄 Inversion rectifiée automatiquement : « ${originalNameA} » et « ${originalNameB} » ont été réalignés avec leurs copies.`);
         }
       }
+    }
 
-      if (active) {
-        setIsRunning(false);
-        setActiveStudentId(null);
-        addLog('Correction par lot terminée !');
+    if (swappedCount > 0) {
+      updateSubmissions(() => currentBatch);
+    }
+  };
 
-        try {
-          confetti({
-            particleCount: 80,
-            spread: 70,
-            origin: { y: 0.6 },
-          });
-        } catch {
-          // ignore if canvas unavailable
-        }
-      }
-    };
-
-    runBatch();
-
-    return () => {
-      active = false;
-      isCancelledRef.current = true;
-    };
-  }, []); // Run once on mount
-
-  // Manual retry for a specific failed student
+  // Manual retry for a specific student
   const retryStudent = async (sub: StudentSubmission) => {
     setActiveStudentId(sub.id);
-    onSubmissionsChange(
-      submissionsRef.current.map((s) => (s.id === sub.id ? { ...s, status: 'analyzing', errorMessage: undefined } : s))
+    updateSubmissions((prev) =>
+      prev.map((s) => (s.id === sub.id ? { ...s, status: 'analyzing', errorMessage: undefined } : s))
     );
-    addLog(`🔄 Nouvelle tentative d'analyse pour "${sub.studentName}"...`);
+    addLog(`🔄 Analyse lancée pour "${sub.studentName}"...`);
 
     try {
       const result = await correctStudent(sub);
       addLog(`✅ Copie de "${result.nom_eleve || sub.studentName}" corrigée : Note ${result.note}/${result.note_sur}`);
 
-      onSubmissionsChange(
-        submissionsRef.current.map((s) =>
+      if (result.nom_manuscrit_detecte) {
+        if (result.nom_manuscrit_detecte.toLowerCase() !== sub.studentName.toLowerCase()) {
+          addLog(`✍️ Nom manuscrit repéré en marge : « ${result.nom_manuscrit_detecte} »`);
+        }
+      }
+
+      updateSubmissions((prev) =>
+        prev.map((s) =>
           s.id === sub.id
             ? {
                 ...s,
@@ -215,9 +174,9 @@ export const Step3Progress: React.FC<Step3ProgressProps> = ({
         )
       );
     } catch (err: any) {
-      addLog(`❌ Échec de la nouvelle tentative pour "${sub.studentName}" : ${err.message}`);
-      onSubmissionsChange(
-        submissionsRef.current.map((s) =>
+      addLog(`❌ Échec de la tentative pour "${sub.studentName}" : ${err.message}`);
+      updateSubmissions((prev) =>
+        prev.map((s) =>
           s.id === sub.id
             ? {
                 ...s,
@@ -232,31 +191,108 @@ export const Step3Progress: React.FC<Step3ProgressProps> = ({
     }
   };
 
-  // Retry all failed students in sequence with polite pacing
-  const retryAllFailed = async () => {
+  // Core processing queue loop
+  const processQueue = async (itemsToProcess?: StudentSubmission[]) => {
     if (isRunning) return;
-    const failedSubs = submissionsRef.current.filter((s) => s.status === 'error');
-    if (failedSubs.length === 0) return;
-
     setIsRunning(true);
-    addLog(`🔄 Relance globale des ${failedSubs.length} copies en attente...`);
+    isCancelledRef.current = false;
 
-    for (let i = 0; i < failedSubs.length; i++) {
+    const queue = itemsToProcess || submissionsRef.current.filter((s) => s.status !== 'completed' || !s.result);
+    if (queue.length === 0) {
+      setIsRunning(false);
+      return;
+    }
+
+    addLog(`Démarrage du traitement pour ${queue.length} copie(s)...`);
+
+    for (let i = 0; i < queue.length; i++) {
       if (isCancelledRef.current) break;
-      const sub = failedSubs[i];
-      await retryStudent(sub);
-      if (i < failedSubs.length - 1) {
-        await new Promise((r) => setTimeout(r, 2000));
+
+      const targetId = queue[i].id;
+      const currentSub = submissionsRef.current.find((s) => s.id === targetId) || queue[i];
+
+      // Skip already completed unless explicitly passed as error
+      if (currentSub.status === 'completed' && currentSub.result) {
+        continue;
+      }
+
+      await retryStudent(currentSub);
+
+      if (i < queue.length - 1 && !isCancelledRef.current) {
+        addLog(`⏳ Temporisation anti-quota (1.5s) avant la copie suivante...`);
+        await new Promise((r) => setTimeout(r, 1500));
       }
     }
 
+    // Check reconciliation pass
+    runReconciliation();
+
     setIsRunning(false);
+    setActiveStudentId(null);
+
+    const completed = submissionsRef.current.filter((s) => s.status === 'completed').length;
+    if (completed === submissionsRef.current.length) {
+      addLog('🎉 Toutes les copies ont été évaluées avec succès !');
+      try {
+        confetti({
+          particleCount: 80,
+          spread: 70,
+          origin: { y: 0.6 },
+        });
+      } catch {
+        // ignore if canvas unavailable
+      }
+    }
+  };
+
+  // Auto-run on mount for any pending copies
+  useEffect(() => {
+    isCancelledRef.current = false;
+
+    const pendingOrIncomplete = submissionsRef.current.filter(
+      (s) => s.status !== 'completed' || !s.result
+    );
+
+    if (pendingOrIncomplete.length > 0) {
+      processQueue(pendingOrIncomplete);
+    } else {
+      setIsRunning(false);
+    }
+
+    return () => {
+      isCancelledRef.current = true;
+    };
+  }, []); // Run once on mount
+
+  // Pause batch processing
+  const handlePauseCorrection = () => {
+    isCancelledRef.current = true;
+    setIsRunning(false);
+    setActiveStudentId(null);
+    addLog('⏸️ Traitement mis en pause par l’enseignant.');
+  };
+
+  // Run all pending (waiting) copies
+  const runAllPending = () => {
+    const pending = submissionsRef.current.filter((s) => s.status === 'pending');
+    if (pending.length > 0) {
+      processQueue(pending);
+    }
+  };
+
+  // Retry all failed students
+  const retryAllFailed = () => {
+    const failedSubs = submissionsRef.current.filter((s) => s.status === 'error');
+    if (failedSubs.length > 0) {
+      processQueue(failedSubs);
+    }
   };
 
   const completedCount = submissions.filter((s) => s.status === 'completed').length;
   const errorCount = submissions.filter((s) => s.status === 'error').length;
+  const pendingCount = submissions.filter((s) => s.status === 'pending').length;
   const progressPercent = Math.round((completedCount / (submissions.length || 1)) * 100);
-  const allFinished = completedCount + errorCount === submissions.length;
+  const allFinished = completedCount + errorCount === submissions.length && pendingCount === 0;
 
   const currentActiveStudent = submissions.find((s) => s.id === activeStudentId);
 
@@ -271,15 +307,44 @@ export const Step3Progress: React.FC<Step3ProgressProps> = ({
               Étape 3 : Moteur de Vision Multimodal Gemini
             </div>
             <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">
-              {isRunning ? 'Correction des copies en cours...' : 'Correction de la classe finalisée !'}
+              {isRunning
+                ? 'Correction des copies en cours...'
+                : allFinished
+                ? 'Correction de la classe finalisée !'
+                : pendingCount > 0
+                ? `${completedCount} sur ${submissions.length} copies évaluées`
+                : 'Correction terminée'}
             </h1>
             <p className="text-xs sm:text-sm text-slate-600 mt-1">
               {config.discipline} • {config.level} • {config.title} (Barème sur {config.maxGrade})
             </p>
           </div>
 
-          <div className="flex items-center gap-3">
-            {errorCount > 0 && !isRunning && (
+          <div className="flex flex-wrap items-center gap-2.5">
+            {isRunning && (
+              <button
+                type="button"
+                onClick={handlePauseCorrection}
+                className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs sm:text-sm transition-all cursor-pointer"
+              >
+                <Pause className="w-4 h-4 text-slate-600" />
+                <span>Mettre en pause</span>
+              </button>
+            )}
+
+            {!isRunning && pendingCount > 0 && (
+              <button
+                type="button"
+                onClick={runAllPending}
+                id="btn-run-all-pending"
+                className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs sm:text-sm shadow-md shadow-blue-600/20 transition-all cursor-pointer"
+              >
+                <Play className="w-4 h-4 fill-current" />
+                <span>Lancer les {pendingCount} copie{pendingCount > 1 ? 's' : ''} restante{pendingCount > 1 ? 's' : ''}</span>
+              </button>
+            )}
+
+            {!isRunning && errorCount > 0 && (
               <button
                 type="button"
                 onClick={retryAllFailed}
@@ -287,18 +352,22 @@ export const Step3Progress: React.FC<Step3ProgressProps> = ({
                 className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-amber-50 hover:bg-amber-100 border border-amber-300 text-amber-900 font-bold text-xs sm:text-sm shadow-xs transition-all cursor-pointer"
               >
                 <RotateCcw className="w-4 h-4 text-amber-700" />
-                <span>Relancer les {errorCount} copie{errorCount > 1 ? 's' : ''} en attente</span>
+                <span>Relancer les {errorCount} copie{errorCount > 1 ? 's' : ''} en erreur</span>
               </button>
             )}
 
-            {allFinished && (
+            {completedCount > 0 && (
               <button
                 type="button"
                 onClick={onViewDashboard}
                 id="btn-goto-dashboard"
-                className="inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-sm shadow-md shadow-blue-600/20 transition-all cursor-pointer"
+                className={`inline-flex items-center gap-2 px-5 py-2.5 rounded-xl font-bold text-xs sm:text-sm shadow-md transition-all cursor-pointer ${
+                  allFinished
+                    ? 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-emerald-600/20'
+                    : 'bg-blue-600 hover:bg-blue-700 text-white shadow-blue-600/20'
+                }`}
               >
-                <span>Accéder au Tableau de bord</span>
+                <span>{allFinished ? 'Accéder au Tableau de bord' : `Tableau de bord (${completedCount}/${submissions.length})`}</span>
                 <ArrowRight className="w-4 h-4" />
               </button>
             )}
@@ -461,10 +530,23 @@ export const Step3Progress: React.FC<Step3ProgressProps> = ({
                   )}
 
                   {sub.status === 'pending' && (
-                    <span className="text-xs text-slate-400 font-medium flex items-center gap-1">
-                      <Clock className="w-3 h-3" />
-                      En attente
-                    </span>
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs text-slate-400 font-medium flex items-center gap-1">
+                        <Clock className="w-3 h-3" />
+                        En attente
+                      </span>
+                      {!isRunning && (
+                        <button
+                          type="button"
+                          onClick={() => retryStudent(sub)}
+                          className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-blue-50 hover:bg-blue-100 border border-blue-200 text-blue-800 text-xs font-bold transition-colors cursor-pointer"
+                          title="Lancer l'évaluation de cette copie"
+                        >
+                          <Play className="w-3 h-3 text-blue-600 fill-current" />
+                          <span>Corriger</span>
+                        </button>
+                      )}
+                    </div>
                   )}
                 </div>
               </div>

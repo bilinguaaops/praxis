@@ -5,7 +5,6 @@ import { Header } from './components/Header';
 import { TutorialBanner } from './components/TutorialBanner';
 import { LeadGateModal } from './components/LeadGateModal';
 import { ClassesView } from './components/ClassesView';
-import { ClassDetailView } from './components/ClassDetailView';
 import { SuiviView } from './components/SuiviView';
 import { HistoriqueView } from './components/HistoriqueView';
 import { Step1Config } from './components/Step1Config';
@@ -14,10 +13,11 @@ import { Step3Progress } from './components/Step3Progress';
 import { Step4Dashboard } from './components/Step4Dashboard';
 import { StudentDetailModal } from './components/StudentDetailModal';
 import { PrintCorrectionSheets } from './components/PrintCorrectionSheets';
+import { AdminDashboard } from './components/AdminDashboard';
+import { FaqView } from './components/FaqView';
+import { LandingPage } from './components/LandingPage';
 import {
   SAMPLE_ASSIGNMENT_CONFIG,
-  generateSampleStudents,
-  generateSampleSavedEvaluations,
 } from './lib/sampleData';
 
 const DEFAULT_CONFIG: AssignmentConfig = {
@@ -40,6 +40,8 @@ const DEFAULT_CLASSES: ClassGroup[] = [
   {
     id: 'class_demo_3b',
     name: '3ème B (Collège)',
+    level: '3e (Brevet)',
+    discipline: 'Mathématiques',
     students: [
       'Lucas Martin',
       'Sarah Benali',
@@ -50,12 +52,113 @@ const DEFAULT_CLASSES: ClassGroup[] = [
       'Nathan Bernard',
       'Camille Roux',
     ],
-    createdAt: new Date().toISOString(),
+    createdAt: new Date(Date.now() - 30 * 86400000).toISOString(),
+    evaluations: [
+      {
+        id: 'eval_demo_1',
+        title: 'DS N°1 : Fonctions et Calcul littéral',
+        date: new Date(Date.now() - 20 * 86400000).toISOString().slice(0, 10),
+        discipline: 'Mathématiques',
+        maxGrade: 20,
+        grades: {
+          'Lucas Martin': 14.5,
+          'Sarah Benali': 17.5,
+          'Thomas Leroy': 11.0,
+          'Emma Dubois': 15.0,
+          'Maxime Petit': 9.0,
+          'Chloé Moreau': 13.5,
+          'Nathan Bernard': 10.5,
+          'Camille Roux': 16.5,
+        },
+      },
+      {
+        id: 'eval_demo_2',
+        title: 'Interro N°2 : Théorème de Pythagore',
+        date: new Date(Date.now() - 7 * 86400000).toISOString().slice(0, 10),
+        discipline: 'Mathématiques',
+        maxGrade: 20,
+        grades: {
+          'Lucas Martin': 15.0,
+          'Sarah Benali': 19.0,
+          'Thomas Leroy': 10.5,
+          'Emma Dubois': 14.0,
+          'Maxime Petit': 8.5,
+          'Chloé Moreau': 14.0,
+          'Nathan Bernard': 12.0,
+          'Camille Roux': 18.0,
+        },
+      },
+    ],
   },
 ];
 
 export default function App() {
-  const [activeView, setActiveView] = useState<MainView>('corr');
+  const [activeView, setActiveView] = useState<MainView>(() => {
+    try {
+      const path = window.location.pathname;
+      const search = window.location.search;
+      const hash = window.location.hash;
+      if (path === '/dashboard' || path === '/admin' || search.includes('view=dashboard') || search.includes('admin=true')) {
+        return 'dashboard';
+      }
+      if (path === '/faq' || hash === '#faq' || search.includes('view=faq')) {
+        return 'faq';
+      }
+      if (path === '/correction' || search.includes('view=corr')) {
+        return 'corr';
+      }
+      if (path === '/classes' || search.includes('view=classes')) {
+        return 'classes';
+      }
+      if (path === '/suivi' || search.includes('view=suivi')) {
+        return 'suivi';
+      }
+      if (path === '/historique' || search.includes('view=hist')) {
+        return 'hist';
+      }
+    } catch {}
+    return 'landing';
+  });
+
+  const handleViewChange = (view: MainView) => {
+    setActiveView(view);
+    try {
+      if (view === 'dashboard') {
+        if (window.location.pathname !== '/dashboard') {
+          window.history.pushState(null, '', '/dashboard');
+        }
+      } else if (view === 'faq') {
+        if (window.location.pathname !== '/faq') {
+          window.history.pushState(null, '', '/faq');
+        }
+      } else if (view === 'landing') {
+        if (window.location.pathname !== '/') {
+          window.history.pushState(null, '', '/');
+        }
+      } else {
+        if (window.location.pathname === '/dashboard' || window.location.pathname === '/admin' || window.location.pathname === '/faq') {
+          window.history.pushState(null, '', '/');
+        }
+      }
+    } catch {}
+  };
+
+  useEffect(() => {
+    const handlePopState = () => {
+      const path = window.location.pathname;
+      const hash = window.location.hash;
+      if (path === '/dashboard' || path === '/admin') {
+        setActiveView('dashboard');
+      } else if (path === '/faq' || hash === '#faq') {
+        setActiveView('faq');
+      } else {
+        setActiveView('landing');
+      }
+    };
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
+
   const [currentStep, setCurrentStep] = useState<number>(1);
   const [isLeadGateOpen, setIsLeadGateOpen] = useState<boolean>(false);
 
@@ -92,16 +195,62 @@ export default function App() {
   const [submissions, setSubmissions] = useState<StudentSubmission[]>(() => {
     try {
       const saved = localStorage.getItem('praxis_submissions');
-      return saved ? JSON.parse(saved) : [];
+      if (saved) {
+        const parsed: StudentSubmission[] = JSON.parse(saved);
+        const demoNames = ['lucas martin', 'sarah benali', 'thomas dubois'];
+        return parsed.filter(
+          (s) =>
+            s.id !== 'sub-1' &&
+            s.id !== 'sub-2' &&
+            s.id !== 'sub-3' &&
+            !demoNames.includes((s.studentName || '').toLowerCase())
+        );
+      }
+      return [];
     } catch {
       return [];
     }
   });
 
+  // Purge any residual demo submissions from local storage on mount
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem('praxis_submissions');
+      if (saved) {
+        const parsed: StudentSubmission[] = JSON.parse(saved);
+        const demoNames = ['lucas martin', 'sarah benali', 'thomas dubois'];
+        const filtered = parsed.filter(
+          (s) =>
+            s.id !== 'sub-1' &&
+            s.id !== 'sub-2' &&
+            s.id !== 'sub-3' &&
+            !demoNames.includes((s.studentName || '').toLowerCase())
+        );
+        if (filtered.length !== parsed.length) {
+          setSubmissions(filtered);
+          localStorage.setItem('praxis_submissions', JSON.stringify(filtered));
+        }
+      }
+    } catch {}
+  }, []);
+
   const [classes, setClasses] = useState<ClassGroup[]>(() => {
     try {
       const saved = localStorage.getItem('cpro_classes');
-      return saved ? JSON.parse(saved) : DEFAULT_CLASSES;
+      if (saved) {
+        const parsed: ClassGroup[] = JSON.parse(saved);
+        // If demo class exists without evaluations, seed it with sample evaluations
+        return parsed.map((c) => {
+          if (c.id === 'class_demo_3b' && (!c.evaluations || c.evaluations.length === 0)) {
+            return {
+              ...c,
+              evaluations: DEFAULT_CLASSES[0].evaluations,
+            };
+          }
+          return c;
+        });
+      }
+      return DEFAULT_CLASSES;
     } catch {
       return DEFAULT_CLASSES;
     }
@@ -110,18 +259,14 @@ export default function App() {
   const [savedEvaluations, setSavedEvaluations] = useState<SavedEvaluation[]>(() => {
     try {
       const saved = localStorage.getItem('cpro_evaluations');
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
-      }
-      return generateSampleSavedEvaluations();
+      return saved ? JSON.parse(saved) : [];
     } catch {
-      return generateSampleSavedEvaluations();
+      return [];
     }
   });
 
-  const [selectedClassId, setSelectedClassId] = useState<string | null>(null);
   const [activeTeacherNotes, setActiveTeacherNotes] = useState<string>('');
+  const [isCurrentEvalValidated, setIsCurrentEvalValidated] = useState<boolean>(false);
   const [selectedStudentForModal, setSelectedStudentForModal] = useState<StudentSubmission | null>(null);
   const [isPrintModalOpen, setIsPrintModalOpen] = useState<boolean>(false);
 
@@ -161,15 +306,6 @@ export default function App() {
     }
   }, [savedEvaluations]);
 
-  // Load realistic demo data
-  const handleLoadDemo = () => {
-    setConfig(SAMPLE_ASSIGNMENT_CONFIG);
-    const demoStudents = generateSampleStudents();
-    setSubmissions(demoStudents);
-    setActiveView('corr');
-    setCurrentStep(4);
-  };
-
   // Reset entire assignment
   const [isResetModalOpen, setIsResetModalOpen] = useState(false);
 
@@ -181,6 +317,7 @@ export default function App() {
     setConfig(DEFAULT_CONFIG);
     setSubmissions([]);
     setActiveTeacherNotes('');
+    setIsCurrentEvalValidated(false);
     setCurrentStep(1);
     setActiveView('corr');
     localStorage.removeItem('praxis_config');
@@ -189,8 +326,13 @@ export default function App() {
   };
 
   // Save current evaluation to history
-  const handleSaveToHistory = (notes: string) => {
+  const handleSaveToHistory = (notes: string, isValidated?: boolean) => {
     setActiveTeacherNotes(notes);
+
+    if (isValidated !== undefined) {
+      setIsCurrentEvalValidated(isValidated);
+    }
+    const validatedFlag = isValidated !== undefined ? isValidated : isCurrentEvalValidated;
 
     const graded = submissions.filter((s) => s.status === 'completed' && s.result);
     const grades = graded.map((s) => s.result!.note);
@@ -200,6 +342,13 @@ export default function App() {
     const max = grades.length > 0 ? Math.max(...grades) : 0;
     const min = grades.length > 0 ? Math.min(...grades) : 0;
     const successRate = grades.length > 0 ? Math.round((grades.filter((g) => g >= config.maxGrade / 2).length / grades.length) * 100) : 0;
+
+    // Match with class if students match
+    const matchingClass = classes.find((cls) =>
+      cls.students.some((name) =>
+        submissions.some((sub) => sub.studentName && sub.studentName.toLowerCase() === name.toLowerCase())
+      )
+    );
 
     const newEval: SavedEvaluation = {
       id: 'eval_' + Date.now(),
@@ -211,6 +360,10 @@ export default function App() {
       config: config,
       submissions: submissions,
       teacherComments: notes,
+      classId: matchingClass?.id,
+      className: matchingClass?.name,
+      isValidated: validatedFlag,
+      validatedAt: validatedFlag ? new Date().toISOString() : undefined,
       metrics: {
         totalStudents: submissions.length,
         gradedStudents: graded.length,
@@ -223,6 +376,48 @@ export default function App() {
     };
 
     setSavedEvaluations((prev) => [newEval, ...prev.filter((e) => e.title !== newEval.title || e.date.slice(0, 10) !== newEval.date.slice(0, 10))]);
+
+    // Also update matching class's evaluations list with new grades
+    if (matchingClass) {
+      const gradesMap: Record<string, number> = {};
+      graded.forEach((sub) => {
+        if (sub.result) {
+          const matchedName = matchingClass.students.find(
+            (st) => st.toLowerCase() === sub.studentName.toLowerCase()
+          );
+          if (matchedName) {
+            gradesMap[matchedName] = sub.result.note;
+          }
+        }
+      });
+
+      setClasses((prev) =>
+        prev.map((c) => {
+          if (c.id === matchingClass.id) {
+            const evs = c.evaluations || [];
+            const exists = evs.some((e) => e.savedEvaluationId === newEval.id || e.title === newEval.title);
+            if (!exists) {
+              return {
+                ...c,
+                evaluations: [
+                  {
+                    id: 'classeval_' + Date.now(),
+                    title: newEval.title,
+                    date: newEval.date.slice(0, 10),
+                    discipline: newEval.discipline,
+                    maxGrade: newEval.maxGrade,
+                    grades: gradesMap,
+                    savedEvaluationId: newEval.id,
+                  },
+                  ...evs,
+                ],
+              };
+            }
+          }
+          return c;
+        })
+      );
+    }
   };
 
   // Load a past evaluation from history into current view
@@ -230,6 +425,7 @@ export default function App() {
     setConfig(evaluation.config);
     setSubmissions(evaluation.submissions);
     setActiveTeacherNotes(evaluation.teacherComments || '');
+    setIsCurrentEvalValidated(Boolean(evaluation.isValidated));
     setActiveView('corr');
     setCurrentStep(4);
   };
@@ -239,19 +435,132 @@ export default function App() {
     setSavedEvaluations((prev) => prev.filter((e) => e.id !== id));
   };
 
-  // Use a class group for active correction
+  // Use a class group for active correction with smart name matching
   const handleUseClassForCorrection = (classGroup: ClassGroup) => {
-    // If we have submissions without student names or default names, apply class student names
     if (submissions.length > 0) {
-      setSubmissions((prev) =>
-        prev.map((sub, idx) => ({
-          ...sub,
-          studentName: classGroup.students[idx] || sub.studentName || `Élève ${idx + 1}`,
-        }))
+      const usedStudents = new Set<string>();
+      const matched = submissions.map((sub) => {
+        const fileLower = (sub.fileName || '').toLowerCase();
+        const currentLower = (sub.studentName || '').toLowerCase();
+
+        // 1. Direct name match in class roster (e.g. "Sass.pdf" -> "Sass")
+        const exactMatch = classGroup.students.find(
+          (st) => !usedStudents.has(st) && (fileLower.includes(st.toLowerCase()) || currentLower === st.toLowerCase())
+        );
+        if (exactMatch) {
+          usedStudents.add(exactMatch);
+          return { sub, matchedStudent: exactMatch };
+        }
+        return { sub, matchedStudent: null };
+      });
+
+      // 2. For remaining submissions, pick from unassigned students
+      const remainingStudents = classGroup.students.filter((st) => !usedStudents.has(st));
+      let remIdx = 0;
+
+      setSubmissions(
+        matched.map(({ sub, matchedStudent }) => {
+          if (matchedStudent) {
+            return { ...sub, studentName: matchedStudent };
+          }
+          const nextAvailable = remainingStudents[remIdx++];
+          return {
+            ...sub,
+            studentName: nextAvailable || sub.studentName || 'Élève',
+          };
+        })
       );
     }
     setActiveView('corr');
     setCurrentStep(submissions.length > 0 ? 2 : 1);
+  };
+
+  // Swap two student submissions (identities or whole copies)
+  const handleSwapSubmissions = (subId1: string, subId2: string, mode: 'names' | 'all' = 'names') => {
+    setSubmissions((prev) => {
+      const sub1 = prev.find((s) => s.id === subId1);
+      const sub2 = prev.find((s) => s.id === subId2);
+      if (!sub1 || !sub2) return prev;
+
+      if (mode === 'names') {
+        // Swap names and assign each result to the new student name
+        const name1 = sub1.studentName;
+        const name2 = sub2.studentName;
+
+        return prev.map((s) => {
+          if (s.id === subId1) {
+            return {
+              ...s,
+              studentName: name2,
+              result: s.result ? { ...s.result, nom_eleve: name2, manuallyAdjusted: true } : undefined,
+            };
+          }
+          if (s.id === subId2) {
+            return {
+              ...s,
+              studentName: name1,
+              result: s.result ? { ...s.result, nom_eleve: name1, manuallyAdjusted: true } : undefined,
+            };
+          }
+          return s;
+        });
+      } else {
+        // Swap entire copies/results between records
+        return prev.map((s) => {
+          if (s.id === subId1) {
+            return {
+              ...s,
+              fileName: sub2.fileName,
+              imageDataUrl: sub2.imageDataUrl,
+              allPages: sub2.allPages,
+              pageCount: sub2.pageCount,
+              rotation: sub2.rotation,
+              result: sub2.result,
+              status: sub2.status,
+            };
+          }
+          if (s.id === subId2) {
+            return {
+              ...s,
+              fileName: sub1.fileName,
+              imageDataUrl: sub1.imageDataUrl,
+              allPages: sub1.allPages,
+              pageCount: sub1.pageCount,
+              rotation: sub1.rotation,
+              result: sub1.result,
+              status: sub1.status,
+            };
+          }
+          return s;
+        });
+      }
+    });
+
+    // Update active modal submission if open
+    setSelectedStudentForModal((curr) => {
+      if (!curr) return null;
+      if (curr.id === subId1) {
+        const other = submissions.find((s) => s.id === subId2);
+        if (other) {
+          return {
+            ...curr,
+            studentName: other.studentName,
+            result: curr.result ? { ...curr.result, nom_eleve: other.studentName, manuallyAdjusted: true } : curr.result,
+          };
+        }
+      }
+      if (curr.id === subId2) {
+        const other = submissions.find((s) => s.id === subId1);
+        if (other) {
+          return {
+            ...curr,
+            studentName: other.studentName,
+            result: curr.result ? { ...curr.result, nom_eleve: other.studentName, manuallyAdjusted: true } : curr.result,
+          };
+        }
+      }
+      return curr;
+    });
   };
 
   // Update a student submission after manual edit
@@ -262,12 +571,11 @@ export default function App() {
 
   // Action when teacher triggers the correction process (Step 2 button or direct step navigation)
   const handleRequestStartCorrection = () => {
-    const saved = localStorage.getItem('praxis_lead') || localStorage.getItem('cpro_lead');
-    if (saved || currentLead) {
-      // Already connected: skip modal entirely and proceed directly to correction!
+    const isRegistered = Boolean(localStorage.getItem('praxis_lead') || localStorage.getItem('cpro_lead') || currentLead);
+    if (isRegistered) {
       setCurrentStep(3);
     } else {
-      // Not connected: show the registration / connection portal
+      // Registration is strictly required before launching correction in this demo version
       setIsLeadGateOpen(true);
     }
   };
@@ -275,16 +583,13 @@ export default function App() {
   const handleLeadSubmitSuccess = (lead: LeadData) => {
     setCurrentLead(lead);
     setIsLeadGateOpen(false);
-    // Directly proceed to correction
+    // Registration completed: immediately launch correction
     setCurrentStep(3);
   };
 
   const handleCloseLeadGate = () => {
+    // Strictly stay on current step; correction is NOT started unless registered
     setIsLeadGateOpen(false);
-    // If user clicked close/skip while on step 2 with copies ready, allow proceeding
-    if (currentStep === 2 && submissions.length > 0) {
-      setCurrentStep(3);
-    }
   };
 
   const handleLogout = () => {
@@ -295,150 +600,159 @@ export default function App() {
 
   const completedCount = submissions.filter((s) => s.status === 'completed').length;
 
+  if (activeView === 'dashboard') {
+    return <AdminDashboard onBackToApp={() => handleViewChange('corr')} />;
+  }
+
   return (
     <div className="min-h-screen flex flex-col bg-slate-50 text-slate-900 font-sans">
       <Header
         currentStep={currentStep}
         onStepClick={(step) => {
-          if (step === 3 && currentStep === 2 && submissions.length > 0) {
-            handleRequestStartCorrection();
-          } else {
-            setActiveView('corr');
-            setCurrentStep(step);
+          if (step >= 3) {
+            const isRegistered = Boolean(localStorage.getItem('praxis_lead') || localStorage.getItem('cpro_lead') || currentLead);
+            if (!isRegistered) {
+              setIsLeadGateOpen(true);
+              return;
+            }
           }
+          handleViewChange('corr');
+          setCurrentStep(step);
         }}
         onReset={handleReset}
-        onLoadDemo={handleLoadDemo}
         completedCount={completedCount}
         totalCount={submissions.length}
         activeView={activeView}
-        onViewChange={setActiveView}
+        onViewChange={handleViewChange}
         savedEvalsCount={savedEvaluations.length}
         currentLead={currentLead}
         onOpenLoginModal={() => setIsLeadGateOpen(true)}
         onLogout={handleLogout}
       />
 
-      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
-        {/* VIEW 1: CORRECTION WORKFLOW */}
-        {activeView === 'corr' && (
-          <div className="space-y-6">
-            {/* Collapsible pedagogical tutorial guide */}
-            <TutorialBanner />
+      {/* VIEW 0: NOTIE AI INSPIRED LANDING PAGE */}
+      {activeView === 'landing' && (
+        <LandingPage
+          onStartCorrection={() => {
+            handleViewChange('corr');
+            setCurrentStep(1);
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+          }}
+          onNavigateToView={(view) => {
+            handleViewChange(view);
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+          }}
+        />
+      )}
 
-            {currentStep === 1 && (
-              <Step1Config
-                config={config}
-                onChange={setConfig}
-                onNext={() => setCurrentStep(2)}
-              />
-            )}
+      {activeView !== 'landing' && (
+        <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
+          {/* VIEW 1: CORRECTION WORKFLOW */}
+          {activeView === 'corr' && (
+            <div className="space-y-6">
+              {/* Collapsible pedagogical tutorial guide */}
+              <TutorialBanner />
 
-            {currentStep === 2 && (
-              <Step2Upload
-                submissions={submissions}
-                onSubmissionsChange={setSubmissions}
-                onNext={handleRequestStartCorrection}
-                onBack={() => setCurrentStep(1)}
-                onLoadDemo={handleLoadDemo}
-                config={config}
-              />
-            )}
-
-            {currentStep === 3 && (
-              <Step3Progress
-                config={config}
-                submissions={submissions}
-                onSubmissionsChange={setSubmissions}
-                onFinish={() => setCurrentStep(4)}
-                onViewDashboard={() => setCurrentStep(4)}
-              />
-            )}
-
-            {currentStep === 4 && (
-              <Step4Dashboard
-                config={config}
-                submissions={submissions}
-                onSubmissionsChange={setSubmissions}
-                onSelectStudent={(sub) => setSelectedStudentForModal(sub)}
-                onOpenPrint={() => setIsPrintModalOpen(true)}
-                onBackToCopies={() => setCurrentStep(2)}
-                onSaveToHistory={handleSaveToHistory}
-                initialTeacherNotes={activeTeacherNotes}
-              />
-            )}
-          </div>
-        )}
-
-        {/* VIEW 2: CLASSES & ROSTERS OR CLASS DETAIL */}
-        {activeView === 'classes' && (
-          selectedClassId ? (
-            (() => {
-              const currentClass = classes.find((c) => c.id === selectedClassId);
-              if (!currentClass) {
-                return (
-                  <ClassesView
-                    classes={classes}
-                    onClassesChange={setClasses}
-                    onUseClassForCorrection={handleUseClassForCorrection}
-                    onSelectClass={(cls) => setSelectedClassId(cls.id)}
-                  />
-                );
-              }
-              return (
-                <ClassDetailView
-                  classGroup={currentClass}
-                  evaluations={savedEvaluations}
-                  currentSubmissions={submissions}
-                  onBack={() => setSelectedClassId(null)}
-                  onUpdateClass={(updated) => {
-                    setClasses((prev) => prev.map((c) => (c.id === updated.id ? updated : c)));
-                  }}
-                  onSelectStudentDetail={(submission) => {
-                    setSelectedStudentForModal(submission);
-                  }}
-                  onUseClassForCorrection={(cls) => {
-                    handleUseClassForCorrection(cls);
-                  }}
-                  onLoadEvaluation={handleLoadEvaluation}
+              {currentStep === 1 && (
+                <Step1Config
+                  config={config}
+                  onChange={setConfig}
+                  onNext={() => setCurrentStep(2)}
                 />
-              );
-            })()
-          ) : (
+              )}
+
+              {currentStep === 2 && (
+                <Step2Upload
+                  submissions={submissions}
+                  onSubmissionsChange={setSubmissions}
+                  onNext={handleRequestStartCorrection}
+                  onBack={() => setCurrentStep(1)}
+                  isRegistered={Boolean(currentLead || localStorage.getItem('praxis_lead') || localStorage.getItem('cpro_lead'))}
+                  config={config}
+                  classes={classes}
+                  onSwapSubmissions={handleSwapSubmissions}
+                />
+              )}
+
+              {currentStep === 3 && (
+                <Step3Progress
+                  config={config}
+                  submissions={submissions}
+                  onSubmissionsChange={setSubmissions}
+                  onFinish={() => setCurrentStep(4)}
+                  onViewDashboard={() => setCurrentStep(4)}
+                />
+              )}
+
+              {currentStep === 4 && (
+                <Step4Dashboard
+                  config={config}
+                  submissions={submissions}
+                  onSubmissionsChange={setSubmissions}
+                  onSelectStudent={(sub) => setSelectedStudentForModal(sub)}
+                  onOpenPrint={() => setIsPrintModalOpen(true)}
+                  onBackToCopies={() => setCurrentStep(2)}
+                  onSaveToHistory={handleSaveToHistory}
+                  initialTeacherNotes={activeTeacherNotes}
+                  onSwapSubmissions={handleSwapSubmissions}
+                  isValidated={isCurrentEvalValidated}
+                  onValidateClassCorrection={() => setIsCurrentEvalValidated(true)}
+                />
+              )}
+            </div>
+          )}
+
+          {/* VIEW 2: CLASSES & ROSTERS */}
+          {activeView === 'classes' && (
             <ClassesView
               classes={classes}
               onClassesChange={setClasses}
               onUseClassForCorrection={handleUseClassForCorrection}
-              onSelectClass={(cls) => setSelectedClassId(cls.id)}
+              evaluations={savedEvaluations}
+              currentSubmissions={submissions}
+              onOpenEvaluation={handleLoadEvaluation}
             />
-          )
-        )}
+          )}
 
-        {/* VIEW 3: SUIVI INDIVIDUEL */}
-        {activeView === 'suivi' && (
-          <SuiviView
-            evaluations={savedEvaluations}
-            currentSubmissions={submissions}
-            onOpenEvaluation={handleLoadEvaluation}
-          />
-        )}
+          {/* VIEW 3: SUIVI INDIVIDUEL */}
+          {activeView === 'suivi' && (
+            <SuiviView
+              evaluations={savedEvaluations}
+              currentSubmissions={submissions}
+              onOpenEvaluation={handleLoadEvaluation}
+            />
+          )}
 
-        {/* VIEW 4: HISTORIQUE DES ÉVALUATIONS */}
-        {activeView === 'hist' && (
-          <HistoriqueView
-            evaluations={savedEvaluations}
-            onDeleteEvaluation={handleDeleteEvaluation}
-            onLoadEvaluation={handleLoadEvaluation}
-          />
-        )}
-      </main>
+          {/* VIEW 4: HISTORIQUE DES ÉVALUATIONS */}
+          {activeView === 'hist' && (
+            <HistoriqueView
+              evaluations={savedEvaluations}
+              onDeleteEvaluation={handleDeleteEvaluation}
+              onLoadEvaluation={handleLoadEvaluation}
+            />
+          )}
+
+          {/* VIEW 5: FAQ & GUIDE PÉDAGOGIQUE */}
+          {activeView === 'faq' && (
+            <FaqView
+              onStartCorrection={() => {
+                handleViewChange('corr');
+                setCurrentStep(1);
+              }}
+            />
+          )}
+        </main>
+      )}
 
       {/* Side-by-side Student Inspection and Adjustment Modal */}
       {selectedStudentForModal && (
         <StudentDetailModal
           submission={selectedStudentForModal}
+          allSubmissions={submissions}
           onClose={() => setSelectedStudentForModal(null)}
           onSave={handleSaveStudentEdit}
+          onSwapSubmissions={handleSwapSubmissions}
+          isValidated={isCurrentEvalValidated}
         />
       )}
 
