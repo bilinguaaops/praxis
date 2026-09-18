@@ -69,8 +69,9 @@ export const CopyExportRenderer = React.forwardRef<HTMLDivElement, CopyExportRen
       <div
         ref={ref}
         id="export-clone-container"
-        className="w-[1360px] bg-slate-900 text-slate-900 font-sans p-6 rounded-2xl shadow-2xl flex flex-col gap-5 select-none"
+        className="w-[1280px] bg-slate-900 text-slate-900 font-sans p-6 rounded-2xl shadow-2xl flex flex-col gap-5 select-none"
         style={{
+          width: '1280px',
           boxSizing: 'border-box',
           backgroundColor: '#0b1329',
           color: '#0f172a',

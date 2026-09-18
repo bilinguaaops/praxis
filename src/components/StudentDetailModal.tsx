@@ -38,6 +38,7 @@ import {
   exportElementAsMultiPageA4Pdf,
   exportRawHandwrittenCopy,
   getRotatedImageDataUrl,
+  exportDirectStudentReportPdf,
 } from '../lib/exportUtils';
 import { CopyExportRenderer } from './CopyExportRenderer';
 
@@ -275,13 +276,47 @@ export const StudentDetailModal: React.FC<StudentDetailModalProps> = ({
           'pdf',
           `Copie_${safeName}_${pageChoice === 'all' ? 'Toutes_Pages' : `Page${activePageIndex + 1}`}.pdf`
         );
-      } else if (exportContainerRef.current) {
-        if (format === 'png') {
-          await exportElementAsPng(exportContainerRef.current, `${baseFilename}.png`);
-        } else if (format === 'pdf') {
-          await exportElementAsPanoramicPdf(exportContainerRef.current, `${baseFilename}.pdf`);
-        } else if (format === 'pdf_a4') {
-          await exportElementAsMultiPageA4Pdf(exportContainerRef.current, `${baseFilename}_A4.pdf`);
+      } else {
+        // High-definition DOM capture with seamless fallback to direct vector PDF
+        let captured = false;
+        if (exportContainerRef.current) {
+          try {
+            if (format === 'png') {
+              await exportElementAsPng(exportContainerRef.current, `${baseFilename}.png`);
+              captured = true;
+            } else if (format === 'pdf') {
+              await exportElementAsPanoramicPdf(exportContainerRef.current, `${baseFilename}.pdf`);
+              captured = true;
+            } else if (format === 'pdf_a4') {
+              await exportElementAsMultiPageA4Pdf(exportContainerRef.current, `${baseFilename}_A4.pdf`);
+              captured = true;
+            }
+          } catch (captureErr) {
+            console.warn('Capture HTML2Canvas rencontrant une contrainte, bascule automatique sur le moteur PDF direct :', captureErr);
+          }
+        }
+
+        // If capture didn't complete (or format is PDF and container wasn't available), use direct native vector PDF
+        if (!captured) {
+          await exportDirectStudentReportPdf(
+            {
+              submission,
+              studentName,
+              grade,
+              gradeMax,
+              appreciation,
+              questions,
+              competences,
+              teacherNotes,
+              pages,
+              activePageIndex,
+              exportAllPages: pageChoice === 'all',
+              rotatedPages,
+              config,
+              isValidated,
+            },
+            `${baseFilename}.pdf`
+          );
         }
       }
 
@@ -1292,13 +1327,15 @@ export const StudentDetailModal: React.FC<StudentDetailModalProps> = ({
         </div>
       )}
 
-      {/* Hidden high-fidelity DOM container for capture & export */}
+      {/* Off-screen safe DOM container for capture & export */}
       <div
+        id="praxis-export-host"
         style={{
           position: 'fixed',
-          left: '-9999px',
+          left: 0,
           top: 0,
-          zIndex: -999,
+          width: '1280px',
+          zIndex: -9999,
           pointerEvents: 'none',
           opacity: 1,
         }}
