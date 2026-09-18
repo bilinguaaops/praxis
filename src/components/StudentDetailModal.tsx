@@ -1480,12 +1480,12 @@ export const StudentDetailModal: React.FC<StudentDetailModalProps> = ({
         id="praxis-export-host"
         style={{
           position: 'fixed',
-          left: 0,
-          top: 0,
+          left: '-99999px',
+          top: '-99999px',
           width: '1280px',
           zIndex: -9999,
           pointerEvents: 'none',
-          opacity: 1,
+          opacity: 0,
         }}
         aria-hidden="true"
       >

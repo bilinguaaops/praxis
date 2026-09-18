@@ -530,19 +530,38 @@ function getAnthropic(): Anthropic | null {
   return anthropicClient;
 }
 
-// Configurable Claude model (defaults to claude-3-5-sonnet-20241022, can be set to claude-3-5-haiku-20241022)
-function getClaudeModel(): string {
-  const envModel = (process.env.CLAUDE_MODEL || '').trim().toLowerCase();
-  if (envModel.includes('haiku')) {
-    return 'claude-3-5-haiku-20241022';
+// Configurable Claude models with robust aliases and fallbacks
+function getClaudeCandidates(): string[] {
+  const envModel = (process.env.CLAUDE_MODEL || '').trim();
+  if (envModel) {
+    const lower = envModel.toLowerCase();
+    if (lower.includes('haiku')) {
+      return ['claude-3-5-haiku-latest', 'claude-3-5-haiku-20241022', 'claude-3-haiku-20240307'];
+    }
+    if (lower.includes('3-7') || lower.includes('3.7')) {
+      return ['claude-3-7-sonnet-latest', 'claude-3-5-sonnet-latest'];
+    }
+    if (lower.includes('sonnet')) {
+      return ['claude-3-5-sonnet-latest', 'claude-3-7-sonnet-latest', 'claude-3-5-sonnet-20240620', 'claude-3-5-sonnet-20241022'];
+    }
+    return [envModel, 'claude-3-5-sonnet-latest', 'claude-3-7-sonnet-latest'];
   }
-  return 'claude-3-5-sonnet-20241022';
+  return [
+    'claude-3-5-sonnet-latest',
+    'claude-3-7-sonnet-latest',
+    'claude-3-5-sonnet-20240620',
+    'claude-3-5-haiku-latest',
+  ];
+}
+
+function getClaudeModel(): string {
+  return getClaudeCandidates()[0];
 }
 
 // In-memory model circuit breaker to avoid repeatedly hammering models with 503/timeout
 const modelCooldownMap = new Map<string, number>();
 
-function markModelUnhealthy(model: string, durationMs: number = 90_000) {
+function markModelUnhealthy(model: string, durationMs: number = 120_000) {
   modelCooldownMap.set(model, Date.now() + durationMs);
   console.log(`[Praxis IA] Model ${model} marked in cooldown for ${durationMs / 1000}s`);
 }
@@ -644,9 +663,10 @@ RÉPONDS UNIQUEMENT SOUS FORME D'UN OBJET JSON STRICT.`;
     });
 
     const candidateModels = [
-      'gemini-3.1-flash-lite',
-      'gemini-flash-lite-latest',
       'gemini-3.8-flash',
+      'gemini-flash-latest',
+      'gemini-2.5-flash',
+      'gemini-3.1-flash-lite',
     ];
     const modelsToTry = getPrioritizedModels(candidateModels);
 
@@ -685,68 +705,75 @@ RÉPONDS UNIQUEMENT SOUS FORME D'UN OBJET JSON STRICT.`;
 
     // 1. Try Anthropic Claude if ANTHROPIC_API_KEY is configured
     const anthropic = getAnthropic();
-    if (anthropic && isModelHealthy('claude-3-5-sonnet')) {
-      try {
-        console.log('[AnalyzeRubric] Attempting analysis with Claude 3.5 Sonnet...');
-        const claudeContent: any[] = [];
+    if (anthropic && isModelHealthy('claude-provider')) {
+      const claudeCandidates = getClaudeCandidates().filter((m) => isModelHealthy(m));
+      for (const chosenClaudeModel of claudeCandidates) {
+        try {
+          console.log(`[AnalyzeRubric] Attempting analysis with Claude (${chosenClaudeModel})...`);
+          const claudeContent: any[] = [];
 
-        imagesList.forEach((img) => {
-          let mimeType: 'image/jpeg' | 'image/png' | 'image/gif' | 'image/webp' = 'image/jpeg';
-          let data = img;
-          const match = img.match(/^data:([a-zA-Z0-9]+\/[a-zA-Z0-9-.+]+);base64,(.+)$/);
-          if (match) {
-            const rawMime = match[1].toLowerCase();
-            if (rawMime.includes('png')) mimeType = 'image/png';
-            else if (rawMime.includes('webp')) mimeType = 'image/webp';
-            else if (rawMime.includes('gif')) mimeType = 'image/gif';
-            else mimeType = 'image/jpeg';
-            data = match[2];
-          }
-          claudeContent.push({
-            type: 'image',
-            source: {
-              type: 'base64',
-              media_type: mimeType,
-              data,
-            },
+          imagesList.forEach((img) => {
+            let mimeType: 'image/jpeg' | 'image/png' | 'image/gif' | 'image/webp' = 'image/jpeg';
+            let data = img;
+            const match = img.match(/^data:([a-zA-Z0-9]+\/[a-zA-Z0-9-.+]+);base64,(.+)$/);
+            if (match) {
+              const rawMime = match[1].toLowerCase();
+              if (rawMime.includes('png')) mimeType = 'image/png';
+              else if (rawMime.includes('webp')) mimeType = 'image/webp';
+              else if (rawMime.includes('gif')) mimeType = 'image/gif';
+              else mimeType = 'image/jpeg';
+              data = match[2];
+            }
+            claudeContent.push({
+              type: 'image',
+              source: {
+                type: 'base64',
+                media_type: mimeType,
+                data,
+              },
+            });
           });
-        });
 
-        if (rubricContent && rubricContent.trim()) {
+          if (rubricContent && rubricContent.trim()) {
+            claudeContent.push({
+              type: 'text',
+              text: `Texte du corrigé saisi par l'enseignant :\n"""${rubricContent}"""`,
+            });
+          }
+
           claudeContent.push({
             type: 'text',
-            text: `Texte du corrigé saisi par l'enseignant :\n"""${rubricContent}"""`,
+            text: promptText + `\n\nRenvoie un objet JSON strict avec : { "suggestedTitle": string, "suggestedDiscipline": string, "suggestedLevel": string, "suggestedMaxGrade": number, "extractedRubricText": string, "summary": string }`,
           });
-        }
 
-        claudeContent.push({
-          type: 'text',
-          text: promptText + `\n\nRenvoie un objet JSON strict avec : { "suggestedTitle": string, "suggestedDiscipline": string, "suggestedLevel": string, "suggestedMaxGrade": number, "extractedRubricText": string, "summary": string }`,
-        });
+          const claudeRes = await anthropic.messages.create({
+            model: chosenClaudeModel,
+            max_tokens: 2000,
+            temperature: 0.1,
+            messages: [{ role: 'user', content: claudeContent }],
+          });
 
-        const chosenClaudeModel = getClaudeModel();
-        const claudeRes = await anthropic.messages.create({
-          model: chosenClaudeModel,
-          max_tokens: 2000,
-          temperature: 0.1,
-          messages: [{ role: 'user', content: claudeContent }],
-        });
-
-        const firstBlock = claudeRes.content[0];
-        if (firstBlock && firstBlock.type === 'text') {
-          let rawText = firstBlock.text.trim();
-          if (rawText.startsWith('```')) {
-            rawText = rawText.replace(/^```(?:json)?\n?/, '').replace(/\n?```$/, '').trim();
+          const firstBlock = claudeRes.content[0];
+          if (firstBlock && firstBlock.type === 'text') {
+            let rawText = firstBlock.text.trim();
+            if (rawText.startsWith('```')) {
+              rawText = rawText.replace(/^```(?:json)?\n?/, '').replace(/\n?```$/, '').trim();
+            }
+            const match = rawText.match(/\{[\s\S]*\}/);
+            if (match) {
+              resultJson = JSON.parse(match[0]);
+              console.log(`[AnalyzeRubric] Analyzed successfully with ${chosenClaudeModel}!`);
+              break;
+            }
           }
-          const match = rawText.match(/\{[\s\S]*\}/);
-          if (match) {
-            resultJson = JSON.parse(match[0]);
-            console.log(`[AnalyzeRubric] Analyzed successfully with ${chosenClaudeModel}!`);
+        } catch (anthropicErr: any) {
+          const isNotFound = anthropicErr?.status === 404 || anthropicErr?.message?.includes('not_found_error');
+          console.log(`[AnalyzeRubric] Claude (${chosenClaudeModel}) unavailable (${anthropicErr.message || 'error'}), proceeding to fallback...`);
+          markModelUnhealthy(chosenClaudeModel, 300_000);
+          if (isNotFound && claudeCandidates.indexOf(chosenClaudeModel) === claudeCandidates.length - 1) {
+            markModelUnhealthy('claude-provider', 600_000);
           }
         }
-      } catch (anthropicErr: any) {
-        console.warn('[AnalyzeRubric] Anthropic Claude failed, falling back to Gemini:', anthropicErr.message);
-        markModelUnhealthy('claude-3-5-sonnet', 90_000);
       }
     }
 
@@ -775,11 +802,12 @@ RÉPONDS UNIQUEMENT SOUS FORME D'UN OBJET JSON STRICT.`;
 
           if (response && response.text) {
             resultJson = JSON.parse(response.text);
+            console.log(`[AnalyzeRubric] Corrigé analysé avec succès via ${model}`);
             break;
           }
         } catch (err: any) {
-          console.warn(`[AnalyzeRubric] Model ${model} failed, trying next:`, err.message);
-          markModelUnhealthy(model, 90_000);
+          console.log(`[AnalyzeRubric] Modèle ${model} momentanément indisponible (${err?.message || 'erreur'}), bascule vers le suivant...`);
+          markModelUnhealthy(model, 120_000);
         }
       }
     }
@@ -1030,10 +1058,10 @@ Voici la copie de l'élève (${studentName || 'Nom à détecter'}). Compare chaq
 
     // Prioritize high-availability and fast vision models with automatic failover
     const candidateModels = [
-      'gemini-3.1-flash-lite',
-      'gemini-flash-lite-latest',
       'gemini-3.8-flash',
       'gemini-flash-latest',
+      'gemini-2.5-flash',
+      'gemini-3.1-flash-lite',
     ];
     const modelsToTry = getPrioritizedModels(candidateModels);
 
@@ -1123,71 +1151,73 @@ Voici la copie de l'élève (${studentName || 'Nom à détecter'}). Compare chaq
     let responseText = '';
     let lastError: any = null;
 
-    // 1. If Anthropic Claude key is provided and healthy, try Claude 3.5 Sonnet first
+    // 1. If Anthropic Claude key is provided and healthy, try Claude candidates
     const anthropic = getAnthropic();
-    if (anthropic && isModelHealthy('claude-3-5-sonnet')) {
-      try {
-        console.log('[Praxis IA] Requesting correction with Claude 3.5 Sonnet...');
-        const claudeContent: any[] = [];
+    if (anthropic && isModelHealthy('claude-provider')) {
+      const claudeCandidates = getClaudeCandidates().filter((m) => isModelHealthy(m));
+      for (const chosenClaudeModel of claudeCandidates) {
+        try {
+          console.log(`[Praxis IA] Requesting correction with Claude (${chosenClaudeModel})...`);
+          const claudeContent: any[] = [];
 
-        // Add rubric scans if present
-        if (rubricImagesList.length > 0) {
-          claudeContent.push({
-            type: 'text',
-            text: `=======================================================
+          // Add rubric scans if present
+          if (rubricImagesList.length > 0) {
+            claudeContent.push({
+              type: 'text',
+              text: `=======================================================
 DOCUMENT DE RÉFÉRENCE : CORRIGÉ OFFICIEL DU PROFESSEUR (${rubricImagesList.length} PAGE(S))
 =======================================================
 Tu DOIS te baser scrupuleusement sur ce corrigé pour évaluer la copie de l'élève.`,
-          });
-          rubricImagesList.forEach((rImage) => {
-            let rMime: 'image/jpeg' | 'image/png' | 'image/gif' | 'image/webp' = 'image/jpeg';
-            let rData = rImage;
-            const rMatches = rImage.match(/^data:([a-zA-Z0-9]+\/[a-zA-Z0-9-.+]+);base64,(.+)$/);
-            if (rMatches) {
-              const rawMime = rMatches[1].toLowerCase();
-              if (rawMime.includes('png')) rMime = 'image/png';
-              else if (rawMime.includes('webp')) rMime = 'image/webp';
-              else if (rawMime.includes('gif')) rMime = 'image/gif';
-              else rMime = 'image/jpeg';
-              rData = rMatches[2];
-            }
-            claudeContent.push({
-              type: 'image',
-              source: { type: 'base64', media_type: rMime, data: rData },
             });
-          });
-        }
-
-        // Add student copy pages
-        claudeContent.push({
-          type: 'text',
-          text: `=======================================================
-COPIE DE L'ÉLÈVE À CORRIGER (${pagesList.length} PAGE(S) NUMÉROTÉE(S))
-=======================================================`,
-        });
-        pagesList.forEach((pImg, idx) => {
-          let pMime: 'image/jpeg' | 'image/png' | 'image/gif' | 'image/webp' = 'image/jpeg';
-          let pData = pImg;
-          const pMatches = pImg.match(/^data:([a-zA-Z0-9]+\/[a-zA-Z0-9-.+]+);base64,(.+)$/);
-          if (pMatches) {
-            const rawMime = pMatches[1].toLowerCase();
-            if (rawMime.includes('png')) pMime = 'image/png';
-            else if (rawMime.includes('webp')) pMime = 'image/webp';
-            else if (rawMime.includes('gif')) pMime = 'image/gif';
-            else pMime = 'image/jpeg';
-            pData = pMatches[2];
+            rubricImagesList.forEach((rImage) => {
+              let rMime: 'image/jpeg' | 'image/png' | 'image/gif' | 'image/webp' = 'image/jpeg';
+              let rData = rImage;
+              const rMatches = rImage.match(/^data:([a-zA-Z0-9]+\/[a-zA-Z0-9-.+]+);base64,(.+)$/);
+              if (rMatches) {
+                const rawMime = rMatches[1].toLowerCase();
+                if (rawMime.includes('png')) rMime = 'image/png';
+                else if (rawMime.includes('webp')) rMime = 'image/webp';
+                else if (rawMime.includes('gif')) rMime = 'image/gif';
+                else rMime = 'image/jpeg';
+                rData = rMatches[2];
+              }
+              claudeContent.push({
+                type: 'image',
+                source: { type: 'base64', media_type: rMime, data: rData },
+              });
+            });
           }
+
+          // Add student copy pages
           claudeContent.push({
             type: 'text',
-            text: `--- Copie élève - Page ${idx + 1} sur ${pagesList.length} ---`,
+            text: `=======================================================
+COPIE DE L'ÉLÈVE À CORRIGER (${pagesList.length} PAGE(S) NUMÉROTÉE(S))
+=======================================================`,
           });
-          claudeContent.push({
-            type: 'image',
-            source: { type: 'base64', media_type: pMime, data: pData },
+          pagesList.forEach((pImg, idx) => {
+            let pMime: 'image/jpeg' | 'image/png' | 'image/gif' | 'image/webp' = 'image/jpeg';
+            let pData = pImg;
+            const pMatches = pImg.match(/^data:([a-zA-Z0-9]+\/[a-zA-Z0-9-.+]+);base64,(.+)$/);
+            if (pMatches) {
+              const rawMime = pMatches[1].toLowerCase();
+              if (rawMime.includes('png')) pMime = 'image/png';
+              else if (rawMime.includes('webp')) pMime = 'image/webp';
+              else if (rawMime.includes('gif')) pMime = 'image/gif';
+              else pMime = 'image/jpeg';
+              pData = pMatches[2];
+            }
+            claudeContent.push({
+              type: 'text',
+              text: `--- Copie élève - Page ${idx + 1} sur ${pagesList.length} ---`,
+            });
+            claudeContent.push({
+              type: 'image',
+              source: { type: 'base64', media_type: pMime, data: pData },
+            });
           });
-        });
 
-        const jsonInstruction = `
+          const jsonInstruction = `
 Renvoie impérativement un objet JSON valide strict avec la structure suivante :
 {
   "nom_eleve": "${studentName || 'Élève'}",
@@ -1205,28 +1235,33 @@ Renvoie impérativement un objet JSON valide strict avec la structure suivante :
   "verification_humaine_recommandee": boolean
 }`;
 
-        claudeContent.push({
-          type: 'text',
-          text: systemPrompt + '\n\n' + jsonInstruction,
-        });
+          claudeContent.push({
+            type: 'text',
+            text: systemPrompt + '\n\n' + jsonInstruction,
+          });
 
-        const chosenClaudeModel = getClaudeModel();
-        const claudeRes = await anthropic.messages.create({
-          model: chosenClaudeModel,
-          max_tokens: 4000,
-          temperature: 0.1,
-          messages: [{ role: 'user', content: claudeContent }],
-        });
+          const claudeRes = await anthropic.messages.create({
+            model: chosenClaudeModel,
+            max_tokens: 4000,
+            temperature: 0.1,
+            messages: [{ role: 'user', content: claudeContent }],
+          });
 
-        const firstBlock = claudeRes.content[0];
-        if (firstBlock && firstBlock.type === 'text') {
-          responseText = firstBlock.text.trim();
-          console.log(`[Praxis IA] ${chosenClaudeModel} evaluated successfully!`);
+          const firstBlock = claudeRes.content[0];
+          if (firstBlock && firstBlock.type === 'text') {
+            responseText = firstBlock.text.trim();
+            console.log(`[Praxis IA] ${chosenClaudeModel} evaluated successfully!`);
+            break;
+          }
+        } catch (anthropicErr: any) {
+          const isNotFound = anthropicErr?.status === 404 || anthropicErr?.message?.includes('not_found_error');
+          console.log(`[Praxis IA] Claude (${chosenClaudeModel}) unavailable (${anthropicErr.message || 'error'}), proceeding to fallback...`);
+          markModelUnhealthy(chosenClaudeModel, 300_000);
+          if (isNotFound && claudeCandidates.indexOf(chosenClaudeModel) === claudeCandidates.length - 1) {
+            markModelUnhealthy('claude-provider', 600_000);
+          }
+          lastError = anthropicErr;
         }
-      } catch (anthropicErr: any) {
-        console.warn(`[Praxis IA] Claude (${getClaudeModel()}) failed, falling back to Gemini models:`, anthropicErr.message);
-        markModelUnhealthy('claude-3-5-sonnet', 90_000);
-        lastError = anthropicErr;
       }
     }
 
@@ -1264,7 +1299,7 @@ Renvoie impérativement un objet JSON valide strict avec la structure suivante :
           }
         } catch (err: any) {
           const errMsg = err?.message || String(err);
-          console.warn(`[Praxis IA] Model ${modelName} failed:`, errMsg);
+          console.log(`[Praxis IA] Modèle ${modelName} indisponible (${errMsg}), bascule vers le modèle suivant...`);
           lastError = err;
 
           // Place model on cooldown immediately so concurrent/subsequent requests skip it

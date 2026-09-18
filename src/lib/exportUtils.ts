@@ -137,6 +137,9 @@ export async function captureElementToCanvas(element: HTMLElement, scale: number
         target.style.position = 'static';
         target.style.left = '0';
         target.style.top = '0';
+        target.style.visibility = 'visible';
+        target.style.display = 'block';
+        target.style.opacity = '1';
       }
       const host = clonedDoc.getElementById('praxis-export-host');
       if (host) {
@@ -144,6 +147,9 @@ export async function captureElementToCanvas(element: HTMLElement, scale: number
         host.style.left = '0';
         host.style.top = '0';
         host.style.zIndex = '1';
+        host.style.visibility = 'visible';
+        host.style.display = 'block';
+        host.style.opacity = '1';
       }
       const allImgs = clonedDoc.querySelectorAll('img');
       allImgs.forEach((img) => {
