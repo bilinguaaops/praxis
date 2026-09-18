@@ -96,16 +96,16 @@ export const LeadGateModal: React.FC<LeadGateModalProps> = ({
         <div className="p-6 text-center border-b border-slate-100 bg-gradient-to-b from-blue-50/80 to-white">
           <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-100 text-emerald-800 text-xs font-bold mb-3 border border-emerald-200">
             <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-            <span>Démo 100% Gratuite • Aucun paiement</span>
+            <span>🎁 Démo Gratuite • 5 copies offertes par enseignant</span>
           </div>
 
           <h3 className="text-xl font-extrabold text-slate-900 tracking-tight">
-            {mode === 'register' ? 'Inscription Enseignant Démo' : 'Connexion Enseignant'}
+            {mode === 'register' ? 'Inscription Enseignant (Accès Découverte)' : 'Connexion Enseignant'}
           </h3>
           <p className="text-xs text-slate-600 mt-1.5 max-w-xs mx-auto leading-relaxed">
             {mode === 'register'
-              ? 'Veuillez renseigner vos coordonnées pour lancer la correction IA. Accès direct et immédiat pour tester vos vraies copies.'
-              : 'Connectez-vous pour retrouver votre profil et lancer la correction de vos copies.'}
+              ? 'Renseignez vos coordonnées pour débloquer vos 5 corrections IA gratuites et tester le système sur vos vraies copies.'
+              : 'Connectez-vous avec votre email pour retrouver vos copies et lancer la correction.'}
           </p>
 
           {/* Mode switch */}
@@ -236,7 +236,7 @@ export const LeadGateModal: React.FC<LeadGateModalProps> = ({
                   <Sparkles className="w-4 h-4" />
                   <span>
                     {mode === 'register'
-                      ? "Valider l'inscription et lancer la correction"
+                      ? "Valider et débloquer mes 5 copies gratuites"
                       : 'Se connecter et lancer la correction'}
                   </span>
                   <ArrowRight className="w-4 h-4" />

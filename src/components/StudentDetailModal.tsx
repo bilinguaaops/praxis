@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useMemo } from 'react';
-import { StudentSubmission, CorrectionResult, QuestionEvaluation, CompetenceItem } from '../types';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
+import { StudentSubmission, CorrectionResult, QuestionEvaluation, CompetenceItem, AssignmentConfig } from '../types';
 import {
   X,
   RotateCw,
@@ -24,11 +24,27 @@ import {
   RefreshCw,
   Search,
   ShieldCheck,
+  Download,
+  FileDown,
+  Image as ImageIcon,
+  ChevronDown,
+  Layers,
+  Loader2,
+  Check,
 } from 'lucide-react';
+import {
+  exportElementAsPng,
+  exportElementAsPanoramicPdf,
+  exportElementAsMultiPageA4Pdf,
+  exportRawHandwrittenCopy,
+  getRotatedImageDataUrl,
+} from '../lib/exportUtils';
+import { CopyExportRenderer } from './CopyExportRenderer';
 
 interface StudentDetailModalProps {
   submission: StudentSubmission;
   allSubmissions?: StudentSubmission[];
+  config?: AssignmentConfig;
   onClose: () => void;
   onSave: (updatedSubmission: StudentSubmission) => void;
   onSwapSubmissions?: (subId1: string, subId2: string, mode?: 'names' | 'all') => void;
@@ -38,6 +54,7 @@ interface StudentDetailModalProps {
 export const StudentDetailModal: React.FC<StudentDetailModalProps> = ({
   submission,
   allSubmissions = [],
+  config,
   onClose,
   onSave,
   onSwapSubmissions,
@@ -61,6 +78,32 @@ export const StudentDetailModal: React.FC<StudentDetailModalProps> = ({
   const [showSwapDropdown, setShowSwapDropdown] = useState(false);
   const [modalSwapSearch, setModalSwapSearch] = useState('');
   const [isFullscreen, setIsFullscreen] = useState(false);
+
+  // Export & Download state
+  const exportContainerRef = useRef<HTMLDivElement>(null);
+  const [rotatedPages, setRotatedPages] = useState<string[]>([]);
+  const [isDownloading, setIsDownloading] = useState(false);
+  const [downloadStatusMessage, setDownloadStatusMessage] = useState('');
+  const [showDownloadDropdown, setShowDownloadDropdown] = useState(false);
+  const [showDownloadModal, setShowDownloadModal] = useState(false);
+  const [exportFormat, setExportFormat] = useState<'pdf' | 'png' | 'pdf_a4' | 'raw_copy_png' | 'raw_copy_pdf'>('pdf');
+  const [exportPageChoice, setExportPageChoice] = useState<'active' | 'all'>('active');
+
+  // Pre-cache rotated images so exports are instantaneous and pixel-perfect
+  useEffect(() => {
+    let isMounted = true;
+    Promise.all(pages.map((p) => getRotatedImageDataUrl(p, rotation)))
+      .then((rotList) => {
+        if (isMounted) setRotatedPages(rotList);
+      })
+      .catch((err) => {
+        console.error('Erreur pré-rotation image :', err);
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [pages, rotation]);
 
   // Keyboard navigation when in fullscreen mode (Escape, Arrows, Zoom)
   useEffect(() => {
@@ -185,6 +228,77 @@ export const StudentDetailModal: React.FC<StudentDetailModalProps> = ({
 
     setIsSavedNotice(true);
     setTimeout(() => setIsSavedNotice(false), 2000);
+  };
+
+  const handleDownload = async (
+    format: 'pdf' | 'png' | 'pdf_a4' | 'raw_copy_png' | 'raw_copy_pdf',
+    pageChoice: 'active' | 'all' = exportPageChoice
+  ) => {
+    setIsDownloading(true);
+    setShowDownloadDropdown(false);
+
+    if (format === 'png') {
+      setDownloadStatusMessage("Génération de l'image haute définition (PNG)...");
+    } else if (format === 'pdf') {
+      setDownloadStatusMessage("Génération du document PDF (vue intégrale)...");
+    } else if (format === 'pdf_a4') {
+      setDownloadStatusMessage("Génération du document PDF A4 paginé...");
+    } else {
+      setDownloadStatusMessage("Export de la copie manuscrite...");
+    }
+
+    const safeName = studentName.trim().replace(/[^a-zA-Z0-9À-ÿ_-]/g, '_') || 'Eleve';
+    const baseFilename = `Correction_${safeName}_${grade}sur${gradeMax}`;
+
+    try {
+      // Ensure layout and pre-rotated images are rendered
+      await new Promise((r) => setTimeout(r, 150));
+
+      if (format === 'raw_copy_png') {
+        const activeRotated = rotatedPages[activePageIndex] || pages[activePageIndex];
+        await exportRawHandwrittenCopy(
+          [activeRotated],
+          0,
+          safeName,
+          'png',
+          `Copie_${safeName}_Page${activePageIndex + 1}.png`
+        );
+      } else if (format === 'raw_copy_pdf') {
+        const pagesToExport =
+          pageChoice === 'all'
+            ? rotatedPages.length > 0 ? rotatedPages : pages
+            : [rotatedPages[activePageIndex] || pages[activePageIndex]];
+        await exportRawHandwrittenCopy(
+          pagesToExport,
+          0,
+          safeName,
+          'pdf',
+          `Copie_${safeName}_${pageChoice === 'all' ? 'Toutes_Pages' : `Page${activePageIndex + 1}`}.pdf`
+        );
+      } else if (exportContainerRef.current) {
+        if (format === 'png') {
+          await exportElementAsPng(exportContainerRef.current, `${baseFilename}.png`);
+        } else if (format === 'pdf') {
+          await exportElementAsPanoramicPdf(exportContainerRef.current, `${baseFilename}.pdf`);
+        } else if (format === 'pdf_a4') {
+          await exportElementAsMultiPageA4Pdf(exportContainerRef.current, `${baseFilename}_A4.pdf`);
+        }
+      }
+
+      setDownloadStatusMessage("Document téléchargé avec succès !");
+      setTimeout(() => {
+        setIsDownloading(false);
+        setDownloadStatusMessage('');
+        setShowDownloadModal(false);
+      }, 2000);
+    } catch (err) {
+      console.error('Erreur lors du téléchargement :', err);
+      setDownloadStatusMessage("Erreur lors de l'export. Veuillez réessayer.");
+      setTimeout(() => {
+        setIsDownloading(false);
+        setDownloadStatusMessage('');
+      }, 3000);
+    }
   };
 
   return (
@@ -314,6 +428,121 @@ export const StudentDetailModal: React.FC<StudentDetailModalProps> = ({
                 Modifications enregistrées !
               </span>
             )}
+
+            {/* Prominent Download Dropdown Button */}
+            <div className="relative inline-block">
+              <button
+                type="button"
+                onClick={() => setShowDownloadDropdown(!showDownloadDropdown)}
+                disabled={isDownloading}
+                id="btn-modal-download-header"
+                className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold transition-all cursor-pointer shadow-xs disabled:opacity-50"
+                title="Télécharger cette copie et son évaluation (PDF ou Image)"
+              >
+                {isDownloading ? (
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                ) : (
+                  <Download className="w-3.5 h-3.5" />
+                )}
+                <span>Télécharger</span>
+                <ChevronDown className="w-3 h-3 opacity-80" />
+              </button>
+
+              {showDownloadDropdown && (
+                <>
+                  <div
+                    className="fixed inset-0 z-40"
+                    onClick={() => setShowDownloadDropdown(false)}
+                  />
+                  <div className="absolute top-full right-0 mt-2 w-80 bg-slate-900 border border-slate-700 rounded-xl shadow-2xl p-2 z-50 text-white text-xs space-y-1 animate-in fade-in zoom-in-95 duration-100">
+                    <div className="px-3 py-2 border-b border-slate-800">
+                      <span className="font-bold text-slate-100 block">Télécharger la copie corrigée</span>
+                      <span className="text-[11px] text-slate-400">
+                        Rendu 100% fidèle : copie + tous les détails visibles
+                      </span>
+                    </div>
+
+                    {/* PDF Format Option */}
+                    <button
+                      type="button"
+                      onClick={() => handleDownload('pdf')}
+                      className="w-full text-left px-3 py-2.5 rounded-lg hover:bg-slate-800 flex items-center justify-between gap-3 group cursor-pointer transition-colors"
+                    >
+                      <div className="flex items-center gap-2.5">
+                        <div className="w-7 h-7 rounded-md bg-rose-500/20 text-rose-400 flex items-center justify-center shrink-0 border border-rose-500/30">
+                          <FileText className="w-4 h-4" />
+                        </div>
+                        <div>
+                          <span className="font-bold text-slate-100 group-hover:text-emerald-300 block">
+                            Document PDF (.pdf)
+                          </span>
+                          <span className="text-[10px] text-slate-400 block">
+                            Vue intégrale fidèle : copie manuscrite + barème & détails
+                          </span>
+                        </div>
+                      </div>
+                      <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-300 font-bold shrink-0">
+                        Recommandé
+                      </span>
+                    </button>
+
+                    {/* PNG Image Format Option */}
+                    <button
+                      type="button"
+                      onClick={() => handleDownload('png')}
+                      className="w-full text-left px-3 py-2.5 rounded-lg hover:bg-slate-800 flex items-center justify-between gap-3 group cursor-pointer transition-colors"
+                    >
+                      <div className="flex items-center gap-2.5">
+                        <div className="w-7 h-7 rounded-md bg-sky-500/20 text-sky-400 flex items-center justify-center shrink-0 border border-sky-500/30">
+                          <ImageIcon className="w-4 h-4" />
+                        </div>
+                        <div>
+                          <span className="font-bold text-slate-100 group-hover:text-sky-300 block">
+                            Image Haute Définition (.png)
+                          </span>
+                          <span className="text-[10px] text-slate-400 block">
+                            Capture exacte de la fenêtre avec annotations
+                          </span>
+                        </div>
+                      </div>
+                    </button>
+
+                    {/* Multi-page A4 PDF Option */}
+                    <button
+                      type="button"
+                      onClick={() => handleDownload('pdf_a4')}
+                      className="w-full text-left px-3 py-2 rounded-lg hover:bg-slate-800 flex items-center gap-2.5 group cursor-pointer transition-colors"
+                    >
+                      <div className="w-7 h-7 rounded-md bg-amber-500/20 text-amber-400 flex items-center justify-center shrink-0 border border-amber-500/30">
+                        <FileDown className="w-4 h-4" />
+                      </div>
+                      <div>
+                        <span className="font-bold text-slate-100 group-hover:text-amber-300 block">
+                          Dossier PDF A4 Paginé
+                        </span>
+                        <span className="text-[10px] text-slate-400 block">
+                          Format optimisé pour impression papier ou archivage
+                        </span>
+                      </div>
+                    </button>
+
+                    <div className="pt-1 border-t border-slate-800">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setShowDownloadDropdown(false);
+                          setShowDownloadModal(true);
+                        }}
+                        className="w-full text-center px-3 py-2 rounded-lg hover:bg-slate-800 text-[11px] font-semibold text-slate-300 hover:text-white transition-colors cursor-pointer flex items-center justify-center gap-1.5"
+                      >
+                        <Layers className="w-3.5 h-3.5 text-blue-400" />
+                        <span>Options avancées (sélection pages, etc.)...</span>
+                      </button>
+                    </div>
+                  </div>
+                </>
+              )}
+            </div>
 
             <button
               type="button"
@@ -817,6 +1046,21 @@ export const StudentDetailModal: React.FC<StudentDetailModalProps> = ({
           <div className="flex items-center gap-2">
             <button
               type="button"
+              onClick={() => setShowDownloadModal(true)}
+              disabled={isDownloading}
+              id="btn-modal-download-footer"
+              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold transition-colors cursor-pointer shadow-xs disabled:opacity-50"
+              title="Télécharger cette copie et sa correction (PDF ou Image)"
+            >
+              {isDownloading ? (
+                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+              ) : (
+                <Download className="w-3.5 h-3.5" />
+              )}
+              <span>Télécharger (PDF / Image)</span>
+            </button>
+            <button
+              type="button"
               onClick={onClose}
               className="px-4 py-2 rounded-lg border border-slate-300 text-slate-700 hover:bg-slate-100 text-xs font-semibold transition-colors cursor-pointer"
             >
@@ -1032,6 +1276,250 @@ export const StudentDetailModal: React.FC<StudentDetailModalProps> = ({
             >
               Fermer le plein écran
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* Toast Notification for Download Progress & Completion */}
+      {downloadStatusMessage && (
+        <div className="fixed top-6 left-1/2 -translate-x-1/2 z-[200] px-4 py-2.5 rounded-xl bg-slate-900/95 text-white border border-slate-700 shadow-2xl flex items-center gap-2.5 text-xs font-bold animate-in fade-in slide-in-from-top-4 duration-200">
+          {isDownloading ? (
+            <Loader2 className="w-4 h-4 text-blue-400 animate-spin" />
+          ) : (
+            <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+          )}
+          <span>{downloadStatusMessage}</span>
+        </div>
+      )}
+
+      {/* Hidden high-fidelity DOM container for capture & export */}
+      <div
+        style={{
+          position: 'fixed',
+          left: '-9999px',
+          top: 0,
+          zIndex: -999,
+          pointerEvents: 'none',
+          opacity: 1,
+        }}
+        aria-hidden="true"
+      >
+        <CopyExportRenderer
+          ref={exportContainerRef}
+          submission={submission}
+          studentName={studentName}
+          grade={grade}
+          gradeMax={gradeMax}
+          appreciation={appreciation}
+          questions={questions}
+          competences={competences}
+          teacherNotes={teacherNotes}
+          pages={pages}
+          activePageIndex={activePageIndex}
+          exportAllPages={exportPageChoice === 'all'}
+          rotatedImages={rotatedPages}
+          config={config}
+          isValidated={isValidated}
+        />
+      </div>
+
+      {/* Download Options Modal Dialog */}
+      {showDownloadModal && (
+        <div className="fixed inset-0 z-[120] flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-xs animate-in fade-in duration-150">
+          <div className="bg-white w-full max-w-lg rounded-2xl shadow-2xl border border-slate-200 overflow-hidden flex flex-col">
+            {/* Header */}
+            <div className="px-6 py-4 bg-slate-900 text-white flex items-center justify-between">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-lg bg-emerald-600/30 text-emerald-400 border border-emerald-500/40 flex items-center justify-center font-bold">
+                  <Download className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-slate-100">
+                    Télécharger la copie et sa correction
+                  </h3>
+                  <p className="text-xs text-slate-400">
+                    {studentName} • {grade} / {gradeMax}
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowDownloadModal(false)}
+                className="p-1.5 text-slate-400 hover:text-white rounded-lg hover:bg-slate-800 transition-colors cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Body */}
+            <div className="p-6 space-y-5 text-xs text-slate-700">
+              {/* Format selection */}
+              <div className="space-y-2">
+                <label className="font-bold text-slate-900 uppercase tracking-wider text-[11px] block">
+                  1. Format de téléchargement
+                </label>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                  <button
+                    type="button"
+                    onClick={() => setExportFormat('pdf')}
+                    className={`p-3 rounded-xl border text-left transition-all cursor-pointer flex flex-col gap-1 ${
+                      exportFormat === 'pdf'
+                        ? 'border-emerald-600 bg-emerald-50/70 ring-2 ring-emerald-500/20'
+                        : 'border-slate-200 hover:border-slate-300 bg-white'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="font-bold text-slate-900 flex items-center gap-1.5">
+                        <FileText className="w-3.5 h-3.5 text-rose-500" />
+                        Document PDF (.pdf)
+                      </span>
+                      {exportFormat === 'pdf' && <Check className="w-3.5 h-3.5 text-emerald-600" />}
+                    </div>
+                    <p className="text-[11px] text-slate-500">
+                      Vue intégrale fidèle à l'écran : copie + barème + appréciation
+                    </p>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setExportFormat('png')}
+                    className={`p-3 rounded-xl border text-left transition-all cursor-pointer flex flex-col gap-1 ${
+                      exportFormat === 'png'
+                        ? 'border-emerald-600 bg-emerald-50/70 ring-2 ring-emerald-500/20'
+                        : 'border-slate-200 hover:border-slate-300 bg-white'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="font-bold text-slate-900 flex items-center gap-1.5">
+                        <ImageIcon className="w-3.5 h-3.5 text-sky-500" />
+                        Image PNG (.png)
+                      </span>
+                      {exportFormat === 'png' && <Check className="w-3.5 h-3.5 text-emerald-600" />}
+                    </div>
+                    <p className="text-[11px] text-slate-500">
+                      Haute définition, identique pixel par pixel à la fenêtre
+                    </p>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setExportFormat('pdf_a4')}
+                    className={`p-3 rounded-xl border text-left transition-all cursor-pointer flex flex-col gap-1 ${
+                      exportFormat === 'pdf_a4'
+                        ? 'border-emerald-600 bg-emerald-50/70 ring-2 ring-emerald-500/20'
+                        : 'border-slate-200 hover:border-slate-300 bg-white'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="font-bold text-slate-900 flex items-center gap-1.5">
+                        <FileDown className="w-3.5 h-3.5 text-amber-500" />
+                        Dossier PDF A4
+                      </span>
+                      {exportFormat === 'pdf_a4' && <Check className="w-3.5 h-3.5 text-emerald-600" />}
+                    </div>
+                    <p className="text-[11px] text-slate-500">
+                      Format standard A4 pour impression papier directe
+                    </p>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setExportFormat('raw_copy_png')}
+                    className={`p-3 rounded-xl border text-left transition-all cursor-pointer flex flex-col gap-1 ${
+                      exportFormat === 'raw_copy_png'
+                        ? 'border-emerald-600 bg-emerald-50/70 ring-2 ring-emerald-500/20'
+                        : 'border-slate-200 hover:border-slate-300 bg-white'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="font-bold text-slate-900 flex items-center gap-1.5">
+                        <ImageIcon className="w-3.5 h-3.5 text-indigo-500" />
+                        Copie seule (.png)
+                      </span>
+                      {exportFormat === 'raw_copy_png' && <Check className="w-3.5 h-3.5 text-emerald-600" />}
+                    </div>
+                    <p className="text-[11px] text-slate-500">
+                      Copie manuscrite originale redressée
+                    </p>
+                  </button>
+                </div>
+              </div>
+
+              {/* Pages to include (if multi-page copy) */}
+              {pages.length > 1 && (
+                <div className="space-y-2">
+                  <label className="font-bold text-slate-900 uppercase tracking-wider text-[11px] block">
+                    2. Pages de la copie à inclure
+                  </label>
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setExportPageChoice('active')}
+                      className={`flex-1 py-2 px-3 rounded-lg border text-center font-semibold transition-all cursor-pointer ${
+                        exportPageChoice === 'active'
+                          ? 'border-emerald-600 bg-emerald-50 text-emerald-800'
+                          : 'border-slate-200 text-slate-600 hover:bg-slate-50'
+                      }`}
+                    >
+                      Page affichée (Page {activePageIndex + 1})
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setExportPageChoice('all')}
+                      className={`flex-1 py-2 px-3 rounded-lg border text-center font-semibold transition-all cursor-pointer ${
+                        exportPageChoice === 'all'
+                          ? 'border-emerald-600 bg-emerald-50 text-emerald-800'
+                          : 'border-slate-200 text-slate-600 hover:bg-slate-50'
+                      }`}
+                    >
+                      Toutes les pages ({pages.length} feuilles)
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* Fidelity Guarantee Note */}
+              <div className="p-3 bg-emerald-50/80 rounded-xl border border-emerald-200/80 flex items-start gap-2.5">
+                <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+                <div className="text-[11px] text-emerald-900 space-y-0.5 leading-relaxed">
+                  <span className="font-bold block">Fidélité garantie à 100% :</span>
+                  <span>
+                    La copie manuscrite, l'appréciation pédagogique, les barèmes question par question,
+                    les compétences et les annotations sont inclus exactement comme affichés à l'écran.
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div className="px-6 py-3.5 bg-slate-50 border-t border-slate-200 flex items-center justify-end gap-2.5">
+              <button
+                type="button"
+                onClick={() => setShowDownloadModal(false)}
+                className="px-4 py-2 rounded-lg border border-slate-300 text-slate-700 hover:bg-white text-xs font-semibold transition-colors cursor-pointer"
+              >
+                Annuler
+              </button>
+              <button
+                type="button"
+                onClick={() => handleDownload(exportFormat, exportPageChoice)}
+                disabled={isDownloading}
+                id="btn-confirm-download"
+                className="inline-flex items-center gap-2 px-5 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold transition-colors cursor-pointer shadow-xs disabled:opacity-50"
+              >
+                {isDownloading ? (
+                  <>
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    <span>Génération en cours...</span>
+                  </>
+                ) : (
+                  <>
+                    <Download className="w-3.5 h-3.5" />
+                    <span>Télécharger maintenant</span>
+                  </>
+                )}
+              </button>
+            </div>
           </div>
         </div>
       )}

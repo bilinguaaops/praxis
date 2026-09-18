@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useRef } from 'react';
-import { AssignmentConfig, StudentSubmission, CorrectionResult } from '../types';
+import { AssignmentConfig, StudentSubmission, CorrectionResult, LeadData } from '../types';
 import confetti from 'canvas-confetti';
 import {
   Sparkles,
@@ -15,6 +15,7 @@ import {
   ShieldCheck,
   Play,
   Pause,
+  Lock,
 } from 'lucide-react';
 
 interface Step3ProgressProps {
@@ -23,6 +24,8 @@ interface Step3ProgressProps {
   onSubmissionsChange: (submissions: StudentSubmission[]) => void;
   onFinish: () => void;
   onViewDashboard: () => void;
+  currentLead?: LeadData | null;
+  onRequireRegistration?: () => void;
 }
 
 export const Step3Progress: React.FC<Step3ProgressProps> = ({
@@ -31,13 +34,28 @@ export const Step3Progress: React.FC<Step3ProgressProps> = ({
   onSubmissionsChange,
   onFinish,
   onViewDashboard,
+  currentLead,
+  onRequireRegistration,
 }) => {
   const [activeStudentId, setActiveStudentId] = useState<string | null>(null);
   const [isRunning, setIsRunning] = useState<boolean>(false);
   const [logs, setLogs] = useState<string[]>([]);
+  const [quotaError, setQuotaError] = useState<string | null>(null);
   const isCancelledRef = useRef(false);
   const submissionsRef = useRef(submissions);
   submissionsRef.current = submissions;
+
+  const getActiveLead = (): LeadData | null => {
+    if (currentLead && currentLead.email) return currentLead;
+    try {
+      const saved = localStorage.getItem('praxis_lead') || localStorage.getItem('cpro_lead');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (parsed && parsed.email) return parsed;
+      }
+    } catch {}
+    return null;
+  };
 
   // Thread-safe update helper that prevents stale closures from reverting other student states
   const updateSubmissions = (
@@ -58,7 +76,13 @@ export const Step3Progress: React.FC<Step3ProgressProps> = ({
 
   // Helper to correct a single student with an 80-second timeout guard
   const correctStudent = async (sub: StudentSubmission): Promise<CorrectionResult> => {
-    addLog(`Envoi de la copie de "${sub.studentName}" au moteur Gemini Vision...`);
+    const activeLead = getActiveLead();
+    if (!activeLead || !activeLead.email) {
+      if (onRequireRegistration) onRequireRegistration();
+      throw new Error("Inscription obligatoire : veuillez renseigner votre email d'enseignant.");
+    }
+
+    addLog(`Envoi de la copie de "${sub.studentName}" au moteur Claude / Gemini...`);
 
     const controller = new AbortController();
     const timeoutId = setTimeout(() => {
@@ -68,9 +92,13 @@ export const Step3Progress: React.FC<Step3ProgressProps> = ({
     try {
       const response = await fetch('/api/correct', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'x-user-email': activeLead.email,
+        },
         signal: controller.signal,
         body: JSON.stringify({
+          userEmail: activeLead.email,
           studentName: sub.studentName,
           studentImage: sub.imageDataUrl,
           allPages: sub.allPages && sub.allPages.length > 0 ? sub.allPages : [sub.imageDataUrl],
@@ -80,6 +108,14 @@ export const Step3Progress: React.FC<Step3ProgressProps> = ({
 
       if (!response.ok) {
         const errorJson = await response.json().catch(() => ({ error: 'Erreur réseau ou réponse serveur' }));
+        if (errorJson.requiresRegistration && onRequireRegistration) {
+          onRequireRegistration();
+        }
+        if (errorJson.quotaReached) {
+          setQuotaError(errorJson.error || "Limite d'essai atteinte (5 copies gratuites).");
+          isCancelledRef.current = true;
+          setIsRunning(false);
+        }
         throw new Error(errorJson.error || `Erreur serveur HTTP ${response.status}`);
       }
 
@@ -249,6 +285,15 @@ export const Step3Progress: React.FC<Step3ProgressProps> = ({
   useEffect(() => {
     isCancelledRef.current = false;
 
+    const activeLead = getActiveLead();
+    if (!activeLead || !activeLead.email) {
+      setIsRunning(false);
+      if (onRequireRegistration) {
+        onRequireRegistration();
+      }
+      return;
+    }
+
     const pendingOrIncomplete = submissionsRef.current.filter(
       (s) => s.status !== 'completed' || !s.result
     );
@@ -274,6 +319,11 @@ export const Step3Progress: React.FC<Step3ProgressProps> = ({
 
   // Run all pending (waiting) copies
   const runAllPending = () => {
+    const activeLead = getActiveLead();
+    if (!activeLead || !activeLead.email) {
+      if (onRequireRegistration) onRequireRegistration();
+      return;
+    }
     const pending = submissionsRef.current.filter((s) => s.status === 'pending');
     if (pending.length > 0) {
       processQueue(pending);
@@ -282,6 +332,11 @@ export const Step3Progress: React.FC<Step3ProgressProps> = ({
 
   // Retry all failed students
   const retryAllFailed = () => {
+    const activeLead = getActiveLead();
+    if (!activeLead || !activeLead.email) {
+      if (onRequireRegistration) onRequireRegistration();
+      return;
+    }
     const failedSubs = submissionsRef.current.filter((s) => s.status === 'error');
     if (failedSubs.length > 0) {
       processQueue(failedSubs);
@@ -295,9 +350,54 @@ export const Step3Progress: React.FC<Step3ProgressProps> = ({
   const allFinished = completedCount + errorCount === submissions.length && pendingCount === 0;
 
   const currentActiveStudent = submissions.find((s) => s.id === activeStudentId);
+  const activeLead = getActiveLead();
+
+  // Strict visual barrier if teacher is not registered
+  if (!activeLead || !activeLead.email) {
+    return (
+      <div className="max-w-xl mx-auto my-12 bg-white rounded-3xl border border-slate-200 shadow-xl p-8 text-center space-y-5 animate-in fade-in">
+        <div className="w-16 h-16 rounded-2xl bg-amber-100 border border-amber-200 text-amber-700 flex items-center justify-center mx-auto shadow-inner">
+          <Lock className="w-8 h-8" />
+        </div>
+        <div>
+          <span className="inline-block px-3 py-1 rounded-full bg-emerald-100 text-emerald-800 text-xs font-bold border border-emerald-200 mb-2">
+            🎁 5 copies d'essai gratuites par professeur
+          </span>
+          <h2 className="text-xl font-extrabold text-slate-900 tracking-tight">Inscription requise pour lancer la correction</h2>
+          <p className="text-xs text-slate-600 mt-2 max-w-md mx-auto leading-relaxed">
+            Pour activer le moteur IA Claude / Gemini et débloquer vos 5 corrections offertes, veuillez renseigner vos coordonnées d’enseignant.
+          </p>
+        </div>
+        <div className="pt-2">
+          <button
+            type="button"
+            onClick={() => onRequireRegistration && onRequireRegistration()}
+            className="w-full sm:w-auto px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-bold text-sm rounded-xl transition-all shadow-md inline-flex items-center justify-center gap-2 cursor-pointer"
+          >
+            <Sparkles className="w-4 h-4" />
+            <span>S'inscrire et démarrer l'évaluation</span>
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-5xl mx-auto space-y-6 pb-12">
+      {/* Quota Exceeded Alert */}
+      {quotaError && (
+        <div className="p-4 bg-amber-50 border border-amber-300 rounded-2xl flex items-start gap-3 text-amber-900 shadow-xs animate-in fade-in">
+          <AlertTriangle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
+          <div className="text-xs leading-relaxed flex-1">
+            <span className="font-bold text-amber-950 block text-sm mb-0.5">Quota d'essai de 5 copies atteint</span>
+            <span>{quotaError}</span>
+            <span className="block mt-1 text-amber-800">
+              Pour débloquer la correction de l'intégralité de vos paquets de copies sans limite, activez votre abonnement enseignant Pro.
+            </span>
+          </div>
+        </div>
+      )}
+
       {/* Progress Header Card */}
       <div className="bg-white rounded-2xl border border-slate-200 shadow-xs p-6 sm:p-8">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-6 border-b border-slate-100">

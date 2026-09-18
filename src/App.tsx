@@ -36,62 +36,6 @@ const DEFAULT_CONFIG: AssignmentConfig = {
   },
 };
 
-const DEFAULT_CLASSES: ClassGroup[] = [
-  {
-    id: 'class_demo_3b',
-    name: '3ème B (Collège)',
-    level: '3e (Brevet)',
-    discipline: 'Mathématiques',
-    students: [
-      'Lucas Martin',
-      'Sarah Benali',
-      'Thomas Leroy',
-      'Emma Dubois',
-      'Maxime Petit',
-      'Chloé Moreau',
-      'Nathan Bernard',
-      'Camille Roux',
-    ],
-    createdAt: new Date(Date.now() - 30 * 86400000).toISOString(),
-    evaluations: [
-      {
-        id: 'eval_demo_1',
-        title: 'DS N°1 : Fonctions et Calcul littéral',
-        date: new Date(Date.now() - 20 * 86400000).toISOString().slice(0, 10),
-        discipline: 'Mathématiques',
-        maxGrade: 20,
-        grades: {
-          'Lucas Martin': 14.5,
-          'Sarah Benali': 17.5,
-          'Thomas Leroy': 11.0,
-          'Emma Dubois': 15.0,
-          'Maxime Petit': 9.0,
-          'Chloé Moreau': 13.5,
-          'Nathan Bernard': 10.5,
-          'Camille Roux': 16.5,
-        },
-      },
-      {
-        id: 'eval_demo_2',
-        title: 'Interro N°2 : Théorème de Pythagore',
-        date: new Date(Date.now() - 7 * 86400000).toISOString().slice(0, 10),
-        discipline: 'Mathématiques',
-        maxGrade: 20,
-        grades: {
-          'Lucas Martin': 15.0,
-          'Sarah Benali': 19.0,
-          'Thomas Leroy': 10.5,
-          'Emma Dubois': 14.0,
-          'Maxime Petit': 8.5,
-          'Chloé Moreau': 14.0,
-          'Nathan Bernard': 12.0,
-          'Camille Roux': 18.0,
-        },
-      },
-    ],
-  },
-];
-
 export default function App() {
   const [activeView, setActiveView] = useState<MainView>(() => {
     try {
@@ -239,27 +183,28 @@ export default function App() {
       const saved = localStorage.getItem('cpro_classes');
       if (saved) {
         const parsed: ClassGroup[] = JSON.parse(saved);
-        // If demo class exists without evaluations, seed it with sample evaluations
-        return parsed.map((c) => {
-          if (c.id === 'class_demo_3b' && (!c.evaluations || c.evaluations.length === 0)) {
-            return {
-              ...c,
-              evaluations: DEFAULT_CLASSES[0].evaluations,
-            };
-          }
-          return c;
-        });
+        // Exclude fictitious/demo classes (such as class_demo_3b)
+        const realClasses = parsed.filter(
+          (c) => c.id !== 'class_demo_3b' && !c.id.startsWith('class_demo') && !c.name.toLowerCase().includes('demo')
+        );
+        return realClasses;
       }
-      return DEFAULT_CLASSES;
+      return [];
     } catch {
-      return DEFAULT_CLASSES;
+      return [];
     }
   });
 
   const [savedEvaluations, setSavedEvaluations] = useState<SavedEvaluation[]>(() => {
     try {
       const saved = localStorage.getItem('cpro_evaluations');
-      return saved ? JSON.parse(saved) : [];
+      if (saved) {
+        const parsed: SavedEvaluation[] = JSON.parse(saved);
+        return parsed.filter(
+          (e) => e.classId !== 'class_demo_3b' && !e.id.startsWith('eval_demo')
+        );
+      }
+      return [];
     } catch {
       return [];
     }
@@ -681,6 +626,8 @@ export default function App() {
                   onSubmissionsChange={setSubmissions}
                   onFinish={() => setCurrentStep(4)}
                   onViewDashboard={() => setCurrentStep(4)}
+                  currentLead={currentLead}
+                  onRequireRegistration={() => setIsLeadGateOpen(true)}
                 />
               )}
 
@@ -749,6 +696,7 @@ export default function App() {
         <StudentDetailModal
           submission={selectedStudentForModal}
           allSubmissions={submissions}
+          config={config}
           onClose={() => setSelectedStudentForModal(null)}
           onSave={handleSaveStudentEdit}
           onSwapSubmissions={handleSwapSubmissions}

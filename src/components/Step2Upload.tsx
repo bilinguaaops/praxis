@@ -673,7 +673,7 @@ export const Step2Upload: React.FC<Step2UploadProps> = ({
 
           {!isRegistered && submissions.length > 0 && (
             <span className="text-[11px] text-amber-700 font-medium">
-              🔒 Inscription gratuite obligatoire pour lancer la correction de la démo
+              🔒 Inscription gratuite obligatoire pour débloquer vos 5 copies d'essai offertes
             </span>
           )}
         </div>
