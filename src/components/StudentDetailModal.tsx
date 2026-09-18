@@ -79,6 +79,60 @@ export const StudentDetailModal: React.FC<StudentDetailModalProps> = ({
   const [showSwapDropdown, setShowSwapDropdown] = useState(false);
   const [modalSwapSearch, setModalSwapSearch] = useState('');
   const [isFullscreen, setIsFullscreen] = useState(false);
+  // Window Fullscreen (Grand écran) and Compact Zero-Scroll layout mode
+  const [isModalMaximized, setIsModalMaximized] = useState<boolean>(() => {
+    try {
+      const saved = localStorage.getItem('praxis_modal_maximized');
+      return saved !== null ? saved === 'true' : true;
+    } catch {
+      return true;
+    }
+  });
+
+  const [compactNoScroll, setCompactNoScroll] = useState<boolean>(() => {
+    try {
+      const saved = localStorage.getItem('praxis_modal_compact');
+      return saved !== null ? saved === 'true' : true;
+    } catch {
+      return true;
+    }
+  });
+
+  const toggleModalMaximize = () => {
+    setIsModalMaximized((prev) => {
+      const next = !prev;
+      try {
+        localStorage.setItem('praxis_modal_maximized', String(next));
+      } catch {}
+      return next;
+    });
+  };
+
+  const toggleCompactNoScroll = () => {
+    setCompactNoScroll((prev) => {
+      const next = !prev;
+      try {
+        localStorage.setItem('praxis_modal_compact', String(next));
+      } catch {}
+      return next;
+    });
+  };
+
+  // Global hotkey to toggle maximize/grand écran with 'f' or 'F11'
+  useEffect(() => {
+    const handleGlobalKeyDown = (e: KeyboardEvent) => {
+      const tag = (e.target as HTMLElement)?.tagName?.toLowerCase();
+      if (tag === 'input' || tag === 'textarea') return;
+
+      if (e.key === 'F11' || ((e.key === 'f' || e.key === 'F') && !e.ctrlKey && !e.metaKey && !e.altKey)) {
+        e.preventDefault();
+        toggleModalMaximize();
+      }
+    };
+
+    window.addEventListener('keydown', handleGlobalKeyDown);
+    return () => window.removeEventListener('keydown', handleGlobalKeyDown);
+  }, []);
 
   // Export & Download state
   const exportContainerRef = useRef<HTMLDivElement>(null);
@@ -337,10 +391,26 @@ export const StudentDetailModal: React.FC<StudentDetailModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 bg-slate-950/70 backdrop-blur-xs overflow-y-auto">
-      <div className="bg-white w-full max-w-7xl h-[92vh] rounded-2xl shadow-2xl border border-slate-200 flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+    <div
+      className={`fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 backdrop-blur-xs overflow-hidden transition-all duration-200 ${
+        isModalMaximized ? 'p-0' : 'p-2 sm:p-4 lg:p-6'
+      }`}
+    >
+      <div
+        className={`bg-white flex flex-col overflow-hidden transition-all duration-200 ${
+          isModalMaximized
+            ? 'w-screen h-screen max-w-none rounded-none border-0 shadow-none'
+            : 'w-full max-w-7xl h-[92vh] rounded-2xl shadow-2xl border border-slate-200'
+        }`}
+      >
         {/* Modal Header */}
-        <div className="px-6 py-4 bg-slate-900 text-white flex items-center justify-between border-b border-slate-800 shrink-0">
+        <div
+          onDoubleClick={toggleModalMaximize}
+          className={`bg-slate-900 text-white flex items-center justify-between border-b border-slate-800 shrink-0 select-none transition-all ${
+            isModalMaximized ? 'px-4 py-2.5' : 'px-6 py-4'
+          }`}
+          title="Double-cliquer pour agrandir en grand écran ou réduire"
+        >
           <div className="flex items-center gap-3">
             <div className="w-8 h-8 rounded-lg bg-blue-600 flex items-center justify-center font-bold text-sm">
               <Sparkles className="w-4 h-4 text-white" />
@@ -579,6 +649,57 @@ export const StudentDetailModal: React.FC<StudentDetailModalProps> = ({
               )}
             </div>
 
+            {/* Zero-Scroll / Compact Density Toggle */}
+            <button
+              type="button"
+              onClick={toggleCompactNoScroll}
+              id="btn-modal-toggle-compact"
+              className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors cursor-pointer border ${
+                compactNoScroll
+                  ? 'bg-blue-600/30 text-blue-200 border-blue-400/40 hover:bg-blue-600/50'
+                  : 'bg-slate-800 text-slate-300 border-slate-700 hover:bg-slate-700 hover:text-white'
+              }`}
+              title={
+                compactNoScroll
+                  ? "Mode sans défilement actif : mise en page optimisée pour tout afficher d'un coup"
+                  : "Activer le mode condensé pour tout voir sans défiler"
+              }
+            >
+              <Layers className="w-3.5 h-3.5 text-sky-400" />
+              <span className="hidden lg:inline">
+                {compactNoScroll ? 'Sans défiler ✓' : 'Vue compacte'}
+              </span>
+            </button>
+
+            {/* Window Fullscreen (Grand écran) Toggle Button */}
+            <button
+              type="button"
+              onClick={toggleModalMaximize}
+              id="btn-modal-toggle-maximize"
+              className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer border shadow-xs ${
+                isModalMaximized
+                  ? 'bg-amber-500/20 text-amber-300 border-amber-400/40 hover:bg-amber-500/30'
+                  : 'bg-sky-600 hover:bg-sky-500 text-white border-sky-400/40'
+              }`}
+              title={
+                isModalMaximized
+                  ? "Restaurer la taille de fenêtre normale (Touche F ou Échap)"
+                  : "Agrandir en Grand Écran (100% de la fenêtre, sans défilement)"
+              }
+            >
+              {isModalMaximized ? (
+                <>
+                  <Minimize2 className="w-3.5 h-3.5 text-amber-400" />
+                  <span className="hidden sm:inline">Réduire</span>
+                </>
+              ) : (
+                <>
+                  <Maximize2 className="w-3.5 h-3.5 text-white" />
+                  <span className="hidden sm:inline">Grand écran</span>
+                </>
+              )}
+            </button>
+
             <button
               type="button"
               onClick={handleSaveChanges}
@@ -594,6 +715,7 @@ export const StudentDetailModal: React.FC<StudentDetailModalProps> = ({
               onClick={onClose}
               id="btn-modal-close"
               className="p-2 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition-colors cursor-pointer"
+              title="Fermer la fenêtre (Échap)"
             >
               <X className="w-5 h-5" />
             </button>
@@ -744,12 +866,16 @@ export const StudentDetailModal: React.FC<StudentDetailModalProps> = ({
           </div>
 
           {/* Right Panel: AI Assessment and Editable Criteria */}
-          <div className="w-full lg:w-1/2 bg-slate-50 overflow-y-auto p-6 space-y-6">
+          <div
+            className={`w-full lg:w-1/2 bg-slate-50 overflow-y-auto ${
+              compactNoScroll ? 'p-3 sm:p-4 space-y-3 text-xs' : 'p-6 space-y-6'
+            }`}
+          >
             {/* Proactive Inversion / Name Mismatch Alert */}
             {suspectedOtherSubmission && (
               <div
                 id="alert-student-inversion"
-                className="bg-indigo-50 border-2 border-indigo-400 rounded-xl p-4.5 shadow-sm space-y-3 text-indigo-950 animate-in fade-in duration-200"
+                className="bg-indigo-50 border-2 border-indigo-400 rounded-xl p-3.5 shadow-sm space-y-2.5 text-indigo-950 animate-in fade-in duration-200"
               >
                 <div className="flex items-center justify-between gap-2 flex-wrap">
                   <div className="flex items-center gap-2 font-black text-xs sm:text-sm text-indigo-900">
@@ -769,7 +895,7 @@ export const StudentDetailModal: React.FC<StudentDetailModalProps> = ({
                   <button
                     type="button"
                     onClick={() => handleExecuteSwap(suspectedOtherSubmission.id)}
-                    className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold shadow-xs transition-colors cursor-pointer"
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold shadow-xs transition-colors cursor-pointer"
                   >
                     <ArrowLeftRight className="w-3.5 h-3.5" />
                     <span>Intervertir cette copie avec celle de {suspectedOtherSubmission.studentName}</span>
@@ -778,7 +904,7 @@ export const StudentDetailModal: React.FC<StudentDetailModalProps> = ({
                   <button
                     type="button"
                     onClick={() => setStudentName(suspectedOtherSubmission.studentName)}
-                    className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-white hover:bg-indigo-100 text-indigo-800 border border-indigo-300 text-xs font-semibold transition-colors cursor-pointer"
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white hover:bg-indigo-100 text-indigo-800 border border-indigo-300 text-xs font-semibold transition-colors cursor-pointer"
                   >
                     <span>Renommer cet élève en « {suspectedOtherSubmission.studentName} »</span>
                   </button>
@@ -794,10 +920,10 @@ export const StudentDetailModal: React.FC<StudentDetailModalProps> = ({
               result.avertissement_lisibilite) && (
               <div
                 id="alert-lisibilite-detail"
-                className="bg-amber-50 border-2 border-amber-300 rounded-xl p-4.5 shadow-xs space-y-2 text-amber-950 animate-in fade-in duration-200"
+                className="bg-amber-50 border-2 border-amber-300 rounded-xl p-3 shadow-xs space-y-1.5 text-amber-950 animate-in fade-in duration-200"
               >
                 <div className="flex items-center justify-between gap-2">
-                  <div className="flex items-center gap-2 font-black text-xs sm:text-sm text-amber-900">
+                  <div className="flex items-center gap-2 font-black text-xs text-amber-900">
                     <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
                     <span>Vérification humaine recommandée (Lisibilité : {result.lisibilite || 'délicate'})</span>
                   </div>
@@ -805,21 +931,18 @@ export const StudentDetailModal: React.FC<StudentDetailModalProps> = ({
                     Contrôle prof
                   </span>
                 </div>
-                <p className="text-xs text-amber-800 leading-relaxed font-medium">
+                <p className="text-[11px] text-amber-800 leading-relaxed font-medium">
                   {result.avertissement_lisibilite ||
                     "L'IA a éprouvé des difficultés à déchiffrer avec certitude certains calculs, mots ou passages manuscrits sur cette copie. Ne vous fiez pas à 100% à la note automatique et vérifiez directement la copie originale ci-contre."}
                 </p>
-                <div className="text-[11px] text-amber-900/80 italic pt-1 border-t border-amber-200/70">
-                  <span>💡 Vous pouvez ajuster les points question par question ci-dessous.</span>
-                </div>
 
                 {result.texte_transcrit_resume && (
-                  <div className="mt-2 pt-2 border-t border-amber-300/80 space-y-1.5">
-                    <div className="text-xs font-bold text-amber-950 flex items-center gap-1.5">
-                      <FileText className="w-4 h-4 text-amber-700 shrink-0" />
-                      <span>Trace & transcription déchiffrée par l'IA (intégrale) :</span>
+                  <div className="mt-1 pt-1 border-t border-amber-300/80 space-y-1">
+                    <div className="text-[11px] font-bold text-amber-950 flex items-center gap-1">
+                      <FileText className="w-3.5 h-3.5 text-amber-700 shrink-0" />
+                      <span>Trace & transcription déchiffrée par l'IA :</span>
                     </div>
-                    <div className="text-xs text-amber-950 bg-amber-100/90 p-3 rounded-lg border border-amber-300 font-mono whitespace-pre-wrap leading-relaxed">
+                    <div className="text-[11px] text-amber-950 bg-amber-100/90 p-2 rounded-lg border border-amber-300 font-mono whitespace-pre-wrap leading-relaxed max-h-36 overflow-y-auto">
                       {result.texte_transcrit_resume}
                     </div>
                   </div>
@@ -835,115 +958,126 @@ export const StudentDetailModal: React.FC<StudentDetailModalProps> = ({
               result.lisibilite === 'illisible' ||
               result.avertissement_lisibilite
             ) && (
-              <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 shadow-xs space-y-2">
+              <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 shadow-xs space-y-1.5">
                 <div className="flex items-center justify-between">
-                  <h3 className="text-xs font-bold uppercase tracking-wider text-slate-700 flex items-center gap-1.5">
-                    <FileText className="w-4 h-4 text-blue-600" />
+                  <h3 className="text-[11px] font-bold uppercase tracking-wider text-slate-700 flex items-center gap-1.5">
+                    <FileText className="w-3.5 h-3.5 text-blue-600" />
                     <span>Trace & transcription de la copie manuscrite</span>
                   </h3>
                   <span className="text-[10px] text-slate-400 font-semibold">Texte déchiffré par l'IA</span>
                 </div>
-                <div className="text-xs text-slate-800 bg-white p-3 rounded-lg border border-slate-200 font-mono whitespace-pre-wrap leading-relaxed">
+                <div className="text-xs text-slate-800 bg-white p-2.5 rounded-lg border border-slate-200 font-mono whitespace-pre-wrap leading-relaxed max-h-36 overflow-y-auto">
                   {result.texte_transcrit_resume}
                 </div>
               </div>
             )}
 
-            {/* Main Score Box */}
-            <div className="bg-white rounded-xl border border-slate-200 p-5 shadow-xs flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-              <div>
-                <span className="text-xs font-bold uppercase tracking-wider text-slate-400">
-                  Note attribuée par l'IA (modifiable)
-                </span>
-                <div className="flex items-center gap-2 mt-1">
-                  <input
-                    type="number"
-                    step={0.25}
-                    min={0}
-                    max={gradeMax}
-                    value={grade}
-                    onChange={(e) => setGrade(Number(e.target.value))}
-                    className="w-24 px-3 py-1.5 text-2xl font-black text-slate-900 bg-slate-50 border border-slate-300 rounded-lg focus:bg-white focus:ring-2 focus:ring-blue-500 outline-hidden"
-                  />
-                  <span className="text-xl font-bold text-slate-500">/ {gradeMax}</span>
-                  {result.manuallyAdjusted && (
-                    <span className="ml-2 px-2 py-0.5 rounded text-[11px] font-semibold bg-amber-50 text-amber-700 border border-amber-200">
-                      Ajustée manuellement
+            {/* Top Score Box & Appreciation: side-by-side in panoramic/zero-scroll mode */}
+            <div className={`grid gap-3 ${compactNoScroll ? 'grid-cols-1 xl:grid-cols-12' : 'grid-cols-1'}`}>
+              {/* Main Score Box */}
+              <div className={`${compactNoScroll ? 'xl:col-span-5' : ''} bg-white rounded-xl border border-slate-200 ${compactNoScroll ? 'p-3.5' : 'p-5'} shadow-xs flex flex-col justify-between gap-2.5`}>
+                <div className="flex items-start justify-between gap-2">
+                  <div>
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">
+                      Note de l'IA (modifiable)
                     </span>
-                  )}
+                    <div className="flex items-center gap-2 mt-1">
+                      <input
+                        type="number"
+                        step={0.25}
+                        min={0}
+                        max={gradeMax}
+                        value={grade}
+                        onChange={(e) => setGrade(Number(e.target.value))}
+                        className="w-20 px-2.5 py-1 text-xl font-black text-slate-900 bg-slate-50 border border-slate-300 rounded-lg focus:bg-white focus:ring-2 focus:ring-blue-500 outline-hidden"
+                      />
+                      <span className="text-base font-bold text-slate-500">/ {gradeMax}</span>
+                      {result.manuallyAdjusted && (
+                        <span className="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-amber-50 text-amber-700 border border-amber-200">
+                          Ajustée
+                        </span>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="text-right">
+                    <div
+                      className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold ${
+                        grade >= gradeMax * 0.7
+                          ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                          : grade >= gradeMax * 0.5
+                          ? 'bg-blue-50 text-blue-700 border border-blue-200'
+                          : 'bg-rose-50 text-rose-700 border border-rose-200'
+                      }`}
+                    >
+                      <Award className="w-3.5 h-3.5" />
+                      <span className="truncate max-w-[120px]">
+                        {grade >= gradeMax * 0.7
+                          ? 'Très bon travail'
+                          : grade >= gradeMax * 0.5
+                          ? 'Satisfaisant'
+                          : 'À encourager'}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="text-[10px] text-slate-400">
+                  Total pondéré sur toutes les questions ci-dessous
                 </div>
               </div>
 
-              <div className="text-right">
-                <div
-                  className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold ${
-                    grade >= gradeMax * 0.7
-                      ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                      : grade >= gradeMax * 0.5
-                      ? 'bg-blue-50 text-blue-700 border border-blue-200'
-                      : 'bg-rose-50 text-rose-700 border border-rose-200'
-                  }`}
-                >
-                  <Award className="w-3.5 h-3.5" />
-                  {grade >= gradeMax * 0.7
-                    ? 'Très bon travail'
-                    : grade >= gradeMax * 0.5
-                    ? 'Acquis / Satisfaisant'
-                    : 'À encourager / consolider'}
+              {/* Appreciation */}
+              <div className={`${compactNoScroll ? 'xl:col-span-7' : ''} bg-white rounded-xl border border-slate-200 ${compactNoScroll ? 'p-3' : 'p-5'} shadow-xs space-y-1.5`}>
+                <div className="flex items-center justify-between">
+                  <label
+                    htmlFor="appreciation-textarea"
+                    className="text-[11px] font-bold uppercase tracking-wider text-slate-700 flex items-center gap-1.5"
+                  >
+                    <Edit3 className="w-3.5 h-3.5 text-blue-600" />
+                    Appréciation pédagogique
+                  </label>
+                  <span className="text-[10px] text-slate-400">Pour le bulletin / l'élève</span>
                 </div>
+                <textarea
+                  id="appreciation-textarea"
+                  rows={compactNoScroll ? 2 : 3}
+                  value={appreciation}
+                  onChange={(e) => setAppreciation(e.target.value)}
+                  className="w-full px-3 py-1.5 bg-slate-50 border border-slate-300 rounded-lg text-xs text-slate-900 focus:bg-white focus:ring-2 focus:ring-blue-500 outline-hidden leading-relaxed"
+                />
               </div>
-            </div>
-
-            {/* Appreciation */}
-            <div className="bg-white rounded-xl border border-slate-200 p-5 shadow-xs space-y-2">
-              <div className="flex items-center justify-between">
-                <label
-                  htmlFor="appreciation-textarea"
-                  className="text-xs font-bold uppercase tracking-wider text-slate-700 flex items-center gap-1.5"
-                >
-                  <Edit3 className="w-3.5 h-3.5 text-blue-600" />
-                  Appréciation pédagogique pour l'élève
-                </label>
-                <span className="text-[11px] text-slate-400">Figurera sur la fiche imprimable</span>
-              </div>
-              <textarea
-                id="appreciation-textarea"
-                rows={3}
-                value={appreciation}
-                onChange={(e) => setAppreciation(e.target.value)}
-                className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-lg text-sm text-slate-900 focus:bg-white focus:ring-2 focus:ring-blue-500 outline-hidden leading-relaxed"
-              />
             </div>
 
             {/* Strengths & Improvement Points */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
               {/* Strengths */}
-              <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-xs space-y-2">
-                <h3 className="text-xs font-bold uppercase tracking-wider text-emerald-700 flex items-center gap-1.5">
-                  <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+              <div className="bg-white rounded-xl border border-slate-200 p-3 shadow-xs space-y-1.5">
+                <h3 className="text-[11px] font-bold uppercase tracking-wider text-emerald-700 flex items-center gap-1.5">
+                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
                   Points forts relevés
                 </h3>
-                <ul className="space-y-1.5">
+                <ul className="space-y-1">
                   {result.points_forts?.map((pf, idx) => (
                     <li key={idx} className="text-xs text-slate-700 flex items-start gap-1.5">
                       <span className="text-emerald-500 font-bold shrink-0">•</span>
-                      <span>{pf}</span>
+                      <span className="line-clamp-2">{pf}</span>
                     </li>
                   ))}
                 </ul>
               </div>
 
               {/* Areas to improve */}
-              <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-xs space-y-2">
-                <h3 className="text-xs font-bold uppercase tracking-wider text-amber-700 flex items-center gap-1.5">
-                  <TrendingUp className="w-4 h-4 text-amber-600" />
+              <div className="bg-white rounded-xl border border-slate-200 p-3 shadow-xs space-y-1.5">
+                <h3 className="text-[11px] font-bold uppercase tracking-wider text-amber-700 flex items-center gap-1.5">
+                  <TrendingUp className="w-3.5 h-3.5 text-amber-600" />
                   Axes de progrès
                 </h3>
-                <ul className="space-y-1.5">
+                <ul className="space-y-1">
                   {result.points_ameliorer?.map((pa, idx) => (
                     <li key={idx} className="text-xs text-slate-700 flex items-start gap-1.5">
                       <span className="text-amber-500 font-bold shrink-0">•</span>
-                      <span>{pa}</span>
+                      <span className="line-clamp-2">{pa}</span>
                     </li>
                   ))}
                 </ul>
@@ -952,26 +1086,29 @@ export const StudentDetailModal: React.FC<StudentDetailModalProps> = ({
 
             {/* Competences Grid */}
             {competences.length > 0 && (
-              <div className="bg-white rounded-xl border border-slate-200 p-5 shadow-xs space-y-3">
-                <h3 className="text-xs font-bold uppercase tracking-wider text-slate-700 flex items-center gap-1.5">
-                  <BookmarkCheck className="w-4 h-4 text-indigo-600" />
-                  Grille des compétences du socle
-                </h3>
+              <div className="bg-white rounded-xl border border-slate-200 p-3 shadow-xs space-y-2">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-[11px] font-bold uppercase tracking-wider text-slate-700 flex items-center gap-1.5">
+                    <BookmarkCheck className="w-3.5 h-3.5 text-indigo-600" />
+                    Grille des compétences du socle
+                  </h3>
+                  <span className="text-[10px] text-slate-400">Évaluation par objectif</span>
+                </div>
 
-                <div className="space-y-2">
+                <div className="flex flex-wrap gap-2">
                   {competences.map((comp, idx) => (
                     <div
                       key={idx}
-                      className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-2.5 bg-slate-50 rounded-lg border border-slate-200 text-xs"
+                      className="inline-flex items-center gap-2 px-2.5 py-1.5 bg-slate-50 rounded-lg border border-slate-200 text-xs"
                     >
-                      <span className="font-semibold text-slate-800">{comp.nom}</span>
-                      <div className="flex items-center gap-1 shrink-0">
+                      <span className="font-semibold text-slate-800 text-[11px]">{comp.nom}</span>
+                      <div className="flex items-center gap-0.5">
                         {(['Acquis', 'En cours', 'Non acquis'] as const).map((status) => (
                           <button
                             key={status}
                             type="button"
                             onClick={() => handleCompetenceStatusChange(idx, status)}
-                            className={`px-2 py-0.5 rounded text-[11px] font-bold transition-colors cursor-pointer ${
+                            className={`px-1.5 py-0.5 rounded text-[10px] font-bold transition-colors cursor-pointer ${
                               comp.statut === status
                                 ? status === 'Acquis'
                                   ? 'bg-emerald-600 text-white'
@@ -991,24 +1128,26 @@ export const StudentDetailModal: React.FC<StudentDetailModalProps> = ({
               </div>
             )}
 
-            {/* Detailed Questions Evaluation Table */}
-            <div className="bg-white rounded-xl border border-slate-200 p-5 shadow-xs space-y-4">
+            {/* Detailed Questions Evaluation Table: 2-columns grid in zero-scroll mode */}
+            <div className="bg-white rounded-xl border border-slate-200 p-3.5 shadow-xs space-y-3">
               <div className="flex items-center justify-between">
-                <h3 className="text-xs font-bold uppercase tracking-wider text-slate-800 flex items-center gap-1.5">
-                  <Sparkles className="w-4 h-4 text-blue-600" />
+                <h3 className="text-[11px] font-bold uppercase tracking-wider text-slate-800 flex items-center gap-1.5">
+                  <Sparkles className="w-3.5 h-3.5 text-blue-600" />
                   Détail question par question
                 </h3>
-                <span className="text-[11px] text-slate-400">Modifiez les notes en direct</span>
+                <span className="text-[10px] text-slate-400">
+                  {questions.length} questions • Notes ajustables en direct
+                </span>
               </div>
 
-              <div className="space-y-3">
+              <div className={`grid gap-2.5 ${compactNoScroll ? 'grid-cols-1 xl:grid-cols-2' : 'grid-cols-1'}`}>
                 {questions.map((q, idx) => (
                   <div
                     key={idx}
-                    className="p-3.5 bg-slate-50 border border-slate-200 rounded-xl space-y-2 text-xs"
+                    className="p-3 bg-slate-50 border border-slate-200 rounded-xl space-y-2 text-xs hover:border-slate-300 transition-colors"
                   >
                     <div className="flex items-center justify-between gap-2">
-                      <span className="font-bold text-slate-900 text-sm">{q.numero_ou_titre}</span>
+                      <span className="font-bold text-slate-900 text-xs sm:text-sm">{q.numero_ou_titre}</span>
                       <div className="flex items-center gap-1.5">
                         <span className="text-slate-500 text-[11px]">Note :</span>
                         <input
@@ -1018,34 +1157,34 @@ export const StudentDetailModal: React.FC<StudentDetailModalProps> = ({
                           max={q.note_max}
                           value={q.note}
                           onChange={(e) => handleQuestionGradeChange(idx, Number(e.target.value))}
-                          className="w-16 px-2 py-1 font-bold text-sm bg-white border border-slate-300 rounded text-center focus:ring-2 focus:ring-blue-500 outline-hidden"
+                          className="w-14 px-1.5 py-0.5 font-bold text-xs bg-white border border-slate-300 rounded text-center focus:ring-2 focus:ring-blue-500 outline-hidden"
                         />
-                        <span className="font-semibold text-slate-500">/ {q.note_max}</span>
+                        <span className="font-semibold text-slate-500 text-[11px]">/ {q.note_max}</span>
                       </div>
                     </div>
 
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1 text-slate-700">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 pt-0.5 text-slate-700">
                       <div className="p-2 bg-white rounded-md border border-slate-200/80">
-                        <span className="font-bold text-[10px] uppercase tracking-wider text-blue-700 block mb-0.5">
-                          Ce que l'élève a formulé :
+                        <span className="font-bold text-[9px] uppercase tracking-wider text-blue-700 block mb-0.5">
+                          Formulation élève :
                         </span>
-                        <p className="font-mono text-[11px] text-slate-800 leading-snug">
+                        <p className="font-mono text-[11px] text-slate-800 leading-snug line-clamp-3">
                           {q.reponse_eleve || 'Non traité / illisible'}
                         </p>
                       </div>
 
                       <div className="p-2 bg-white rounded-md border border-slate-200/80">
-                        <span className="font-bold text-[10px] uppercase tracking-wider text-emerald-700 block mb-0.5">
-                          Attendu du corrigé :
+                        <span className="font-bold text-[9px] uppercase tracking-wider text-emerald-700 block mb-0.5">
+                          Attendu du barème :
                         </span>
-                        <p className="font-mono text-[11px] text-slate-800 leading-snug">
+                        <p className="font-mono text-[11px] text-slate-800 leading-snug line-clamp-3">
                           {q.reponse_attendue}
                         </p>
                       </div>
                     </div>
 
-                    <div className="text-[11px] text-slate-600 bg-blue-50/50 p-2 rounded border border-blue-100">
-                      <strong className="text-blue-900">Justification du barème :</strong> {q.justification}
+                    <div className="text-[10px] text-slate-600 bg-blue-50/50 p-1.5 rounded border border-blue-100/70">
+                      <strong className="text-blue-900">Barème :</strong> {q.justification}
                     </div>
                   </div>
                 ))}
@@ -1053,10 +1192,10 @@ export const StudentDetailModal: React.FC<StudentDetailModalProps> = ({
             </div>
 
             {/* Teacher Private Notes */}
-            <div className="bg-white rounded-xl border border-slate-200 p-5 shadow-xs space-y-2">
+            <div className="bg-white rounded-xl border border-slate-200 p-3 shadow-xs space-y-1.5">
               <label
                 htmlFor="teacher-notes-input"
-                className="text-xs font-bold uppercase tracking-wider text-slate-700"
+                className="text-[11px] font-bold uppercase tracking-wider text-slate-700"
               >
                 Notes internes pour le professeur (non visibles de l'élève)
               </label>
@@ -1065,18 +1204,27 @@ export const StudentDetailModal: React.FC<StudentDetailModalProps> = ({
                 type="text"
                 value={teacherNotes}
                 onChange={(e) => setTeacherNotes(e.target.value)}
-                placeholder="Ex : Convoquer aux heures de soutien, vérifier le carnet de correspondance..."
-                className="w-full px-3.5 py-2 bg-slate-50 border border-slate-300 rounded-lg text-xs text-slate-900 focus:bg-white focus:ring-2 focus:ring-blue-500 outline-hidden"
+                placeholder="Ex : Convoquer aux heures de soutien, vérifier le carnet..."
+                className="w-full px-3 py-1.5 bg-slate-50 border border-slate-300 rounded-lg text-xs text-slate-900 focus:bg-white focus:ring-2 focus:ring-blue-500 outline-hidden"
               />
             </div>
           </div>
         </div>
 
         {/* Modal Footer */}
-        <div className="px-6 py-3.5 bg-white border-t border-slate-200 flex items-center justify-between shrink-0">
-          <span className="text-xs text-slate-500">
-            Les ajustements mettent automatiquement à jour les statistiques de la classe.
-          </span>
+        <div
+          className={`bg-white border-t border-slate-200 flex items-center justify-between shrink-0 flex-wrap gap-2 transition-all ${
+            compactNoScroll ? 'px-4 py-2' : 'px-6 py-3.5'
+          }`}
+        >
+          <div className="flex items-center gap-2 text-xs text-slate-500">
+            <span className="hidden md:inline">
+              Les ajustements mettent automatiquement à jour les statistiques de la classe.
+            </span>
+            <span className="text-[11px] text-slate-500 bg-slate-100 px-2 py-0.5 rounded border border-slate-200 inline-flex items-center gap-1">
+              Raccourci : <kbd className="font-mono font-bold text-slate-800">F</kbd> (Plein écran)
+            </span>
+          </div>
 
           <div className="flex items-center gap-2">
             <button
