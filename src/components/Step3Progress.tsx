@@ -399,14 +399,14 @@ export const Step3Progress: React.FC<Step3ProgressProps> = ({
       )}
 
       {/* Progress Header Card */}
-      <div className="bg-white rounded-2xl border border-slate-200 shadow-xs p-6 sm:p-8">
+      <div className="bg-white rounded-2xl border border-slate-200 shadow-xs p-4 sm:p-8">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-6 border-b border-slate-100">
           <div>
             <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-50 text-blue-700 text-xs font-semibold mb-2">
               <Sparkles className="w-3.5 h-3.5 text-blue-600 animate-pulse" />
               Étape 3 : Moteur de Vision Multimodal Gemini
             </div>
-            <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">
+            <h1 className="text-xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">
               {isRunning
                 ? 'Correction des copies en cours...'
                 : allFinished
@@ -420,12 +420,12 @@ export const Step3Progress: React.FC<Step3ProgressProps> = ({
             </p>
           </div>
 
-          <div className="flex flex-wrap items-center gap-2.5">
+          <div className="grid grid-cols-1 sm:flex sm:flex-wrap items-stretch sm:items-center gap-2.5 w-full sm:w-auto">
             {isRunning && (
               <button
                 type="button"
                 onClick={handlePauseCorrection}
-                className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs sm:text-sm transition-all cursor-pointer"
+                className="inline-flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs sm:text-sm transition-all cursor-pointer"
               >
                 <Pause className="w-4 h-4 text-slate-600" />
                 <span>Mettre en pause</span>
@@ -437,7 +437,7 @@ export const Step3Progress: React.FC<Step3ProgressProps> = ({
                 type="button"
                 onClick={runAllPending}
                 id="btn-run-all-pending"
-                className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs sm:text-sm shadow-md shadow-blue-600/20 transition-all cursor-pointer"
+                className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs sm:text-sm shadow-md shadow-blue-600/20 transition-all cursor-pointer"
               >
                 <Play className="w-4 h-4 fill-current" />
                 <span>Lancer les {pendingCount} copie{pendingCount > 1 ? 's' : ''} restante{pendingCount > 1 ? 's' : ''}</span>
@@ -449,7 +449,7 @@ export const Step3Progress: React.FC<Step3ProgressProps> = ({
                 type="button"
                 onClick={retryAllFailed}
                 id="btn-retry-all-failed"
-                className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-amber-50 hover:bg-amber-100 border border-amber-300 text-amber-900 font-bold text-xs sm:text-sm shadow-xs transition-all cursor-pointer"
+                className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-amber-50 hover:bg-amber-100 border border-amber-300 text-amber-900 font-bold text-xs sm:text-sm shadow-xs transition-all cursor-pointer"
               >
                 <RotateCcw className="w-4 h-4 text-amber-700" />
                 <span>Relancer les {errorCount} copie{errorCount > 1 ? 's' : ''} en erreur</span>
@@ -461,7 +461,7 @@ export const Step3Progress: React.FC<Step3ProgressProps> = ({
                 type="button"
                 onClick={onViewDashboard}
                 id="btn-goto-dashboard"
-                className={`inline-flex items-center gap-2 px-5 py-2.5 rounded-xl font-bold text-xs sm:text-sm shadow-md transition-all cursor-pointer ${
+                className={`inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl font-bold text-xs sm:text-sm shadow-md transition-all cursor-pointer ${
                   allFinished
                     ? 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-emerald-600/20'
                     : 'bg-blue-600 hover:bg-blue-700 text-white shadow-blue-600/20'

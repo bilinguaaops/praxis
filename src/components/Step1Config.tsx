@@ -821,18 +821,20 @@ Q5 : B`;
             <label htmlFor="max-grade-input" className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
               Barème Global (Note Maximale) <span className="text-red-500">*</span>
             </label>
-            <div className="flex items-center gap-2">
-              <input
-                type="number"
-                id="max-grade-input"
-                min={1}
-                max={100}
-                value={config.maxGrade}
-                onChange={(e) => updateField('maxGrade', Math.max(1, Number(e.target.value) || 20))}
-                className="w-28 px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-lg text-sm font-semibold text-slate-900 focus:bg-white focus:ring-2 focus:ring-blue-500 outline-hidden transition-all"
-              />
-              <span className="text-sm font-medium text-slate-500">points</span>
-              <div className="flex items-center gap-1 ml-auto">
+            <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
+              <div className="flex items-center gap-2">
+                <input
+                  type="number"
+                  id="max-grade-input"
+                  min={1}
+                  max={100}
+                  value={config.maxGrade}
+                  onChange={(e) => updateField('maxGrade', Math.max(1, Number(e.target.value) || 20))}
+                  className="w-24 sm:w-28 px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-lg text-sm font-semibold text-slate-900 focus:bg-white focus:ring-2 focus:ring-blue-500 outline-hidden transition-all"
+                />
+                <span className="text-sm font-medium text-slate-500">pts</span>
+              </div>
+              <div className="flex items-center gap-1 sm:ml-auto flex-wrap">
                 {[10, 20, 40, 100].map((val) => (
                   <button
                     key={val}
@@ -1315,7 +1317,7 @@ Exercice 2 (12 points) - Question 1 (7 pts)...`
       </div>
 
       {/* Bottom Actions */}
-      <div className="flex items-center justify-between pt-4">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pt-4 border-t border-slate-100">
         <div className="flex items-center gap-2 text-xs text-slate-500">
           <Info className="w-4 h-4 text-blue-500 shrink-0" />
           <span>Vous pourrez modifier vos copies et ajuster les notes à tout moment.</span>
@@ -1325,7 +1327,7 @@ Exercice 2 (12 points) - Question 1 (7 pts)...`
           onClick={onNext}
           disabled={!canProceed}
           id="btn-step1-next"
-          className={`inline-flex items-center gap-2 px-6 py-3 rounded-xl font-bold text-sm transition-all shadow-xs cursor-pointer ${
+          className={`w-full sm:w-auto inline-flex items-center justify-center gap-2 px-6 py-3.5 rounded-xl font-bold text-sm transition-all shadow-xs cursor-pointer ${
             canProceed
               ? 'bg-blue-600 hover:bg-blue-700 text-white shadow-blue-600/20 hover:shadow-md'
               : 'bg-slate-200 text-slate-400 cursor-not-allowed'

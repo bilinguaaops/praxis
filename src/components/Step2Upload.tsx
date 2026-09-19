@@ -23,6 +23,7 @@ import {
   X,
   Download,
   Check,
+  Camera,
 } from 'lucide-react';
 
 interface Step2UploadProps {
@@ -54,7 +55,9 @@ export const Step2Upload: React.FC<Step2UploadProps> = ({
   const [activeCardPages, setActiveCardPages] = useState<Record<string, number>>({});
   const [swapModalTargetSub, setSwapModalTargetSub] = useState<StudentSubmission | null>(null);
   const [swapSearchQuery, setSwapSearchQuery] = useState('');
+  const [showClearConfirm, setShowClearConfirm] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const cameraInputRef = useRef<HTMLInputElement>(null);
 
   // All known students from classes for datalist
   const allClassStudents = useMemo(() => {
@@ -214,15 +217,13 @@ export const Step2Upload: React.FC<Step2UploadProps> = ({
     onSubmissionsChange(submissions.filter((sub) => sub.id !== id));
   };
 
-  const [showClearConfirm, setShowClearConfirm] = useState(false);
-
   const handleClearAll = () => {
     onSubmissionsChange([]);
     setShowClearConfirm(false);
   };
 
   return (
-    <div className="max-w-6xl mx-auto space-y-6 pb-12">
+    <div className="max-w-6xl mx-auto space-y-6 pb-24 sm:pb-12">
       {/* Title banner */}
       <div className="bg-white rounded-xl border border-slate-200 shadow-xs p-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
@@ -348,6 +349,15 @@ export const Step2Upload: React.FC<Step2UploadProps> = ({
           className="hidden"
           onChange={(e) => handleFiles(e.target.files)}
         />
+        <input
+          ref={cameraInputRef}
+          type="file"
+          accept="image/*"
+          capture="environment"
+          multiple
+          className="hidden"
+          onChange={(e) => handleFiles(e.target.files)}
+        />
 
         {isProcessingPdf ? (
           <div className="flex flex-col items-center justify-center py-4 space-y-3">
@@ -368,6 +378,21 @@ export const Step2Upload: React.FC<Step2UploadProps> = ({
               <p className="text-xs text-slate-500 mt-1 max-w-md mx-auto">
                 Accepte les photos de copies (JPG, PNG, WebP) et les documents PDF multipages scannés.
               </p>
+            </div>
+
+            <div className="flex flex-wrap items-center justify-center gap-2 pt-1">
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  cameraInputRef.current?.click();
+                }}
+                className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-blue-50 hover:bg-blue-100 text-blue-700 rounded-xl text-xs font-bold border border-blue-200 transition-colors shadow-2xs cursor-pointer"
+                title="Prendre des photos directement avec la caméra de votre smartphone"
+              >
+                <Camera className="w-4 h-4 text-blue-600" />
+                <span>Prendre en photo (Smartphone / Tablette)</span>
+              </button>
             </div>
 
             <div className="flex flex-wrap items-center justify-center gap-2 pt-2 text-[11px] text-slate-500 font-medium">
@@ -690,6 +715,33 @@ export const Step2Upload: React.FC<Step2UploadProps> = ({
           )}
         </div>
       </div>
+
+      {/* Mobile Sticky Quick Launch Bar (appears when copies are loaded) */}
+      {submissions.length > 0 && (
+        <div className="sm:hidden fixed bottom-0 left-0 right-0 p-3 bg-white/95 backdrop-blur-md border-t border-slate-200 shadow-xl z-40 flex items-center gap-2">
+          <button
+            type="button"
+            onClick={onBack}
+            className="p-3 rounded-xl border border-slate-300 text-slate-700 bg-white hover:bg-slate-50 transition-colors shrink-0 cursor-pointer shadow-2xs"
+            title="Retour à la configuration"
+          >
+            <ArrowLeft className="w-4 h-4" />
+          </button>
+          <button
+            type="button"
+            onClick={onNext}
+            className="flex-1 inline-flex items-center justify-center gap-2 py-3 px-4 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold text-xs shadow-md transition-all cursor-pointer"
+          >
+            <Sparkles className="w-4 h-4 shrink-0" />
+            <span className="truncate">
+              {isRegistered
+                ? `Lancer correction (${submissions.length})`
+                : `S'inscrire & Lancer (${submissions.length})`}
+            </span>
+            <ArrowRight className="w-4 h-4 shrink-0" />
+          </button>
+        </div>
+      )}
 
       {/* Dedicated Swap Copies Modal with search filter and full scrolling */}
       {swapModalTargetSub && (

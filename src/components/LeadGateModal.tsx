@@ -79,8 +79,8 @@ export const LeadGateModal: React.FC<LeadGateModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-xs animate-in fade-in duration-200">
-      <div className="bg-white w-full max-w-md rounded-2xl shadow-2xl border border-slate-200 overflow-hidden relative">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/80 backdrop-blur-xs animate-in fade-in duration-200">
+      <div className="bg-white w-full max-w-md rounded-2xl shadow-2xl border border-slate-200 overflow-hidden relative max-h-[92vh] flex flex-col">
         {/* Close button */}
         <button
           type="button"
@@ -140,7 +140,7 @@ export const LeadGateModal: React.FC<LeadGateModalProps> = ({
         </div>
 
         {/* Form */}
-        <form onSubmit={handleSubmit} className="p-6 space-y-3.5">
+        <form onSubmit={handleSubmit} className="p-4 sm:p-6 space-y-3.5 overflow-y-auto flex-1">
           {mode === 'register' && (
             <div>
               <label className="block text-xs font-bold text-slate-700 mb-1">

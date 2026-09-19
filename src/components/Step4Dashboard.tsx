@@ -379,7 +379,7 @@ export const Step4Dashboard: React.FC<Step4DashboardProps> = ({
           </p>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="grid grid-cols-1 sm:flex sm:flex-wrap items-stretch sm:items-center gap-2 w-full sm:w-auto">
           {/* Valider la correction de la classe Button */}
           <button
             type="button"
@@ -391,7 +391,7 @@ export const Step4Dashboard: React.FC<Step4DashboardProps> = ({
               }
             }}
             id="btn-validate-class-correction"
-            className={`inline-flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-xs font-extrabold transition-all cursor-pointer shadow-xs ${
+            className={`inline-flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl text-xs font-extrabold transition-all cursor-pointer shadow-xs ${
               isValidatedState
                 ? 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-emerald-600/20'
                 : 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-emerald-600/30 ring-2 ring-emerald-500/20 hover:scale-[1.02]'
@@ -407,7 +407,7 @@ export const Step4Dashboard: React.FC<Step4DashboardProps> = ({
               type="button"
               onClick={handleSaveEvaluation}
               id="btn-save-history"
-              className={`inline-flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer shadow-xs ${
+              className={`inline-flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer shadow-xs ${
                 savedBadge
                   ? 'bg-emerald-600 text-white'
                   : 'bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200'
@@ -423,7 +423,7 @@ export const Step4Dashboard: React.FC<Step4DashboardProps> = ({
             type="button"
             onClick={exportCsv}
             id="btn-export-csv"
-            className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-bold transition-colors cursor-pointer"
+            className="inline-flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-bold transition-colors cursor-pointer"
             title="Exporter pour Pronote ou ÉcoleDirecte"
           >
             {copiedCsvNotice ? <Check className="w-4 h-4 text-emerald-600" /> : <Download className="w-4 h-4 text-slate-600" />}
@@ -434,7 +434,7 @@ export const Step4Dashboard: React.FC<Step4DashboardProps> = ({
             type="button"
             onClick={onOpenPrint}
             id="btn-open-print-sheets"
-            className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold transition-colors shadow-xs cursor-pointer"
+            className="inline-flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold transition-colors shadow-xs cursor-pointer"
           >
             <Printer className="w-4 h-4" />
             <span>Imprimer les fiches élèves</span>
@@ -449,11 +449,11 @@ export const Step4Dashboard: React.FC<Step4DashboardProps> = ({
                 setIsSwapModalOpen(true);
               }}
               id="btn-open-swap-modal"
-              className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-300 text-xs font-bold transition-colors cursor-pointer shadow-xs"
+              className="inline-flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-300 text-xs font-bold transition-colors cursor-pointer shadow-xs"
               title="Intervertir deux copies si des noms ont été intervertis"
             >
               <ArrowLeftRight className="w-4 h-4 text-amber-700" />
-              <span>Intervertir deux copies</span>
+              <span>Intervertir 2 copies</span>
             </button>
           )}
         </div>
@@ -887,12 +887,12 @@ export const Step4Dashboard: React.FC<Step4DashboardProps> = ({
       {/* Student Cards Section with Filters */}
       <div id="student-cards-section" className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden scroll-mt-6">
         {/* Search and Filters Bar */}
-        <div className="p-5 border-b border-slate-200 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 bg-slate-50/50">
-          <div className="flex flex-wrap items-center gap-2">
+        <div className="p-3.5 sm:p-5 border-b border-slate-200 flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-3 bg-slate-50/50">
+          <div className="flex items-center gap-1.5 overflow-x-auto pb-1 sm:pb-0 scrollbar-none w-full lg:w-auto">
             <button
               type="button"
               onClick={() => setFilterType('all')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors cursor-pointer ${
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors cursor-pointer shrink-0 whitespace-nowrap ${
                 filterType === 'all'
                   ? 'bg-blue-600 text-white shadow-xs'
                   : 'bg-white text-slate-700 hover:bg-slate-100 border border-slate-200'
@@ -906,7 +906,7 @@ export const Step4Dashboard: React.FC<Step4DashboardProps> = ({
                 type="button"
                 onClick={() => setFilterType('needs_review')}
                 id="filter-needs-review"
-                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors cursor-pointer flex items-center gap-1.5 ${
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors cursor-pointer flex items-center gap-1.5 shrink-0 whitespace-nowrap ${
                   filterType === 'needs_review'
                     ? 'bg-amber-600 text-white shadow-xs'
                     : 'bg-amber-50 text-amber-900 hover:bg-amber-100 border border-amber-300'
@@ -920,7 +920,7 @@ export const Step4Dashboard: React.FC<Step4DashboardProps> = ({
             <button
               type="button"
               onClick={() => setFilterType('struggling')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors cursor-pointer ${
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors cursor-pointer shrink-0 whitespace-nowrap ${
                 filterType === 'struggling'
                   ? 'bg-amber-600 text-white shadow-xs'
                   : 'bg-white text-amber-800 hover:bg-amber-50 border border-slate-200'
@@ -932,7 +932,7 @@ export const Step4Dashboard: React.FC<Step4DashboardProps> = ({
             <button
               type="button"
               onClick={() => setFilterType('success')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors cursor-pointer ${
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors cursor-pointer shrink-0 whitespace-nowrap ${
                 filterType === 'success'
                   ? 'bg-emerald-600 text-white shadow-xs'
                   : 'bg-white text-emerald-800 hover:bg-emerald-50 border border-slate-200'
@@ -942,7 +942,7 @@ export const Step4Dashboard: React.FC<Step4DashboardProps> = ({
             </button>
           </div>
 
-          <div className="flex items-center gap-3 w-full sm:w-auto">
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full lg:w-auto">
             {/* Search Input */}
             <div className="relative flex-1 sm:w-60">
               <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
@@ -951,7 +951,7 @@ export const Step4Dashboard: React.FC<Step4DashboardProps> = ({
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder="Rechercher un élève..."
-                className="w-full pl-9 pr-3.5 py-1.5 bg-white border border-slate-200 rounded-lg text-xs text-slate-900 focus:ring-2 focus:ring-blue-500 outline-hidden"
+                className="w-full pl-9 pr-3.5 py-2 sm:py-1.5 bg-white border border-slate-200 rounded-lg text-xs text-slate-900 focus:ring-2 focus:ring-blue-500 outline-hidden"
               />
             </div>
 
@@ -959,7 +959,7 @@ export const Step4Dashboard: React.FC<Step4DashboardProps> = ({
             <select
               value={sortBy}
               onChange={(e) => setSortBy(e.target.value as any)}
-              className="px-2.5 py-1.5 bg-white border border-slate-200 rounded-lg text-xs font-medium text-slate-700 focus:ring-2 focus:ring-blue-500 outline-hidden"
+              className="px-2.5 py-2 sm:py-1.5 bg-white border border-slate-200 rounded-lg text-xs font-medium text-slate-700 focus:ring-2 focus:ring-blue-500 outline-hidden"
             >
               <option value="grade_desc">Notes décroissantes</option>
               <option value="grade_asc">Notes croissantes</option>
@@ -969,7 +969,7 @@ export const Step4Dashboard: React.FC<Step4DashboardProps> = ({
         </div>
 
         {/* Student Cards Grid */}
-        <div className="p-6 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        <div className="p-3.5 sm:p-6 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
           {filteredSubmissions.map((sub) => {
             const res = sub.result;
             const isCompleted = sub.status === 'completed' && res;

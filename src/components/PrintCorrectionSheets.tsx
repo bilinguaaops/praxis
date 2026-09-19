@@ -24,13 +24,13 @@ export const PrintCorrectionSheets: React.FC<PrintCorrectionSheetsProps> = ({
       {/* Screen container */}
       <div className="bg-white w-full max-w-5xl rounded-2xl shadow-2xl border border-slate-200 flex flex-col max-h-[95vh] overflow-hidden print:border-none print:shadow-none print:max-h-none print:w-full print:rounded-none">
         {/* Screen Header (Hidden on print) */}
-        <div className="px-6 py-4 bg-slate-900 text-white flex items-center justify-between border-b border-slate-800 shrink-0 print:hidden">
+        <div className="px-4 sm:px-6 py-3 sm:py-4 bg-slate-900 text-white flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800 shrink-0 print:hidden">
           <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-lg bg-blue-600 flex items-center justify-center font-bold text-sm">
+            <div className="w-8 h-8 rounded-lg bg-blue-600 flex items-center justify-center font-bold text-sm shrink-0">
               <Printer className="w-4 h-4 text-white" />
             </div>
             <div>
-              <h2 className="font-extrabold text-base text-white">
+              <h2 className="font-extrabold text-sm sm:text-base text-white">
                 Fiches Individuelles de Correction prêtes à imprimer
               </h2>
               <p className="text-xs text-slate-400">
@@ -39,20 +39,21 @@ export const PrintCorrectionSheets: React.FC<PrintCorrectionSheetsProps> = ({
             </div>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 justify-between sm:justify-end">
             <button
               type="button"
               onClick={handlePrint}
               id="btn-trigger-print"
-              className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold transition-colors cursor-pointer shadow-xs"
+              className="inline-flex items-center justify-center gap-2 px-3.5 sm:px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold transition-colors cursor-pointer shadow-xs flex-1 sm:flex-initial"
             >
               <Printer className="w-4 h-4" />
-              <span>Lancer l'impression / Enregistrer en PDF</span>
+              <span>Imprimer / PDF</span>
             </button>
             <button
               type="button"
               onClick={onClose}
-              className="p-2 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition-colors cursor-pointer"
+              className="p-2 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition-colors cursor-pointer shrink-0"
+              title="Fermer"
             >
               <X className="w-5 h-5" />
             </button>
@@ -60,14 +61,14 @@ export const PrintCorrectionSheets: React.FC<PrintCorrectionSheetsProps> = ({
         </div>
 
         {/* Printable Content Area */}
-        <div className="flex-1 overflow-y-auto p-6 sm:p-8 space-y-12 bg-slate-100 print:bg-white print:p-0 print:space-y-0">
+        <div className="flex-1 overflow-y-auto p-3 sm:p-8 space-y-8 sm:space-y-12 bg-slate-100 print:bg-white print:p-0 print:space-y-0">
           {gradedStudents.map((sub, idx) => {
             const res = sub.result!;
 
             return (
               <div
                 key={sub.id}
-                className="bg-white p-8 rounded-xl border border-slate-300 shadow-xs max-w-3xl mx-auto space-y-6 print:border-none print:shadow-none print:p-6 print:rounded-none print:break-after-page print:m-0 print:max-w-none min-h-[900px] flex flex-col justify-between"
+                className="bg-white p-4 sm:p-8 rounded-xl border border-slate-300 shadow-xs max-w-3xl mx-auto space-y-4 sm:space-y-6 print:border-none print:shadow-none print:p-6 print:rounded-none print:break-after-page print:m-0 print:max-w-none min-h-[900px] flex flex-col justify-between"
               >
                 {/* School Header */}
                 <div>

@@ -79,6 +79,7 @@ export const StudentDetailModal: React.FC<StudentDetailModalProps> = ({
   const [showSwapDropdown, setShowSwapDropdown] = useState(false);
   const [modalSwapSearch, setModalSwapSearch] = useState('');
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [mobileTab, setMobileTab] = useState<'copy' | 'review' | 'split'>('review');
   // Window Fullscreen (Grand écran) and Compact Zero-Scroll layout mode
   const [isModalMaximized, setIsModalMaximized] = useState<boolean>(() => {
     try {
@@ -400,39 +401,39 @@ export const StudentDetailModal: React.FC<StudentDetailModalProps> = ({
         className={`bg-white flex flex-col overflow-hidden transition-all duration-200 ${
           isModalMaximized
             ? 'w-screen h-screen max-w-none rounded-none border-0 shadow-none'
-            : 'w-full max-w-7xl h-[92vh] rounded-2xl shadow-2xl border border-slate-200'
+            : 'w-full h-full sm:h-[92vh] max-w-7xl rounded-none sm:rounded-2xl shadow-2xl border-0 sm:border border-slate-200'
         }`}
       >
         {/* Modal Header */}
         <div
           onDoubleClick={toggleModalMaximize}
-          className={`bg-slate-900 text-white flex items-center justify-between border-b border-slate-800 shrink-0 select-none transition-all ${
-            isModalMaximized ? 'px-4 py-2.5' : 'px-6 py-4'
+          className={`bg-slate-900 text-white flex flex-wrap sm:flex-nowrap items-center justify-between border-b border-slate-800 shrink-0 select-none transition-all gap-2 ${
+            isModalMaximized ? 'px-4 py-2.5' : 'px-4 sm:px-6 py-3 sm:py-4'
           }`}
           title="Double-cliquer pour agrandir en grand écran ou réduire"
         >
-          <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-lg bg-blue-600 flex items-center justify-center font-bold text-sm">
+          <div className="flex items-center gap-2.5 min-w-0 flex-1">
+            <div className="w-8 h-8 rounded-lg bg-blue-600 flex items-center justify-center font-bold text-sm shrink-0">
               <Sparkles className="w-4 h-4 text-white" />
             </div>
-            <div>
+            <div className="min-w-0 flex-1">
               <div className="flex items-center gap-2 flex-wrap">
                 <input
                   type="text"
                   value={studentName}
                   onChange={(e) => setStudentName(e.target.value)}
-                  className="bg-transparent font-extrabold text-lg text-white border-b border-transparent hover:border-slate-600 focus:border-blue-400 focus:outline-hidden px-1 -ml-1 transition-colors"
+                  className="bg-transparent font-extrabold text-base sm:text-lg text-white border-b border-transparent hover:border-slate-600 focus:border-blue-400 focus:outline-hidden px-1 -ml-1 transition-colors max-w-[200px] sm:max-w-xs truncate"
                 />
-                <span className="text-xs text-slate-400">
+                <span className="text-xs text-slate-400 shrink-0">
                   ({submission.fileName} {pages.length > 1 ? `• ${pages.length} pages` : ''})
                 </span>
 
                 {result.nom_manuscrit_detecte && (
                   <span
-                    className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-blue-500/20 text-blue-300 border border-blue-400/30 text-[11px] font-semibold"
+                    className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-300 border border-blue-400/30 text-[10px] font-semibold"
                     title={`Nom manuscrit identifié en marge ou en-tête de la copie papier : ${result.nom_manuscrit_detecte}`}
                   >
-                    <span>✍️ Nom en marge : {result.nom_manuscrit_detecte}</span>
+                    <span>✍️ En marge : {result.nom_manuscrit_detecte}</span>
                   </span>
                 )}
 
@@ -443,15 +444,15 @@ export const StudentDetailModal: React.FC<StudentDetailModalProps> = ({
                       type="button"
                       onClick={() => setShowSwapDropdown(!showSwapDropdown)}
                       id="btn-modal-swap-student"
-                      className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-400/40 text-xs font-semibold cursor-pointer transition-colors"
+                      className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-400/40 text-[11px] font-semibold cursor-pointer transition-colors"
                       title="Intervertir cette copie avec un autre élève"
                     >
-                      <ArrowLeftRight className="w-3.5 h-3.5" />
+                      <ArrowLeftRight className="w-3 h-3" />
                       <span>Intervertir...</span>
                     </button>
 
                     {showSwapDropdown && (
-                      <div className="absolute top-full left-0 mt-1.5 w-80 bg-slate-900 border border-slate-700 rounded-xl shadow-2xl p-2.5 z-50 text-white text-xs space-y-2">
+                      <div className="absolute top-full left-0 mt-1.5 w-72 sm:w-80 bg-slate-900 border border-slate-700 rounded-xl shadow-2xl p-2.5 z-50 text-white text-xs space-y-2 max-w-[calc(100vw-2rem)]">
                         <div className="px-1 text-slate-300 font-bold text-xs flex items-center justify-between border-b border-slate-800 pb-1.5">
                           <span className="truncate">Échanger cette copie ({submission.fileName})</span>
                           <button
@@ -513,24 +514,24 @@ export const StudentDetailModal: React.FC<StudentDetailModalProps> = ({
                   </div>
                 )}
               </div>
-              <p className="text-xs text-slate-400">
-                Aperçu de la copie manuscrite ({pages.length > 1 ? `Page ${activePageIndex + 1} sur ${pages.length}` : '1 page'}) et évaluation détaillée
+              <p className="text-[11px] text-slate-400 truncate">
+                Aperçu de la copie ({pages.length > 1 ? `Page ${activePageIndex + 1}/${pages.length}` : '1 page'}) et note /{gradeMax}
               </p>
             </div>
           </div>
 
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-1.5 sm:gap-3 shrink-0 ml-auto">
             {isValidated && (
-              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-emerald-500/20 text-emerald-300 border border-emerald-400/40 text-xs font-bold">
+              <span className="hidden sm:inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-emerald-500/20 text-emerald-300 border border-emerald-400/40 text-xs font-bold">
                 <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
-                <span>Correction validée</span>
+                <span>Validée</span>
               </span>
             )}
 
             {isSavedNotice && (
               <span className="text-xs font-semibold text-emerald-400 flex items-center gap-1">
                 <CheckCircle2 className="w-3.5 h-3.5" />
-                Modifications enregistrées !
+                <span className="hidden sm:inline">Enregistré</span>
               </span>
             )}
 
@@ -541,7 +542,7 @@ export const StudentDetailModal: React.FC<StudentDetailModalProps> = ({
                 onClick={() => setShowDownloadDropdown(!showDownloadDropdown)}
                 disabled={isDownloading}
                 id="btn-modal-download-header"
-                className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold transition-all cursor-pointer shadow-xs disabled:opacity-50"
+                className="inline-flex items-center gap-1 px-2.5 sm:px-3.5 py-1.5 sm:py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold transition-all cursor-pointer shadow-xs disabled:opacity-50"
                 title="Télécharger cette copie et son évaluation (PDF ou Image)"
               >
                 {isDownloading ? (
@@ -549,7 +550,7 @@ export const StudentDetailModal: React.FC<StudentDetailModalProps> = ({
                 ) : (
                   <Download className="w-3.5 h-3.5" />
                 )}
-                <span>Télécharger</span>
+                <span className="hidden sm:inline">Télécharger</span>
                 <ChevronDown className="w-3 h-3 opacity-80" />
               </button>
 
@@ -704,17 +705,17 @@ export const StudentDetailModal: React.FC<StudentDetailModalProps> = ({
               type="button"
               onClick={handleSaveChanges}
               id="btn-modal-save"
-              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold transition-colors cursor-pointer shadow-xs"
+              className="inline-flex items-center gap-1.5 px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold transition-colors cursor-pointer shadow-xs"
             >
               <Save className="w-3.5 h-3.5" />
-              <span>Enregistrer</span>
+              <span className="hidden sm:inline">Enregistrer</span>
             </button>
 
             <button
               type="button"
               onClick={onClose}
               id="btn-modal-close"
-              className="p-2 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition-colors cursor-pointer"
+              className="p-1.5 sm:p-2 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition-colors cursor-pointer"
               title="Fermer la fenêtre (Échap)"
             >
               <X className="w-5 h-5" />
@@ -722,10 +723,56 @@ export const StudentDetailModal: React.FC<StudentDetailModalProps> = ({
           </div>
         </div>
 
+        {/* Mobile View Mode Switcher (Visible on < lg screens) */}
+        <div className="lg:hidden bg-slate-800 border-b border-slate-700 px-3 py-2 flex items-center justify-between text-xs font-bold shrink-0">
+          <span className="text-slate-300 text-[11px]">Affichage :</span>
+          <div className="flex items-center gap-1 bg-slate-900 p-0.5 rounded-lg border border-slate-700/60">
+            <button
+              type="button"
+              onClick={() => setMobileTab('copy')}
+              className={`px-3 py-1 rounded-md transition-colors cursor-pointer text-xs font-semibold ${
+                mobileTab === 'copy'
+                  ? 'bg-blue-600 text-white shadow-xs'
+                  : 'text-slate-400 hover:text-white'
+              }`}
+            >
+              📄 Copie
+            </button>
+            <button
+              type="button"
+              onClick={() => setMobileTab('review')}
+              className={`px-3 py-1 rounded-md transition-colors cursor-pointer text-xs font-semibold ${
+                mobileTab === 'review'
+                  ? 'bg-blue-600 text-white shadow-xs'
+                  : 'text-slate-400 hover:text-white'
+              }`}
+            >
+              📊 Bilan & Note
+            </button>
+            <button
+              type="button"
+              onClick={() => setMobileTab('split')}
+              className={`px-3 py-1 rounded-md transition-colors cursor-pointer text-xs font-semibold ${
+                mobileTab === 'split'
+                  ? 'bg-blue-600 text-white shadow-xs'
+                  : 'text-slate-400 hover:text-white'
+              }`}
+            >
+              ⚖️ Les 2
+            </button>
+          </div>
+        </div>
+
         {/* Modal Body: Split Screen */}
         <div className="flex-1 flex flex-col lg:flex-row overflow-hidden divide-y lg:divide-y-0 lg:divide-x divide-slate-200 min-h-0">
           {/* Left Panel: Original Student Copy Image */}
-          <div className="w-full lg:w-1/2 h-[50vh] lg:h-full min-h-[380px] bg-slate-900 flex flex-col relative overflow-hidden shrink-0 lg:shrink">
+          <div
+            className={`w-full lg:w-1/2 ${
+              mobileTab === 'review' ? 'hidden lg:flex' : 'flex'
+            } ${
+              mobileTab === 'split' ? 'h-[45vh]' : 'h-full'
+            } lg:h-full min-h-[260px] bg-slate-900 flex-col relative overflow-hidden shrink-0 lg:shrink`}
+          >
             {/* Viewer Toolbar */}
             <div className="absolute top-3 right-3 z-10 flex items-center gap-1 bg-slate-900/90 backdrop-blur-xs p-1 rounded-xl border border-slate-700 shadow-md">
               <button
@@ -867,8 +914,12 @@ export const StudentDetailModal: React.FC<StudentDetailModalProps> = ({
 
           {/* Right Panel: AI Assessment and Editable Criteria */}
           <div
-            className={`w-full lg:w-1/2 bg-slate-50 overflow-y-auto ${
-              compactNoScroll ? 'p-3 sm:p-4 space-y-3 text-xs' : 'p-6 space-y-6'
+            className={`w-full lg:w-1/2 ${
+              mobileTab === 'copy' ? 'hidden lg:block' : 'block'
+            } ${
+              mobileTab === 'split' ? 'h-[55vh]' : 'h-full'
+            } lg:h-full bg-slate-50 overflow-y-auto ${
+              compactNoScroll ? 'p-3 sm:p-4 space-y-3 text-xs' : 'p-3.5 sm:p-6 space-y-4 sm:space-y-6'
             }`}
           >
             {/* Proactive Inversion / Name Mismatch Alert */}
