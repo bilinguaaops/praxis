@@ -229,7 +229,7 @@ export const FaqView: React.FC<FaqViewProps> = ({ onStartCorrection, onOpenConta
                 <Sparkles className="w-3.5 h-3.5 text-blue-600" /> Mode Autonome Intelligent
               </span>
               <p className="text-xs text-slate-600">
-                Vous indiquez uniquement le titre et la note maximale (ex: /20). L’IA déduit le corrigé et la grille d’évaluation standard selon les exigences du niveau scolaire sélectionné (de la 6ème au Supérieur).
+                Vous indiquez uniquement le titre et la note maximale (ex: /20). L’IA déduit le corrigé et la grille d’évaluation standard selon les exigences du niveau scolaire sélectionné (du Primaire à la Terminale).
               </p>
             </div>
           </div>

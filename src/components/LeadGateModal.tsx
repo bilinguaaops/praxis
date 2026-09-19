@@ -96,7 +96,7 @@ export const LeadGateModal: React.FC<LeadGateModalProps> = ({
         <div className="p-6 text-center border-b border-slate-100 bg-gradient-to-b from-blue-50/80 to-white">
           <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-100 text-emerald-800 text-xs font-bold mb-3 border border-emerald-200">
             <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-            <span>🎁 Démo Gratuite • 5 copies offertes par enseignant</span>
+            <span>🎁 Démo Gratuite • 30 copies offertes par enseignant</span>
           </div>
 
           <h3 className="text-xl font-extrabold text-slate-900 tracking-tight">
@@ -104,7 +104,7 @@ export const LeadGateModal: React.FC<LeadGateModalProps> = ({
           </h3>
           <p className="text-xs text-slate-600 mt-1.5 max-w-xs mx-auto leading-relaxed">
             {mode === 'register'
-              ? 'Renseignez vos coordonnées pour débloquer vos 5 corrections IA gratuites et tester le système sur vos vraies copies.'
+              ? 'Renseignez vos coordonnées pour débloquer vos 30 corrections IA gratuites et tester le système sur vos vraies copies (soit une classe entière).'
               : 'Connectez-vous avec votre email pour retrouver vos copies et lancer la correction.'}
           </p>
 
@@ -236,7 +236,7 @@ export const LeadGateModal: React.FC<LeadGateModalProps> = ({
                   <Sparkles className="w-4 h-4" />
                   <span>
                     {mode === 'register'
-                      ? "Valider et débloquer mes 5 copies gratuites"
+                      ? "Valider et débloquer mes 30 copies gratuites"
                       : 'Se connecter et lancer la correction'}
                   </span>
                   <ArrowRight className="w-4 h-4" />

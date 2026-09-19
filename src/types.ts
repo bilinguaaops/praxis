@@ -10,17 +10,17 @@ export type Discipline =
   | 'Philosophie'
   | 'Sciences Économiques et Sociales (SES)'
   | 'Technologie'
-  | 'Enseignement Supérieur / Autre';
+  | 'Autre discipline';
 
 export type SchoolLevel =
-  | '6e (Cycle 3)'
-  | '5e (Cycle 4)'
-  | '4e (Cycle 4)'
+  | 'Primaire (CP1 - CM2)'
+  | '6e'
+  | '5e'
+  | '4e'
   | '3e (Brevet)'
   | '2nde (Lycée)'
   | '1ère (Baccalauréat)'
-  | 'Terminale (Baccalauréat)'
-  | 'Supérieur / BTS / CPGE / Université';
+  | 'Terminale (Baccalauréat)';
 
 export type CorrectionMode = 'with_rubric' | 'autonomous';
 

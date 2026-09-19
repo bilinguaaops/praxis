@@ -50,18 +50,18 @@ const DISCIPLINES: Discipline[] = [
   'Philosophie',
   'Sciences Économiques et Sociales (SES)',
   'Technologie',
-  'Enseignement Supérieur / Autre',
+  'Autre discipline',
 ];
 
 const LEVELS: SchoolLevel[] = [
-  '6e (Cycle 3)',
-  '5e (Cycle 4)',
-  '4e (Cycle 4)',
+  'Primaire (CP1 - CM2)',
+  '6e',
+  '5e',
+  '4e',
   '3e (Brevet)',
   '2nde (Lycée)',
   '1ère (Baccalauréat)',
   'Terminale (Baccalauréat)',
-  'Supérieur / BTS / CPGE / Université',
 ];
 
 export const Step1Config: React.FC<Step1ConfigProps> = ({ config, onChange, onNext }) => {
@@ -75,6 +75,7 @@ export const Step1Config: React.FC<Step1ConfigProps> = ({ config, onChange, onNe
     suggestedMaxGrade: number;
     summary: string;
   } | null>(null);
+  const [titleFeedback, setTitleFeedback] = useState<{ message: string; type: 'success' | 'info' | 'error' } | null>(null);
 
   const updateField = <K extends keyof AssignmentConfig>(field: K, value: AssignmentConfig[K]) => {
     onChange({
@@ -209,9 +210,6 @@ export const Step1Config: React.FC<Step1ConfigProps> = ({ config, onChange, onNe
     const updated: AssignmentConfig = { ...config, assessmentType: type };
 
     if (type === 'dictee') {
-      if (!config.title || config.title.includes('Pythagore') || config.title.includes('Devoir')) {
-        updated.title = config.discipline === 'Français' ? 'Dictée préparée & Orthographe' : `Dictée en ${config.discipline}`;
-      }
       updated.pedagogicalGuidelines = {
         ...updated.pedagogicalGuidelines,
         spellingTolerance: false,
@@ -233,9 +231,6 @@ Barème officiel indicatif :
       }
     } else if (type === 'dissertation') {
       if (config.discipline === 'Philosophie') {
-        if (!config.title || config.title.includes('Pythagore') || config.title.includes('Dictée')) {
-          updated.title = 'Dissertation philosophique';
-        }
         updated.pedagogicalGuidelines = {
           ...updated.pedagogicalGuidelines,
           spellingTolerance: false,
@@ -255,9 +250,6 @@ Grille d'évaluation :
 4. Rigueur conceptuelle et langue (3 pts).`;
         }
       } else if (config.discipline === 'Histoire-Géographie') {
-        if (!config.title || config.title.includes('Pythagore') || config.title.includes('Dictée')) {
-          updated.title = 'Composition / Dissertation d\'Histoire-Géographie';
-        }
         updated.pedagogicalGuidelines = {
           ...updated.pedagogicalGuidelines,
           spellingTolerance: true,
@@ -277,9 +269,6 @@ Grille d'évaluation :
 4. Précision du vocabulaire disciplinaire (3 pts).`;
         }
       } else {
-        if (!config.title || config.title.includes('Pythagore') || config.title.includes('Dictée')) {
-          updated.title = 'Dissertation littéraire & argumentative';
-        }
         updated.pedagogicalGuidelines = {
           ...updated.pedagogicalGuidelines,
           spellingTolerance: false,
@@ -301,9 +290,6 @@ Grille d'évaluation analytique :
         }
       }
     } else if (type === 'commentaire') {
-      if (!config.title || config.title.includes('Pythagore') || config.title.includes('Dictée')) {
-        updated.title = config.discipline === 'Philosophie' ? 'Explication de texte philosophique' : 'Commentaire de texte littéraire';
-      }
       updated.pedagogicalGuidelines = {
         ...updated.pedagogicalGuidelines,
         spellingTolerance: false,
@@ -323,9 +309,6 @@ Grille d'évaluation :
 4. Qualité de la langue (3 pts).`;
       }
     } else if (type === 'etude_document') {
-      if (!config.title || config.title.includes('Pythagore') || config.title.includes('Dictée')) {
-        updated.title = 'Étude critique de document(s)';
-      }
       updated.pedagogicalGuidelines = {
         ...updated.pedagogicalGuidelines,
         spellingTolerance: true,
@@ -346,9 +329,6 @@ Barème :
 4. Rigueur des notions (2 pts)`;
       }
     } else if (type === 'expression_ecrite') {
-      if (!config.title || config.title.includes('Pythagore') || config.title.includes('Dictée')) {
-        updated.title = `Expression écrite / Essay (${config.discipline})`;
-      }
       updated.pedagogicalGuidelines = {
         ...updated.pedagogicalGuidelines,
         spellingTolerance: false,
@@ -368,9 +348,6 @@ Grille CECRL :
 4. Organisation textuelle et connecteurs (4 pts)`;
       }
     } else if (type === 'traduction') {
-      if (!config.title || config.title.includes('Pythagore') || config.title.includes('Dictée')) {
-        updated.title = `Épreuve de Traduction (${config.discipline})`;
-      }
       updated.pedagogicalGuidelines = {
         ...updated.pedagogicalGuidelines,
         spellingTolerance: false,
@@ -390,9 +367,6 @@ Barème par segment :
 - Maladresse d'expression : -0.5 pt`;
       }
     } else if (type === 'mathematiques') {
-      if (!config.title || config.title.includes('Dictée') || config.title.includes('Dissertation')) {
-        updated.title = config.discipline === 'Mathématiques' ? 'Évaluation de Mathématiques' : `Évaluation de ${config.discipline}`;
-      }
       updated.pedagogicalGuidelines = {
         ...updated.pedagogicalGuidelines,
         spellingTolerance: true,
@@ -403,9 +377,6 @@ Barème par segment :
           'Système scientifique : valoriser les étapes de calcul, la démarche et la formulation des théorèmes. Tolérer les étourderies de calcul si la méthode est correcte.',
       };
     } else if (type === 'qcm') {
-      if (!config.title || config.title.includes('Dictée') || config.title.includes('Dissertation')) {
-        updated.title = `QCM — ${config.discipline}`;
-      }
       updated.pedagogicalGuidelines = {
         ...updated.pedagogicalGuidelines,
         spellingTolerance: true,
@@ -508,6 +479,90 @@ Q5 : B`;
     }
   };
 
+  const handleProposeTitleFromRubric = async () => {
+    const imagesToUse = config.rubricImages || (config.rubricImage ? [config.rubricImage] : []);
+    const textToUse = config.rubricContent;
+
+    if (imagesToUse.length === 0 && (!textToUse || !textToUse.trim())) {
+      setTitleFeedback({
+        message: "Veuillez d'abord importer un corrigé (PDF ou image) ou saisir le texte de votre corrigé dans la section ci-dessous.",
+        type: 'info',
+      });
+      const rubricEl = document.getElementById('rubric-section');
+      if (rubricEl) {
+        rubricEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+      return;
+    }
+
+    setIsAnalyzingRubric(true);
+    setTitleFeedback(null);
+    try {
+      const res = await fetch('/api/analyze-rubric', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          rubricImages: imagesToUse,
+          rubricContent: textToUse,
+          currentTitle: config.title,
+        }),
+      });
+
+      if (!res.ok) {
+        throw new Error("Impossible d'analyser le corrigé");
+      }
+
+      const data = await res.json();
+      if (data.success && data.analysis?.suggestedTitle) {
+        const {
+          suggestedTitle,
+          suggestedDiscipline,
+          suggestedLevel,
+          suggestedMaxGrade,
+          extractedRubricText,
+          summary,
+        } = data.analysis;
+
+        const updatedConfig: AssignmentConfig = {
+          ...config,
+          title: suggestedTitle,
+          discipline: (suggestedDiscipline as Discipline) || config.discipline,
+          level: (suggestedLevel as SchoolLevel) || config.level,
+          maxGrade: Number(suggestedMaxGrade) || config.maxGrade,
+          rubricContent: (config.rubricContent && config.rubricContent.trim().length > 10)
+            ? config.rubricContent
+            : (extractedRubricText || config.rubricContent),
+        };
+
+        onChange(updatedConfig);
+        setTitleFeedback({
+          message: `Titre proposé avec succès : « ${suggestedTitle} »`,
+          type: 'success',
+        });
+        setAiDetectionBanner({
+          suggestedTitle,
+          suggestedDiscipline,
+          suggestedLevel,
+          suggestedMaxGrade: Number(suggestedMaxGrade) || 20,
+          summary: summary || `Sujet du devoir identifié : ${suggestedTitle}`,
+        });
+      } else {
+        setTitleFeedback({
+          message: "Aucun titre spécifique n'a pu être extrait automatiquement. Vous pouvez le saisir librement.",
+          type: 'info',
+        });
+      }
+    } catch (err: any) {
+      console.warn('Erreur proposition titre:', err);
+      setTitleFeedback({
+        message: "Impossible d'analyser le corrigé pour le moment. Vous pouvez saisir le titre manuellement.",
+        type: 'error',
+      });
+    } finally {
+      setIsAnalyzingRubric(false);
+    }
+  };
+
   const handleRubricUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -530,8 +585,10 @@ Q5 : B`;
             rubricFileName: newFileName,
           });
 
-          // Automatically trigger AI reading of the uploaded answer key to detect title and subject!
-          await triggerAnalyzeRubric(pageUrls, undefined, newFileName);
+          setTitleFeedback({
+            message: "Document de corrigé importé. Saisissez votre titre ci-dessus ou cliquez sur « Proposer un titre depuis le corrigé ».",
+            type: 'info',
+          });
         }
       } catch (err) {
         console.error('Erreur lecture PDF corrigé:', err);
@@ -552,8 +609,10 @@ Q5 : B`;
             rubricFileName: file.name,
           });
 
-          // Automatically trigger AI reading of the uploaded answer key
-          await triggerAnalyzeRubric([compressed], undefined, file.name);
+          setTitleFeedback({
+            message: "Document de corrigé importé. Saisissez votre titre ci-dessus ou cliquez sur « Proposer un titre depuis le corrigé ».",
+            type: 'info',
+          });
         }
       } catch (err) {
         console.error('Erreur compression image corrigé:', err);
@@ -702,34 +761,59 @@ Q5 : B`;
 
           {/* Title */}
           <div className="md:col-span-2">
-            <div className="flex items-center justify-between mb-1.5">
+            <div className="flex items-center justify-between mb-1.5 flex-wrap gap-2">
               <label htmlFor="assignment-title" className="block text-xs font-bold text-slate-700 uppercase tracking-wider">
                 Titre du Devoir ou de l'Épreuve <span className="text-red-500">*</span>
               </label>
-              {(config.rubricImage || (config.rubricImages && config.rubricImages.length > 0) || (config.rubricContent && config.rubricContent.trim().length > 0)) && (
-                <button
-                  type="button"
-                  onClick={() => triggerAnalyzeRubric()}
-                  disabled={isAnalyzingRubric}
-                  className="inline-flex items-center gap-1.5 text-xs text-blue-700 hover:text-blue-900 font-semibold cursor-pointer disabled:opacity-50 transition-colors"
-                >
-                  {isAnalyzingRubric ? (
-                    <Loader2 className="w-3.5 h-3.5 animate-spin text-blue-600" />
-                  ) : (
-                    <Wand2 className="w-3.5 h-3.5 text-blue-600" />
-                  )}
-                  <span>Proposer un titre depuis le corrigé</span>
-                </button>
-              )}
+              <button
+                type="button"
+                onClick={handleProposeTitleFromRubric}
+                disabled={isAnalyzingRubric}
+                className="inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1.5 rounded-lg transition-all cursor-pointer disabled:opacity-50 text-indigo-700 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 shadow-2xs"
+                title="L'IA analyse votre corrigé (PDF, image ou texte) pour en extraire et vous proposer le titre officiel"
+              >
+                {isAnalyzingRubric ? (
+                  <Loader2 className="w-3.5 h-3.5 animate-spin text-indigo-600" />
+                ) : (
+                  <Wand2 className="w-3.5 h-3.5 text-indigo-600" />
+                )}
+                <span>Proposer un titre depuis le corrigé</span>
+              </button>
             </div>
             <input
               type="text"
               id="assignment-title"
               value={config.title}
-              onChange={(e) => updateField('title', e.target.value)}
-              placeholder="Ex : Devoir Surveillé N°3 — Théorème de Pythagore et Géométrie"
+              onChange={(e) => {
+                setTitleFeedback(null);
+                updateField('title', e.target.value);
+              }}
+              placeholder="Écrivez le titre de votre devoir (ou cliquez sur « Proposer un titre depuis le corrigé »)"
               className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-lg text-sm text-slate-900 focus:bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-hidden transition-all"
             />
+            {titleFeedback && (
+              <div
+                className={`text-xs mt-2 px-3 py-2 rounded-lg flex items-center justify-between gap-2 transition-all ${
+                  titleFeedback.type === 'success'
+                    ? 'bg-emerald-50 text-emerald-800 border border-emerald-200'
+                    : titleFeedback.type === 'info'
+                    ? 'bg-blue-50 text-blue-800 border border-blue-200'
+                    : 'bg-amber-50 text-amber-800 border border-amber-200'
+                }`}
+              >
+                <div className="flex items-center gap-2">
+                  <Sparkles className="w-3.5 h-3.5 shrink-0" />
+                  <span>{titleFeedback.message}</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setTitleFeedback(null)}
+                  className="text-slate-400 hover:text-slate-700 font-bold px-1"
+                >
+                  ✕
+                </button>
+              </div>
+            )}
           </div>
 
           {/* Max Grade */}
@@ -920,7 +1004,7 @@ Q5 : B`;
 
         {/* Corrigé content area if with_rubric */}
         {config.correctionMode === 'with_rubric' && (
-          <div className="mt-4 p-5 bg-slate-50 border border-slate-200 rounded-xl space-y-4">
+          <div id="rubric-section" className="mt-4 p-5 bg-slate-50 border border-slate-200 rounded-xl space-y-4 scroll-mt-6">
             <div className="flex items-center justify-between">
               <span className="text-xs font-bold text-slate-800 uppercase tracking-wider">
                 Fournir le corrigé type ou les réponses attendues
@@ -985,22 +1069,24 @@ Q5 : B`;
 
             {/* Rubric Textarea */}
             <div>
-              <div className="flex items-center justify-between mb-1.5">
+              <div className="flex flex-wrap items-center justify-between gap-2 mb-1.5">
                 <label htmlFor="rubric-text-content" className="block text-xs font-semibold text-slate-700">
                   Ou saisissez le corrigé type et les critères en texte :
                   <span className="ml-2 text-[11px] text-slate-400 font-normal italic">
                     (Le contenu grisé ci-dessous est un exemple indicatif en texte fantôme)
                   </span>
                 </label>
-                {config.rubricContent && config.rubricContent.trim().length > 0 && (
-                  <button
-                    type="button"
-                    onClick={() => updateField('rubricContent', '')}
-                    className="text-[11px] text-rose-600 hover:text-rose-800 font-semibold cursor-pointer transition-colors"
-                  >
-                    Effacer le texte saisi
-                  </button>
-                )}
+                <div className="flex items-center gap-2">
+                  {config.rubricContent && config.rubricContent.trim().length > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => updateField('rubricContent', '')}
+                      className="text-[11px] text-rose-600 hover:text-rose-800 font-semibold cursor-pointer transition-colors"
+                    >
+                      Effacer le texte saisi
+                    </button>
+                  )}
+                </div>
               </div>
               <textarea
                 id="rubric-text-content"

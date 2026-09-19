@@ -1,1 +1,19 @@
-[]
+[
+  {
+    "id": "lead_1789825256565_ea0x2",
+    "name": "Enseignant",
+    "email": "bilingua.agency@gmail.com",
+    "whatsapp": "",
+    "school": "",
+    "city": "",
+    "plan": "trial",
+    "status": "trial",
+    "trialDaysLeft": 7,
+    "quota": 30,
+    "copiesCorrected": 0,
+    "totalSpent": 0,
+    "notes": "Inscription via formulaire d’accès ou portail de démonstration.",
+    "createdAt": "2026-09-19T13:40:56.565Z",
+    "lastActiveAt": "2026-09-19T13:40:56.565Z"
+  }
+]

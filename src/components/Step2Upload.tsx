@@ -21,6 +21,8 @@ import {
   ArrowLeftRight,
   Search,
   X,
+  Download,
+  Check,
 } from 'lucide-react';
 
 interface Step2UploadProps {
@@ -30,6 +32,7 @@ interface Step2UploadProps {
   onBack: () => void;
   isRegistered?: boolean;
   config?: AssignmentConfig;
+  onConfigChange?: (config: AssignmentConfig) => void;
   classes?: ClassGroup[];
   onSwapSubmissions?: (subId1: string, subId2: string, mode?: 'names' | 'all') => void;
 }
@@ -41,6 +44,7 @@ export const Step2Upload: React.FC<Step2UploadProps> = ({
   onBack,
   isRegistered = false,
   config,
+  onConfigChange,
   classes = [],
   onSwapSubmissions,
 }) => {
@@ -510,6 +514,14 @@ export const Step2Upload: React.FC<Step2UploadProps> = ({
 
                     {/* Right overlay: tools */}
                     <div className="absolute top-2 right-2 flex items-center gap-1 opacity-90 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
+                      <a
+                        href={currentDisplayImage}
+                        download={`${(sub.studentName || 'Copie').replace(/\s+/g, '_')}_page_${activePageIdx + 1}.jpg`}
+                        className="p-1.5 rounded-lg bg-white/95 text-slate-700 hover:text-emerald-600 shadow-xs hover:bg-white transition-colors cursor-pointer"
+                        title="Télécharger l'image de cette page"
+                      >
+                        <Download className="w-3.5 h-3.5" />
+                      </a>
                       <button
                         type="button"
                         onClick={() => handleRotate(sub.id)}
@@ -673,7 +685,7 @@ export const Step2Upload: React.FC<Step2UploadProps> = ({
 
           {!isRegistered && submissions.length > 0 && (
             <span className="text-[11px] text-amber-700 font-medium">
-              🔒 Inscription gratuite obligatoire pour débloquer vos 5 copies d'essai offertes
+              🔒 Inscription gratuite obligatoire pour débloquer vos 30 copies d'essai offertes
             </span>
           )}
         </div>

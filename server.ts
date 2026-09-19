@@ -128,351 +128,6 @@ async function sendTelegramNotification(message: string): Promise<{ success: boo
   }
 }
 
-// Realistic Seed Data for Praxis SaaS
-function generateInitialTeachers(): LeadRecord[] {
-  const now = Date.now();
-  const DAY = 86400000;
-
-  return [
-    {
-      id: 'lead_prof_1',
-      name: 'Claire Vasseur',
-      email: 'claire.vasseur@lycee-montaigne.fr',
-      whatsapp: '+33621458970',
-      school: 'Lycée Montaigne',
-      city: 'Bordeaux',
-      plan: 'annual',
-      status: 'active',
-      notes: 'Professeur de Français (1ère & Terminale). Très satisfaite de la rapidité sur les commentaires composés.',
-      createdAt: new Date(now - 145 * DAY).toISOString(),
-      lastActiveAt: new Date(now - 1 * DAY).toISOString(),
-      copiesCorrected: 342,
-      quota: 1000,
-      totalSpent: 99.99,
-      renewalDate: new Date(now + 220 * DAY).toISOString().slice(0, 10),
-      transactions: [
-        {
-          id: 'txn_ann_9821',
-          teacherId: 'lead_prof_1',
-          teacherName: 'Claire Vasseur',
-          teacherEmail: 'claire.vasseur@lycee-montaigne.fr',
-          date: new Date(now - 145 * DAY).toISOString().slice(0, 10),
-          amount: 99.99,
-          currency: 'EUR',
-          plan: 'annual',
-          status: 'succeeded',
-          paymentMethod: 'CB (Stripe •••• 4242)',
-          description: 'Abonnement Praxis Pro Annuel (1 an)',
-        },
-      ],
-    },
-    {
-      id: 'lead_prof_2',
-      name: 'Thomas Riviere',
-      email: 't.riviere@college-pasteur.fr',
-      whatsapp: '+33688129033',
-      school: 'Collège Pasteur',
-      city: 'Lyon',
-      plan: 'monthly',
-      status: 'active',
-      notes: 'Enseignant de Mathématiques (3e et 4e). Utilise le barème critérié pour les démonstrations de géométrie.',
-      createdAt: new Date(now - 82 * DAY).toISOString(),
-      lastActiveAt: new Date(now - 2 * DAY).toISOString(),
-      copiesCorrected: 184,
-      quota: 250,
-      totalSpent: 29.97,
-      renewalDate: new Date(now + 8 * DAY).toISOString().slice(0, 10),
-      transactions: [
-        {
-          id: 'txn_mth_4412',
-          teacherId: 'lead_prof_2',
-          teacherName: 'Thomas Riviere',
-          teacherEmail: 't.riviere@college-pasteur.fr',
-          date: new Date(now - 22 * DAY).toISOString().slice(0, 10),
-          amount: 9.99,
-          currency: 'EUR',
-          plan: 'monthly',
-          status: 'succeeded',
-          paymentMethod: 'CB (Stripe •••• 5510)',
-          description: 'Abonnement Praxis Pro Mensuel',
-        },
-        {
-          id: 'txn_mth_3102',
-          teacherId: 'lead_prof_2',
-          teacherName: 'Thomas Riviere',
-          teacherEmail: 't.riviere@college-pasteur.fr',
-          date: new Date(now - 52 * DAY).toISOString().slice(0, 10),
-          amount: 9.99,
-          currency: 'EUR',
-          plan: 'monthly',
-          status: 'succeeded',
-          paymentMethod: 'CB (Stripe •••• 5510)',
-          description: 'Abonnement Praxis Pro Mensuel',
-        },
-      ],
-    },
-    {
-      id: 'lead_prof_3',
-      name: 'Dr. Sophie Bernard',
-      email: 'sophie.bernard@lycee-henri4.fr',
-      whatsapp: '+33649102278',
-      school: 'Lycée Henri IV',
-      city: 'Paris',
-      plan: 'annual',
-      status: 'active',
-      notes: 'SVT et Biologie. A parrainé 3 collègues de son établissement.',
-      createdAt: new Date(now - 210 * DAY).toISOString(),
-      lastActiveAt: new Date(now - 3 * DAY).toISOString(),
-      copiesCorrected: 520,
-      quota: 1500,
-      totalSpent: 99.99,
-      renewalDate: new Date(now + 155 * DAY).toISOString().slice(0, 10),
-      transactions: [
-        {
-          id: 'txn_ann_1044',
-          teacherId: 'lead_prof_3',
-          teacherName: 'Dr. Sophie Bernard',
-          teacherEmail: 'sophie.bernard@lycee-henri4.fr',
-          date: new Date(now - 210 * DAY).toISOString().slice(0, 10),
-          amount: 99.99,
-          currency: 'EUR',
-          plan: 'annual',
-          status: 'succeeded',
-          paymentMethod: 'Apple Pay (•••• 8911)',
-          description: 'Abonnement Praxis Pro Annuel (Offre Rentrée)',
-        },
-      ],
-    },
-    {
-      id: 'lead_prof_4',
-      name: 'Julien Marchand',
-      email: 'julien.marchand@ac-lille.fr',
-      whatsapp: '+33760982245',
-      school: 'Lycée Jean Moulin',
-      city: 'Lille',
-      plan: 'trial',
-      status: 'trial',
-      notes: 'En période d’essai active (4 jours restants). A testé un paquet de 28 copies de Physique-Chimie.',
-      createdAt: new Date(now - 3 * DAY).toISOString(),
-      lastActiveAt: new Date(now - 1 * DAY).toISOString(),
-      copiesCorrected: 28,
-      quota: 50,
-      totalSpent: 0,
-      trialDaysLeft: 4,
-      renewalDate: new Date(now + 4 * DAY).toISOString().slice(0, 10),
-    },
-    {
-      id: 'lead_prof_5',
-      name: 'Amina El Mansouri',
-      email: 'amina.elmansouri@college-camus.fr',
-      whatsapp: '+33655431980',
-      school: 'Collège Albert Camus',
-      city: 'Marseille',
-      plan: 'monthly',
-      status: 'active',
-      notes: 'Histoire-Géographie & EMC. Forte utilisation de l’export PDF imprimable.',
-      createdAt: new Date(now - 64 * DAY).toISOString(),
-      lastActiveAt: new Date(now - 4 * DAY).toISOString(),
-      copiesCorrected: 195,
-      quota: 250,
-      totalSpent: 19.98,
-      renewalDate: new Date(now + 26 * DAY).toISOString().slice(0, 10),
-      transactions: [
-        {
-          id: 'txn_mth_6721',
-          teacherId: 'lead_prof_5',
-          teacherName: 'Amina El Mansouri',
-          teacherEmail: 'amina.elmansouri@college-camus.fr',
-          date: new Date(now - 4 * DAY).toISOString().slice(0, 10),
-          amount: 9.99,
-          currency: 'EUR',
-          plan: 'monthly',
-          status: 'succeeded',
-          paymentMethod: 'CB (Stripe •••• 1209)',
-          description: 'Abonnement Praxis Pro Mensuel',
-        },
-      ],
-    },
-    {
-      id: 'lead_prof_6',
-      name: 'Marc Delorme',
-      email: 'm.delorme@institution-saint-joseph.org',
-      whatsapp: '+33612874450',
-      school: 'Institution Saint-Joseph',
-      city: 'Toulouse',
-      plan: 'institution',
-      status: 'active',
-      notes: 'Licence Établissement (département sciences). 10 comptes professeurs mutualisés.',
-      createdAt: new Date(now - 190 * DAY).toISOString(),
-      lastActiveAt: new Date(now - 2 * DAY).toISOString(),
-      copiesCorrected: 1420,
-      quota: 5000,
-      totalSpent: 299.0,
-      renewalDate: new Date(now + 175 * DAY).toISOString().slice(0, 10),
-      transactions: [
-        {
-          id: 'txn_inst_098',
-          teacherId: 'lead_prof_6',
-          teacherName: 'Marc Delorme',
-          teacherEmail: 'm.delorme@institution-saint-joseph.org',
-          date: new Date(now - 190 * DAY).toISOString().slice(0, 10),
-          amount: 299.0,
-          currency: 'EUR',
-          plan: 'institution',
-          status: 'succeeded',
-          paymentMethod: 'Virement SEPA Entreprise',
-          description: 'Licence Établissement Praxis (1 an)',
-        },
-      ],
-    },
-    {
-      id: 'lead_prof_7',
-      name: 'Émilie Chardin',
-      email: 'emilie.chardin@ac-rennes.fr',
-      whatsapp: '+33677490012',
-      school: 'Collège Anne de Bretagne',
-      city: 'Rennes',
-      plan: 'trial',
-      status: 'trial',
-      notes: 'Anglais LV1. Souhaite vérifier l’évaluation des expressions écrites.',
-      createdAt: new Date(now - 2 * DAY).toISOString(),
-      lastActiveAt: new Date(now - 1 * DAY).toISOString(),
-      copiesCorrected: 15,
-      quota: 50,
-      totalSpent: 0,
-      trialDaysLeft: 5,
-    },
-    {
-      id: 'lead_prof_8',
-      name: 'Gilles Bertrand',
-      email: 'gilles.bertrand@lycee-thiers.fr',
-      whatsapp: '+33690114782',
-      school: 'Lycée Thiers',
-      city: 'Marseille',
-      plan: 'monthly',
-      status: 'paused',
-      notes: 'En congé sabbatique ce trimestre. Accès mis en pause temporairement.',
-      createdAt: new Date(now - 110 * DAY).toISOString(),
-      lastActiveAt: new Date(now - 45 * DAY).toISOString(),
-      copiesCorrected: 88,
-      quota: 250,
-      totalSpent: 19.98,
-    },
-    {
-      id: 'lead_prof_9',
-      name: 'Nathalie Fournier',
-      email: 'n.fournier@ac-strasbourg.fr',
-      whatsapp: '+33633887102',
-      school: 'Lycée International des Pontonniers',
-      city: 'Strasbourg',
-      plan: 'annual',
-      status: 'active',
-      notes: 'Philosophie Terminale. Valide la pertinence des suggestions argumentatives.',
-      createdAt: new Date(now - 98 * DAY).toISOString(),
-      lastActiveAt: new Date(now - 1 * DAY).toISOString(),
-      copiesCorrected: 240,
-      quota: 1000,
-      totalSpent: 99.99,
-      renewalDate: new Date(now + 267 * DAY).toISOString().slice(0, 10),
-      transactions: [
-        {
-          id: 'txn_ann_3391',
-          teacherId: 'lead_prof_9',
-          teacherName: 'Nathalie Fournier',
-          teacherEmail: 'n.fournier@ac-strasbourg.fr',
-          date: new Date(now - 98 * DAY).toISOString().slice(0, 10),
-          amount: 99.99,
-          currency: 'EUR',
-          plan: 'annual',
-          status: 'succeeded',
-          paymentMethod: 'CB (Stripe •••• 9901)',
-          description: 'Abonnement Praxis Pro Annuel',
-        },
-      ],
-    },
-    {
-      id: 'lead_prof_10',
-      name: 'Karim Ziani',
-      email: 'karim.ziani@lycee-condorcet.fr',
-      whatsapp: '+33604991123',
-      school: 'Lycée Condorcet',
-      city: 'Paris',
-      plan: 'free',
-      status: 'inactive',
-      notes: 'Compte gratuit créé lors d’une conférence pédagogique. Inactif depuis 35 jours.',
-      createdAt: new Date(now - 42 * DAY).toISOString(),
-      lastActiveAt: new Date(now - 35 * DAY).toISOString(),
-      copiesCorrected: 4,
-      quota: 5,
-      totalSpent: 0,
-    },
-    {
-      id: 'lead_prof_11',
-      name: 'Sandrine Leroy',
-      email: 'sandrine.leroy@college-saint-exupery.fr',
-      whatsapp: '+33644901233',
-      school: 'Collège Saint-Exupéry',
-      city: 'Nantes',
-      plan: 'monthly',
-      status: 'active',
-      notes: 'Physique et Technologie. Évalue 4 classes de collège chaque semaine.',
-      createdAt: new Date(now - 55 * DAY).toISOString(),
-      lastActiveAt: new Date(now - 2 * DAY).toISOString(),
-      copiesCorrected: 160,
-      quota: 250,
-      totalSpent: 19.98,
-      renewalDate: new Date(now + 5 * DAY).toISOString().slice(0, 10),
-      transactions: [
-        {
-          id: 'txn_mth_8841',
-          teacherId: 'lead_prof_11',
-          teacherName: 'Sandrine Leroy',
-          teacherEmail: 'sandrine.leroy@college-saint-exupery.fr',
-          date: new Date(now - 25 * DAY).toISOString().slice(0, 10),
-          amount: 9.99,
-          currency: 'EUR',
-          plan: 'monthly',
-          status: 'succeeded',
-          paymentMethod: 'CB (Stripe •••• 6631)',
-          description: 'Abonnement Praxis Pro Mensuel',
-        },
-      ],
-    },
-    {
-      id: 'lead_prof_12',
-      name: 'Laurent Moreau',
-      email: 'l.moreau@ac-versailles.fr',
-      whatsapp: '+33611993344',
-      school: 'Lycée Hoche',
-      city: 'Versailles',
-      plan: 'annual',
-      status: 'active',
-      notes: 'Sciences Économiques et Sociales (SES). Remarquable fidélité de notation sur les dissertations.',
-      createdAt: new Date(now - 160 * DAY).toISOString(),
-      lastActiveAt: new Date(now - 1 * DAY).toISOString(),
-      copiesCorrected: 388,
-      quota: 1000,
-      totalSpent: 99.99,
-      renewalDate: new Date(now + 205 * DAY).toISOString().slice(0, 10),
-      transactions: [
-        {
-          id: 'txn_ann_7701',
-          teacherId: 'lead_prof_12',
-          teacherName: 'Laurent Moreau',
-          teacherEmail: 'l.moreau@ac-versailles.fr',
-          date: new Date(now - 160 * DAY).toISOString().slice(0, 10),
-          amount: 99.99,
-          currency: 'EUR',
-          plan: 'annual',
-          status: 'succeeded',
-          paymentMethod: 'CB (Stripe •••• 3012)',
-          description: 'Abonnement Praxis Pro Annuel',
-        },
-      ],
-    },
-  ];
-}
-
 function loadLeads(): LeadRecord[] {
   try {
     if (fs.existsSync(LEADS_FILE)) {
@@ -625,9 +280,9 @@ Ton rôle est de lire et d'analyser attentivement ce document de corrigé pour e
 1. "suggestedTitle" : Le titre exact ou le plus représentatif du sujet traité dans ce corrigé (ex: "Évaluation de SVT : La tectonique des plaques et le volcanisme", "Contrôle d'Histoire : L'Europe dans la Première Guerre mondiale", "Devoir Surveillé de Français : La Poésie romantique", "Interrogation de Mathématiques : Fonctions affines", etc.).
    ATTENTION CRITIQUE : Ne garde JAMAIS un ancien titre hors sujet (comme "Théorème de Pythagore") si le corrigé traite d'un tout autre sujet ! Propose le nom qui correspond fidèlement au corrigé fourni.
 2. "suggestedDiscipline" : Choisis impérativement la matière la plus proche parmi cette liste exacte :
-   ["Mathématiques", "Français", "Histoire-Géographie", "Sciences de la Vie et de la Terre (SVT)", "Physique-Chimie", "Anglais (LV1)", "Espagnol (LV2)", "Allemand", "Philosophie", "Sciences Économiques et Sociales (SES)", "Technologie", "Enseignement Supérieur / Autre"]
+   ["Mathématiques", "Français", "Histoire-Géographie", "Sciences de la Vie et de la Terre (SVT)", "Physique-Chimie", "Anglais (LV1)", "Espagnol (LV2)", "Allemand", "Philosophie", "Sciences Économiques et Sociales (SES)", "Technologie", "Autre discipline"]
 3. "suggestedLevel" : Choisis le niveau scolaire le plus probable parmi :
-   ["6e (Cycle 3)", "5e (Cycle 4)", "4e (Cycle 4)", "3e (Brevet)", "2nde (Lycée)", "1ère (Baccalauréat)", "Terminale (Baccalauréat)", "Supérieur / BTS / CPGE / Université"]
+   ["Primaire (CP1 - CM2)", "6e", "5e", "4e", "3e (Brevet)", "2nde (Lycée)", "1ère (Baccalauréat)", "Terminale (Baccalauréat)"]
 4. "suggestedMaxGrade" : La note totale maximale sur laquelle est noté le devoir (ex: 20, 10, 40, etc., en calculant la somme des points du barème si visible). Si non précisé, indique 20.
 5. "extractedRubricText" : Une retranscription claire, structurée et synthétique du corrigé et du barème question par question (ex: "Exercice 1 (X pts) : Solution attendue... \nExercice 2 (Y pts) : ...").
 6. "summary" : Une brève phrase d'explication pédagogique pour le professeur (ex: "Corrigé de SVT identifié portant sur la tectonique des plaques, noté sur 20 points.").
@@ -847,14 +502,17 @@ app.post('/api/correct', async (req, res) => {
 
     if (!lead) {
       return res.status(401).json({
-        error: "Compte enseignant non trouvé. Veuillez vous inscrire gratuitement via le formulaire pour débloquer vos 5 copies d'essai.",
+        error: "Compte enseignant non trouvé. Veuillez vous inscrire gratuitement via le formulaire pour débloquer vos 30 copies d'essai.",
         requiresRegistration: true,
       });
     }
 
-    // Check Quota Limit (Default 5 free copies per teacher)
+    // Check Quota Limit (Default 30 free copies per teacher in test phase)
     const currentCopies = lead.copiesCorrected || 0;
-    const maxQuota = typeof lead.quota === 'number' ? lead.quota : (Number(process.env.FREE_TRIAL_QUOTA) || 5);
+    const defaultTrialQuota = Number(process.env.FREE_TRIAL_QUOTA) || 30;
+    const maxQuota = typeof lead.quota === 'number'
+      ? (lead.quota <= 5 && (lead.plan === 'trial' || lead.plan === 'free') ? defaultTrialQuota : lead.quota)
+      : defaultTrialQuota;
 
     if (lead.plan === 'trial' || lead.plan === 'free') {
       if (currentCopies >= maxQuota) {
@@ -1569,7 +1227,7 @@ app.post('/api/leads', async (req, res) => {
     plan: 'trial',
     status: 'trial',
     trialDaysLeft: 7,
-    quota: Number(process.env.FREE_TRIAL_QUOTA) || 5,
+    quota: Number(process.env.FREE_TRIAL_QUOTA) || 30,
     copiesCorrected: 0,
     totalSpent: 0,
     notes: 'Inscription via formulaire d’accès ou portail de démonstration.',
@@ -1870,7 +1528,7 @@ app.post('/api/admin/teachers', requireAdminAuth, (req, res) => {
     createdAt: new Date().toISOString(),
     lastActiveAt: new Date().toISOString(),
     copiesCorrected: 0,
-    quota: assignedPlan === 'annual' ? 1000 : assignedPlan === 'monthly' ? 250 : (Number(process.env.FREE_TRIAL_QUOTA) || 5),
+    quota: assignedPlan === 'annual' ? 1000 : assignedPlan === 'monthly' ? 250 : (Number(process.env.FREE_TRIAL_QUOTA) || 30),
     totalSpent: assignedPlan === 'annual' ? 99.99 : assignedPlan === 'monthly' ? 9.99 : 0,
   };
 
@@ -2087,13 +1745,6 @@ app.get('/api/admin/settings', requireAdminAuth, (req, res) => {
     appVersion: '2.4.0',
     serverTime: new Date().toISOString(),
   });
-});
-
-// Protected: Seed or reset realistic demo data
-app.post('/api/admin/seed-demo', requireAdminAuth, (req, res) => {
-  const initial = generateInitialTeachers();
-  saveLeads(initial);
-  res.json({ success: true, count: initial.length, message: `${initial.length} comptes enseignants ont été initialisés avec succès.` });
 });
 
 // Protected: Clear database to start with pure live real-time data

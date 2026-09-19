@@ -17,14 +17,10 @@ import { AdminDashboard } from './components/AdminDashboard';
 import { FaqView } from './components/FaqView';
 import { LandingPage } from './components/LandingPage';
 import { ContactModal } from './components/ContactModal';
-import {
-  SAMPLE_ASSIGNMENT_CONFIG,
-} from './lib/sampleData';
-
 const DEFAULT_CONFIG: AssignmentConfig = {
-  discipline: 'Mathématiques',
-  level: '3e (Brevet)',
-  title: 'Devoir Surveillé N°3 : Fonctions et Géométrie',
+  discipline: 'Français',
+  level: '5e',
+  title: '',
   maxGrade: 20,
   correctionMode: 'with_rubric',
   rubricContent: '',
@@ -129,6 +125,9 @@ export default function App() {
         if (parsed.pedagogicalGuidelines?.customInstructions?.includes("théorème de Pythagore")) {
           parsed.pedagogicalGuidelines.customInstructions = '';
         }
+        if (typeof parsed.title === 'string' && (parsed.title.includes("Pythagore") || parsed.title.includes("Dictée préparée") || parsed.title.includes("Devoir Surveillé N°3"))) {
+          parsed.title = '';
+        }
         return parsed;
       }
       return DEFAULT_CONFIG;
@@ -142,12 +141,14 @@ export default function App() {
       const saved = localStorage.getItem('praxis_submissions');
       if (saved) {
         const parsed: StudentSubmission[] = JSON.parse(saved);
-        const demoNames = ['lucas martin', 'sarah benali', 'thomas dubois'];
+        const demoNames = ['lucas martin', 'sarah benali', 'thomas dubois', 'awa', 'maxime', 'camille rousseau'];
         return parsed.filter(
           (s) =>
             s.id !== 'sub-1' &&
             s.id !== 'sub-2' &&
             s.id !== 'sub-3' &&
+            s.id !== 'sub-dictee-1' &&
+            s.id !== 'sub-dictee-2' &&
             !demoNames.includes((s.studentName || '').toLowerCase())
         );
       }
@@ -163,12 +164,14 @@ export default function App() {
       const saved = localStorage.getItem('praxis_submissions');
       if (saved) {
         const parsed: StudentSubmission[] = JSON.parse(saved);
-        const demoNames = ['lucas martin', 'sarah benali', 'thomas dubois'];
+        const demoNames = ['lucas martin', 'sarah benali', 'thomas dubois', 'awa', 'maxime', 'camille rousseau'];
         const filtered = parsed.filter(
           (s) =>
             s.id !== 'sub-1' &&
             s.id !== 'sub-2' &&
             s.id !== 'sub-3' &&
+            s.id !== 'sub-dictee-1' &&
+            s.id !== 'sub-dictee-2' &&
             !demoNames.includes((s.studentName || '').toLowerCase())
         );
         if (filtered.length !== parsed.length) {
@@ -618,6 +621,7 @@ export default function App() {
                   onBack={() => setCurrentStep(1)}
                   isRegistered={Boolean(currentLead || localStorage.getItem('praxis_lead') || localStorage.getItem('cpro_lead'))}
                   config={config}
+                  onConfigChange={setConfig}
                   classes={classes}
                   onSwapSubmissions={handleSwapSubmissions}
                 />

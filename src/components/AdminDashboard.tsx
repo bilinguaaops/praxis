@@ -433,7 +433,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToApp }) =
     const labels =
       totalAccounts === 0
         ? ['En attente d’inscriptions réelles']
-        : ['Essai 7j', 'Pro Mensuel (9.99€)', 'Pro Annuel (99.99€)', 'Établissement (299€)', 'Gratuit (5 copies)'];
+        : ['Essai 7j', 'Pro Mensuel (9.99€)', 'Pro Annuel (99.99€)', 'Établissement (299€)', 'Gratuit (30 copies)'];
 
     const chartData =
       totalAccounts === 0
@@ -738,24 +738,6 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToApp }) =
     }
   };
 
-  // Seed Realistic Demo Data
-  const handleSeedDemo = async () => {
-    try {
-      const res = await fetch('/api/admin/seed-demo', {
-        method: 'POST',
-        headers: { 'x-admin-token': getAdminToken() },
-      });
-
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error);
-
-      showToast(data.message || 'Données démo initialisées.', 'success');
-      fetchDashboardData();
-    } catch (err: any) {
-      showToast('Erreur réinitialisation démo.', 'error');
-    }
-  };
-
   // Clear Database to start with 0 real-time records
   const handleClearLeads = async () => {
     if (
@@ -813,7 +795,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToApp }) =
       default:
         return (
           <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-medium bg-slate-800 text-slate-300 border border-slate-700">
-            Gratuit (5 copies)
+            Gratuit (30 copies)
           </span>
         );
     }
@@ -1959,7 +1941,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToApp }) =
                       <h4 className="font-semibold text-white text-xs">Mode 100% Réel (Remise à zéro)</h4>
                     </div>
                     <p className="text-[11px] text-slate-400 mt-1">
-                      Efface les données d'essai pour n'afficher que les vrais profs s'inscrivant en direct via le site.
+                      Remet la base d'enseignants à zéro pour repartir d'une base vierge.
                     </p>
                   </div>
                   <button
@@ -1967,23 +1949,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToApp }) =
                     onClick={handleClearLeads}
                     className="mt-4 w-full py-2 bg-rose-950/40 hover:bg-rose-900/60 text-rose-300 text-xs font-semibold rounded-lg border border-rose-800/60 transition-colors cursor-pointer"
                   >
-                    Vider la démo (0 prof)
-                  </button>
-                </div>
-
-                <div className="p-4 rounded-xl bg-[#0B0F17] border border-slate-800 flex flex-col justify-between">
-                  <div>
-                    <h4 className="font-semibold text-white text-xs">Jeu de Démonstration Réaliste</h4>
-                    <p className="text-[11px] text-slate-400 mt-1">
-                      Réinitialise la base avec 12 professeurs types pour tester l'affichage CRM et les graphiques.
-                    </p>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={handleSeedDemo}
-                    className="mt-4 w-full py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold rounded-lg border border-slate-700 transition-colors cursor-pointer"
-                  >
-                    Recharger le jeu de démo (12 profs)
+                    Vider la base (0 enseignant)
                   </button>
                 </div>
 
@@ -2105,7 +2071,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToApp }) =
                   }
                   className="w-full bg-[#0B0F17] border border-slate-700 rounded-xl p-2.5 text-white"
                 >
-                  <option value="free">Gratuit (5 copies)</option>
+                  <option value="free">Gratuit (30 copies)</option>
                   <option value="trial">Essai Pro 7 jours</option>
                   <option value="monthly">Pro Mensuel (9.99 €/mois)</option>
                   <option value="annual">Pro Annuel (99.99 €/an)</option>

@@ -112,7 +112,7 @@ export const Step3Progress: React.FC<Step3ProgressProps> = ({
           onRequireRegistration();
         }
         if (errorJson.quotaReached) {
-          setQuotaError(errorJson.error || "Limite d'essai atteinte (5 copies gratuites).");
+          setQuotaError(errorJson.error || "Limite d'essai atteinte (30 copies gratuites).");
           isCancelledRef.current = true;
           setIsRunning(false);
         }
@@ -361,11 +361,11 @@ export const Step3Progress: React.FC<Step3ProgressProps> = ({
         </div>
         <div>
           <span className="inline-block px-3 py-1 rounded-full bg-emerald-100 text-emerald-800 text-xs font-bold border border-emerald-200 mb-2">
-            🎁 5 copies d'essai gratuites par professeur
+            🎁 30 copies d'essai gratuites par professeur
           </span>
           <h2 className="text-xl font-extrabold text-slate-900 tracking-tight">Inscription requise pour lancer la correction</h2>
           <p className="text-xs text-slate-600 mt-2 max-w-md mx-auto leading-relaxed">
-            Pour activer le moteur IA Claude / Gemini et débloquer vos 5 corrections offertes, veuillez renseigner vos coordonnées d’enseignant.
+            Pour activer le moteur IA Claude / Gemini et débloquer vos 30 corrections offertes, veuillez renseigner vos coordonnées d’enseignant.
           </p>
         </div>
         <div className="pt-2">
@@ -389,7 +389,7 @@ export const Step3Progress: React.FC<Step3ProgressProps> = ({
         <div className="p-4 bg-amber-50 border border-amber-300 rounded-2xl flex items-start gap-3 text-amber-900 shadow-xs animate-in fade-in">
           <AlertTriangle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
           <div className="text-xs leading-relaxed flex-1">
-            <span className="font-bold text-amber-950 block text-sm mb-0.5">Quota d'essai de 5 copies atteint</span>
+            <span className="font-bold text-amber-950 block text-sm mb-0.5">Quota d'essai de 30 copies atteint</span>
             <span>{quotaError}</span>
             <span className="block mt-1 text-amber-800">
               Pour débloquer la correction de l'intégralité de vos paquets de copies sans limite, activez votre abonnement enseignant Pro.
