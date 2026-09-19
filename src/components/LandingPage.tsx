@@ -21,12 +21,16 @@ import {
   Download,
   HelpCircle,
   Play,
+  Phone,
+  Mail,
+  MessageCircle,
 } from 'lucide-react';
 import { FaqView } from './FaqView';
 
 interface LandingPageProps {
   onStartCorrection: () => void;
   onNavigateToView: (view: 'corr' | 'classes' | 'suivi' | 'hist' | 'faq') => void;
+  onOpenContact?: () => void;
 }
 
 type DemoDiscipline = 'philo' | 'francais' | 'maths';
@@ -34,6 +38,7 @@ type DemoDiscipline = 'philo' | 'francais' | 'maths';
 export const LandingPage: React.FC<LandingPageProps> = ({
   onStartCorrection,
   onNavigateToView,
+  onOpenContact,
 }) => {
   const [activeDemo, setActiveDemo] = useState<DemoDiscipline>('philo');
 
@@ -627,10 +632,102 @@ Donc BD = (OB * AC) / OA = (4.5 * 6) / 3 = 9 cm."`,
 
       {/* 7. FAQ SECTION AT THE BOTTOM OF THE HOME PAGE (As requested by user) */}
       <section className="py-16 sm:py-24 max-w-5xl mx-auto px-4 sm:px-6">
-        <FaqView onStartCorrection={onStartCorrection} />
+        <FaqView onStartCorrection={onStartCorrection} onOpenContact={onOpenContact} />
       </section>
 
-      {/* 8. FINAL CALL TO ACTION BANNER */}
+      {/* 8. CONTACT & ASSISTANCE SECTION */}
+      <section id="section-contact" className="py-14 sm:py-20 bg-slate-50 border-t border-slate-200">
+        <div className="max-w-5xl mx-auto px-4 sm:px-6 space-y-10">
+          <div className="text-center max-w-2xl mx-auto space-y-3">
+            <span className="text-xs font-bold uppercase tracking-wider text-emerald-700 bg-emerald-100 px-3 py-1 rounded-full border border-emerald-200">
+              Support & Démonstration
+            </span>
+            <h2 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">
+              Une question ou besoin d'un accompagnement ?
+            </h2>
+            <p className="text-sm sm:text-base text-slate-600 leading-relaxed">
+              Que vous soyez enseignant individuel, responsable pédagogique ou chef d'établissement, nous sommes à votre disposition pour vous aider à déployer Praxis IA.
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {/* Contact Card: Phone & WhatsApp */}
+            <div className="bg-white p-6 sm:p-7 rounded-2xl border border-slate-200 shadow-xs hover:border-slate-300 transition-all flex flex-col justify-between space-y-6">
+              <div className="space-y-3">
+                <div className="flex items-center gap-3">
+                  <div className="w-12 h-12 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center shrink-0">
+                    <Phone className="w-6 h-6" />
+                  </div>
+                  <div>
+                    <span className="text-xs font-bold text-slate-500 uppercase tracking-wider block">
+                      Téléphone & WhatsApp Direct
+                    </span>
+                    <h3 className="text-xl font-extrabold text-slate-900 font-mono">
+                      +225 0103890314
+                    </h3>
+                  </div>
+                </div>
+                <p className="text-xs sm:text-sm text-slate-600 leading-relaxed">
+                  Échangez directement avec notre équipe technique et pédagogique par message WhatsApp ou par appel téléphonique.
+                </p>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2.5 pt-2">
+                <a
+                  href="https://wa.me/2250103890314?text=Bonjour%20je%20vous%20contacte%20concernant%20Praxis%20IA"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs transition-colors shadow-xs"
+                >
+                  <MessageCircle className="w-4 h-4" />
+                  <span>WhatsApp</span>
+                </a>
+                <a
+                  href="tel:+2250103890314"
+                  className="flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs transition-colors shadow-xs"
+                >
+                  <Phone className="w-4 h-4" />
+                  <span>Appeler</span>
+                </a>
+              </div>
+            </div>
+
+            {/* Contact Card: Email */}
+            <div className="bg-white p-6 sm:p-7 rounded-2xl border border-slate-200 shadow-xs hover:border-slate-300 transition-all flex flex-col justify-between space-y-6">
+              <div className="space-y-3">
+                <div className="flex items-center gap-3">
+                  <div className="w-12 h-12 rounded-xl bg-blue-100 text-blue-700 flex items-center justify-center shrink-0">
+                    <Mail className="w-6 h-6" />
+                  </div>
+                  <div>
+                    <span className="text-xs font-bold text-slate-500 uppercase tracking-wider block">
+                      Contact Par E-mail
+                    </span>
+                    <h3 className="text-lg sm:text-xl font-extrabold text-slate-900 font-mono break-all">
+                      agoussoukevin@gmail.com
+                    </h3>
+                  </div>
+                </div>
+                <p className="text-xs sm:text-sm text-slate-600 leading-relaxed">
+                  Envoyez-nous vos demandes de démonstration, devis pour établissement scolaire ou suggestions d'amélioration.
+                </p>
+              </div>
+
+              <div className="pt-2">
+                <a
+                  href="mailto:agoussoukevin@gmail.com?subject=Demande%20d%27information%20Praxis%20IA"
+                  className="w-full flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs transition-colors shadow-xs"
+                >
+                  <Mail className="w-4 h-4" />
+                  <span>Envoyer un message par e-mail</span>
+                </a>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* 9. FINAL CALL TO ACTION BANNER */}
       <section className="py-14 sm:py-20 bg-gradient-to-r from-blue-700 via-indigo-700 to-blue-800 text-white">
         <div className="max-w-4xl mx-auto px-4 sm:px-6 text-center space-y-6">
           <h2 className="text-2xl sm:text-4xl font-extrabold tracking-tight">
@@ -653,50 +750,105 @@ Donc BD = (OB * AC) / OA = (4.5 * 6) / 3 = 9 cm."`,
         </div>
       </section>
 
-      {/* 9. FOOTER */}
-      <footer className="bg-white border-t border-slate-200 py-10 text-xs text-slate-500">
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 flex flex-col sm:flex-row items-center justify-between gap-4">
-          <div className="flex items-center gap-2 font-bold text-slate-800 text-sm">
-            <span className="w-6 h-6 rounded-lg bg-blue-600 text-white flex items-center justify-center text-xs">
-              P
-            </span>
-            <span>PRAXIS</span>
-            <span className="text-slate-400 font-normal text-xs">· Évaluation Pédagogique Intelligente</span>
+      {/* 10. FOOTER WITH CONTACT INFORMATION */}
+      <footer className="bg-white border-t border-slate-200 py-12 text-xs text-slate-500">
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 space-y-8">
+          <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-6 pb-6 border-b border-slate-100">
+            <div className="space-y-1">
+              <div className="flex items-center gap-2 font-bold text-slate-800 text-base">
+                <span className="w-7 h-7 rounded-lg bg-blue-600 text-white flex items-center justify-center text-xs">
+                  P
+                </span>
+                <span>PRAXIS</span>
+                <span className="text-slate-400 font-normal text-xs">· Évaluation Pédagogique Intelligente</span>
+              </div>
+              <p className="text-slate-500 text-xs max-w-md">
+                Copilote d'évaluation manuscrite pour professeurs de collèges, lycées et supérieur.
+              </p>
+            </div>
+
+            {/* Direct Contact Badges in Footer */}
+            <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 text-xs">
+              <a
+                href="tel:+2250103890314"
+                className="flex items-center gap-2 text-slate-700 hover:text-emerald-700 transition-colors font-medium"
+                title="Appeler le support"
+              >
+                <div className="w-6 h-6 rounded-md bg-emerald-50 text-emerald-600 flex items-center justify-center">
+                  <Phone className="w-3.5 h-3.5" />
+                </div>
+                <span>+225 0103890314</span>
+              </a>
+
+              <a
+                href="mailto:agoussoukevin@gmail.com"
+                className="flex items-center gap-2 text-slate-700 hover:text-blue-700 transition-colors font-medium"
+                title="Envoyer un e-mail"
+              >
+                <div className="w-6 h-6 rounded-md bg-blue-50 text-blue-600 flex items-center justify-center">
+                  <Mail className="w-3.5 h-3.5" />
+                </div>
+                <span>agoussoukevin@gmail.com</span>
+              </a>
+
+              {onOpenContact && (
+                <button
+                  type="button"
+                  onClick={onOpenContact}
+                  className="px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold transition-colors cursor-pointer"
+                >
+                  Nous contacter
+                </button>
+              )}
+            </div>
           </div>
 
-          <div className="flex flex-wrap items-center gap-4 text-xs">
-            <button
-              type="button"
-              onClick={onStartCorrection}
-              className="hover:text-blue-600 transition-colors cursor-pointer"
-            >
-              Correction
-            </button>
-            <button
-              type="button"
-              onClick={() => onNavigateToView('classes')}
-              className="hover:text-blue-600 transition-colors cursor-pointer"
-            >
-              Classes
-            </button>
-            <button
-              type="button"
-              onClick={() => onNavigateToView('suivi')}
-              className="hover:text-blue-600 transition-colors cursor-pointer"
-            >
-              Suivi
-            </button>
-            <button
-              type="button"
-              onClick={() => onNavigateToView('faq')}
-              className="hover:text-blue-600 transition-colors cursor-pointer"
-            >
-              FAQ
-            </button>
-            <span className="text-slate-300">|</span>
-            <span>Hébergement sécurisé France & UE</span>
-            <span>·</span>
-            <span>Conforme RGPD</span>
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-slate-500">
+            <div className="flex flex-wrap items-center gap-4">
+              <button
+                type="button"
+                onClick={onStartCorrection}
+                className="hover:text-blue-600 transition-colors cursor-pointer"
+              >
+                Correction
+              </button>
+              <button
+                type="button"
+                onClick={() => onNavigateToView('classes')}
+                className="hover:text-blue-600 transition-colors cursor-pointer"
+              >
+                Classes
+              </button>
+              <button
+                type="button"
+                onClick={() => onNavigateToView('suivi')}
+                className="hover:text-blue-600 transition-colors cursor-pointer"
+              >
+                Suivi
+              </button>
+              <button
+                type="button"
+                onClick={() => onNavigateToView('faq')}
+                className="hover:text-blue-600 transition-colors cursor-pointer"
+              >
+                FAQ
+              </button>
+              {onOpenContact && (
+                <button
+                  type="button"
+                  onClick={onOpenContact}
+                  className="hover:text-blue-600 transition-colors cursor-pointer font-semibold text-slate-700"
+                >
+                  Contact & Support
+                </button>
+              )}
+            </div>
+
+            <div className="flex items-center gap-3 text-[11px] text-slate-400">
+              <span>Hébergement sécurisé France & UE</span>
+              <span>·</span>
+              <span>Conforme RGPD</span>
+            </div>
           </div>
         </div>
       </footer>

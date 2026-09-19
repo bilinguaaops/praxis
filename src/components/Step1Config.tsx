@@ -4,6 +4,7 @@ import {
   Discipline,
   SchoolLevel,
   CorrectionMode,
+  AssessmentType,
 } from '../types';
 import { convertPdfToImages, compressImageFile } from '../lib/pdfUtils';
 import {
@@ -23,6 +24,12 @@ import {
   Loader2,
   X,
   Wand2,
+  PenTool,
+  ScrollText,
+  Calculator,
+  CheckSquare,
+  Layers,
+  Languages,
 } from 'lucide-react';
 
 interface Step1ConfigProps {
@@ -84,6 +91,347 @@ export const Step1Config: React.FC<Step1ConfigProps> = ({ config, onChange, onNe
         [key]: value,
       },
     });
+  };
+
+  // Helpers to identify academic nature of disciplines
+  const isLiteraryDiscipline = (d: Discipline): boolean => {
+    return [
+      'Français',
+      'Philosophie',
+      'Histoire-Géographie',
+      'Anglais (LV1)',
+      'Espagnol (LV2)',
+      'Allemand',
+      'Sciences Économiques et Sociales (SES)',
+    ].includes(d);
+  };
+
+  const isScientificDiscipline = (d: Discipline): boolean => {
+    return [
+      'Mathématiques',
+      'Physique-Chimie',
+      'Sciences de la Vie et de la Terre (SVT)',
+      'Technologie',
+    ].includes(d);
+  };
+
+  // Dynamic options tailored to each discipline
+  const getOptionsForDiscipline = (discipline: Discipline) => {
+    if (discipline === 'Français') {
+      return [
+        { id: 'standard', label: 'Standard', desc: 'Exercices & questions de texte', icon: BookOpen },
+        { id: 'dictee', label: 'Dictée', desc: 'Barème déductif & accords (-1/-0.5/-0.25)', icon: PenTool },
+        { id: 'dissertation', label: 'Dissertation', desc: 'Problématique, plan 3 parties & citations', icon: ScrollText },
+        { id: 'commentaire', label: 'Commentaire', desc: 'Analyse linéaire / composé & procédés', icon: FileText },
+        { id: 'qcm', label: 'QCM', desc: 'Grammaire, vocabulaire ou lecture', icon: CheckSquare },
+      ];
+    }
+    if (discipline === 'Philosophie') {
+      return [
+        { id: 'standard', label: 'Standard', desc: 'Devoir classique', icon: BookOpen },
+        { id: 'dissertation', label: 'Dissertation philo', desc: 'Concepts, thèse/antithèse & auteurs', icon: ScrollText },
+        { id: 'commentaire', label: 'Explication de texte', desc: 'Thèse de l\'auteur & démarche argumentative', icon: FileText },
+        { id: 'qcm', label: 'QCM', desc: 'Notions et histoire de la pensée', icon: CheckSquare },
+      ];
+    }
+    if (discipline === 'Histoire-Géographie') {
+      return [
+        { id: 'standard', label: 'Standard', desc: 'Questions de cours & repères', icon: BookOpen },
+        { id: 'dissertation', label: 'Composition', desc: 'Plan chrono/thématique & faits précis', icon: ScrollText },
+        { id: 'etude_document', label: 'Étude critique', desc: 'Confrontation des sources & recul critique', icon: FileText },
+        { id: 'qcm', label: 'QCM', desc: 'Repères chronologiques & spatiaux', icon: CheckSquare },
+      ];
+    }
+    if (['Anglais (LV1)', 'Espagnol (LV2)', 'Allemand'].includes(discipline)) {
+      return [
+        { id: 'standard', label: 'Standard', desc: 'Devoir de langue classique', icon: BookOpen },
+        { id: 'expression_ecrite', label: 'Essay / Rédaction', desc: 'Richesse lexicale, idiomes & grammaire CECRL', icon: ScrollText },
+        { id: 'traduction', label: 'Traduction', desc: 'Version / Thème, faux-amis & fidélité', icon: Languages },
+        { id: 'dictee', label: 'Dictée en langue', desc: 'Phonétique & orthographe de la langue', icon: PenTool },
+        { id: 'qcm', label: 'QCM', desc: 'Compréhension écrite & grammaire', icon: CheckSquare },
+      ];
+    }
+    if (discipline === 'Sciences Économiques et Sociales (SES)') {
+      return [
+        { id: 'standard', label: 'Standard', desc: 'Questions & calculs économiques', icon: BookOpen },
+        { id: 'dissertation', label: 'Dissertation / Raisonnement', desc: 'Mobilisation des concepts & argumentation', icon: ScrollText },
+        { id: 'etude_document', label: 'Étude de documents', desc: 'Analyse de graphiques et données chiffrées', icon: FileText },
+        { id: 'qcm', label: 'QCM', desc: 'Notions et définitions', icon: CheckSquare },
+      ];
+    }
+    return [
+      { id: 'standard', label: 'Standard', desc: 'Devoir général', icon: BookOpen },
+      { id: 'dissertation', label: 'Rédaction / Dissertation', desc: 'Plan structuré et argumentation', icon: ScrollText },
+      { id: 'qcm', label: 'QCM', desc: 'Notation par item', icon: CheckSquare },
+    ];
+  };
+
+  // Smart discipline change handler
+  const handleDisciplineChange = (newDiscipline: Discipline) => {
+    const isSci = isScientificDiscipline(newDiscipline);
+    const isLit = isLiteraryDiscipline(newDiscipline);
+
+    let newAssessmentType: AssessmentType = config.assessmentType || 'standard';
+
+    if (isSci) {
+      // For scientific disciplines, switch to scientific system
+      if (['dictee', 'dissertation', 'commentaire', 'etude_document', 'expression_ecrite', 'traduction'].includes(newAssessmentType)) {
+        newAssessmentType = 'mathematiques';
+      }
+    } else if (isLit) {
+      if (newAssessmentType === 'mathematiques') {
+        newAssessmentType = 'standard';
+      }
+    }
+
+    const updated: AssignmentConfig = {
+      ...config,
+      discipline: newDiscipline,
+      assessmentType: newAssessmentType,
+    };
+
+    if (isSci) {
+      updated.pedagogicalGuidelines = {
+        ...updated.pedagogicalGuidelines,
+        spellingTolerance: true,
+        rewardEffortAndMethod: true,
+        rigorousJustification: true,
+        customInstructions:
+          'Système scientifique : valoriser les étapes de calcul, la démarche et la formulation des théorèmes. Tolérer les erreurs d\'inattention si le raisonnement est bon.',
+      };
+    }
+
+    onChange(updated);
+  };
+
+  // Helper to change assessment type and specialize guidelines/rubric dynamically
+  const selectAssessmentType = (type: AssessmentType) => {
+    const updated: AssignmentConfig = { ...config, assessmentType: type };
+
+    if (type === 'dictee') {
+      if (!config.title || config.title.includes('Pythagore') || config.title.includes('Devoir')) {
+        updated.title = config.discipline === 'Français' ? 'Dictée préparée & Orthographe' : `Dictée en ${config.discipline}`;
+      }
+      updated.pedagogicalGuidelines = {
+        ...updated.pedagogicalGuidelines,
+        spellingTolerance: false,
+        rigorousJustification: false,
+        rewardEffortAndMethod: false,
+        encourageClarity: true,
+        customInstructions:
+          'Barème déductif officiel : -1 pt par faute grammaticale (accords, terminaisons), -0.5 pt par faute lexicale, -0.25 pt par ponctuation ou accent.',
+      };
+      if (!updated.rubricContent || updated.rubricContent.includes('Pythagore')) {
+        updated.rubricContent = `TEXTE INTÉGRAL DE LA DICTÉE :
+[Saisissez ici le texte de référence dicté aux élèves]
+
+Barème officiel indicatif :
+- 20/20 de départ.
+- Fautes grammaticales (-1 pt) : accords sujet-verbe, participes passés en -é/-er, pluriels, homophones.
+- Fautes d'usage (-0,5 pt) : vocabulaire, consonnes doubles.
+- Fautes de ponctuation ou accents (-0,25 pt).`;
+      }
+    } else if (type === 'dissertation') {
+      if (config.discipline === 'Philosophie') {
+        if (!config.title || config.title.includes('Pythagore') || config.title.includes('Dictée')) {
+          updated.title = 'Dissertation philosophique';
+        }
+        updated.pedagogicalGuidelines = {
+          ...updated.pedagogicalGuidelines,
+          spellingTolerance: false,
+          rigorousJustification: true,
+          rewardEffortAndMethod: true,
+          customInstructions:
+            'Évaluer la problématisation du sujet, la confrontation des concepts, la progression dialectique (thèse/antithèse/synthèse) et la mobilisation rigoureuse des auteurs.',
+        };
+        if (!updated.rubricContent || updated.rubricContent.includes('Pythagore') || updated.rubricContent.includes('DICTÉE')) {
+          updated.rubricContent = `SUJET DE DISSERTATION PHILOSOPHIQUE :
+[Exemple : "La liberté consiste-t-elle à faire tout ce qui nous plaît ?"]
+
+Grille d'évaluation :
+1. Introduction (4 pts) : Définition des termes, paradoxe, problématisation rigoureuse, annonce de plan.
+2. Développement (10 pts) : Thèse (Axe 1), Antithèse / Limites (Axe 2), Dépassement / Synthèse (Axe 3).
+3. Conclusion (3 pts) : Réponse nuancée et ouverture.
+4. Rigueur conceptuelle et langue (3 pts).`;
+        }
+      } else if (config.discipline === 'Histoire-Géographie') {
+        if (!config.title || config.title.includes('Pythagore') || config.title.includes('Dictée')) {
+          updated.title = 'Composition / Dissertation d\'Histoire-Géographie';
+        }
+        updated.pedagogicalGuidelines = {
+          ...updated.pedagogicalGuidelines,
+          spellingTolerance: true,
+          rigorousJustification: true,
+          rewardEffortAndMethod: true,
+          customInstructions:
+            'Évaluer la problématisation, la structuration chronologique ou thématique du plan, l\'exactitude des repères et faits historiques/géographiques.',
+        };
+        if (!updated.rubricContent || updated.rubricContent.includes('Pythagore') || updated.rubricContent.includes('DICTÉE')) {
+          updated.rubricContent = `SUJET DE COMPOSITION :
+[Exemple : "L'Europe et le monde au sortir de la Seconde Guerre mondiale (1945-1949)"]
+
+Grille d'évaluation :
+1. Introduction (4 pts) : Contexte spatiotemporel, problématisation, plan ordonné.
+2. Développement (10 pts) : 2 ou 3 parties étayées par des dates, faits, acteurs et notions précises.
+3. Conclusion (3 pts) : Bilan historique et mise en perspective.
+4. Précision du vocabulaire disciplinaire (3 pts).`;
+        }
+      } else {
+        if (!config.title || config.title.includes('Pythagore') || config.title.includes('Dictée')) {
+          updated.title = 'Dissertation littéraire & argumentative';
+        }
+        updated.pedagogicalGuidelines = {
+          ...updated.pedagogicalGuidelines,
+          spellingTolerance: false,
+          rigorousJustification: true,
+          rewardEffortAndMethod: true,
+          encourageClarity: true,
+          customInstructions:
+            'Évaluer la problématisation, la pertinence des citations littéraires, la clarté du plan en 2 ou 3 parties et la qualité du style.',
+        };
+        if (!updated.rubricContent || updated.rubricContent.includes('Pythagore') || updated.rubricContent.includes('DICTÉE')) {
+          updated.rubricContent = `SUJET DE DISSERTATION :
+[Exemple : "La poésie a-t-elle pour seule vocation de célébrer la beauté ?"]
+
+Grille d'évaluation analytique :
+1. Introduction (4 pts) : Amorce, définition des termes, problématique, annonce de plan.
+2. Développement (8 pts) : Axes équilibrés, transitions fluides, exemples et citations analysés.
+3. Conclusion (3 pts) : Synthèse claire et ouverture.
+4. Qualité rédactionnelle et style (5 pts).`;
+        }
+      }
+    } else if (type === 'commentaire') {
+      if (!config.title || config.title.includes('Pythagore') || config.title.includes('Dictée')) {
+        updated.title = config.discipline === 'Philosophie' ? 'Explication de texte philosophique' : 'Commentaire de texte littéraire';
+      }
+      updated.pedagogicalGuidelines = {
+        ...updated.pedagogicalGuidelines,
+        spellingTolerance: false,
+        rigorousJustification: true,
+        rewardEffortAndMethod: true,
+        customInstructions:
+          'Commentaire / Explication : sanctionner la simple paraphrase, valoriser l\'analyse des procédés stylistiques ou concepts philosophiques et l\'appui direct sur les citations.',
+      };
+      if (!updated.rubricContent || updated.rubricContent.includes('Pythagore') || updated.rubricContent.includes('DICTÉE')) {
+        updated.rubricContent = `TEXTE À ANALYSER & AXES D'ÉTUDE :
+[Collez ici le texte ou l'extrait d'œuvre]
+
+Grille d'évaluation :
+1. Introduction (4 pts) : Présentation de l'extrait, situation, projet de lecture ou problème philosophique.
+2. Analyse linéaire ou thématique (10 pts) : Procédés stylistiques, concepts, interprétation rigoureuse du sens.
+3. Conclusion (3 pts) : Bilan esthétique ou philosophique de l'extrait.
+4. Qualité de la langue (3 pts).`;
+      }
+    } else if (type === 'etude_document') {
+      if (!config.title || config.title.includes('Pythagore') || config.title.includes('Dictée')) {
+        updated.title = 'Étude critique de document(s)';
+      }
+      updated.pedagogicalGuidelines = {
+        ...updated.pedagogicalGuidelines,
+        spellingTolerance: true,
+        rigorousJustification: true,
+        rewardEffortAndMethod: true,
+        customInstructions:
+          'Étude de documents : valoriser la présentation critique des sources, le croisement avec les connaissances du cours et la mise en évidence des limites des documents.',
+      };
+      if (!updated.rubricContent || updated.rubricContent.includes('Pythagore') || updated.rubricContent.includes('DICTÉE')) {
+        updated.rubricContent = `DOCUMENTS DE L'ÉPREUVE :
+Doc 1 : [Titre, auteur, date, nature]
+Doc 2 : [Titre, auteur, date, nature]
+
+Barème :
+1. Présentation contextualisée des documents (4 pts)
+2. Analyse et croisement avec le cours (10 pts)
+3. Regard critique et limites des documents (4 pts)
+4. Rigueur des notions (2 pts)`;
+      }
+    } else if (type === 'expression_ecrite') {
+      if (!config.title || config.title.includes('Pythagore') || config.title.includes('Dictée')) {
+        updated.title = `Expression écrite / Essay (${config.discipline})`;
+      }
+      updated.pedagogicalGuidelines = {
+        ...updated.pedagogicalGuidelines,
+        spellingTolerance: false,
+        rigorousJustification: true,
+        rewardEffortAndMethod: true,
+        customInstructions:
+          'Grille CECRL : évaluer la richesse lexicale, la correction grammaticale (temps, accords, prépositions), les connecteurs logiques et la pertinence du propos.',
+      };
+      if (!updated.rubricContent || updated.rubricContent.includes('Pythagore') || updated.rubricContent.includes('DICTÉE')) {
+        updated.rubricContent = `ESSAY PROMPT / SUJET :
+[Exemple : "To what extent can digital technology foster environmental awareness?"]
+
+Grille CECRL :
+1. Adéquation au sujet et cohérence argumentative (6 pts)
+2. Richesse lexicale et tournures idiomatiques (5 pts)
+3. Correction grammaticale et morphosyntaxe (5 pts)
+4. Organisation textuelle et connecteurs (4 pts)`;
+      }
+    } else if (type === 'traduction') {
+      if (!config.title || config.title.includes('Pythagore') || config.title.includes('Dictée')) {
+        updated.title = `Épreuve de Traduction (${config.discipline})`;
+      }
+      updated.pedagogicalGuidelines = {
+        ...updated.pedagogicalGuidelines,
+        spellingTolerance: false,
+        rigorousJustification: true,
+        rewardEffortAndMethod: false,
+        customInstructions:
+          'Notation par segment : pénaliser les contresens, faux-sens et omissions, valoriser le naturel et la précision lexicale.',
+      };
+      if (!updated.rubricContent || updated.rubricContent.includes('Pythagore') || updated.rubricContent.includes('DICTÉE')) {
+        updated.rubricContent = `TEXTE SOURCE ET TRADUCTION ATTENDUE :
+[Collez ici le texte source et le corrigé modèle segment par segment]
+
+Barème par segment :
+- Contresens : -2 pts
+- Faux-sens : -1 pt
+- Omission : -1 pt
+- Maladresse d'expression : -0.5 pt`;
+      }
+    } else if (type === 'mathematiques') {
+      if (!config.title || config.title.includes('Dictée') || config.title.includes('Dissertation')) {
+        updated.title = config.discipline === 'Mathématiques' ? 'Évaluation de Mathématiques' : `Évaluation de ${config.discipline}`;
+      }
+      updated.pedagogicalGuidelines = {
+        ...updated.pedagogicalGuidelines,
+        spellingTolerance: true,
+        rigorousJustification: true,
+        rewardEffortAndMethod: true,
+        encourageClarity: true,
+        customInstructions:
+          'Système scientifique : valoriser les étapes de calcul, la démarche et la formulation des théorèmes. Tolérer les étourderies de calcul si la méthode est correcte.',
+      };
+    } else if (type === 'qcm') {
+      if (!config.title || config.title.includes('Dictée') || config.title.includes('Dissertation')) {
+        updated.title = `QCM — ${config.discipline}`;
+      }
+      updated.pedagogicalGuidelines = {
+        ...updated.pedagogicalGuidelines,
+        spellingTolerance: true,
+        rigorousJustification: false,
+        rewardEffortAndMethod: false,
+        encourageClarity: false,
+        customInstructions: 'Attribution binaire des points par question selon la clé de réponse.',
+      };
+      if (!updated.rubricContent || updated.rubricContent.includes('Pythagore') || updated.rubricContent.includes('DICTÉE')) {
+        updated.rubricContent = `CLÉ DE RÉPONSES DU QCM :
+Q1 : B
+Q2 : C
+Q3 : A
+Q4 : D
+Q5 : B`;
+      }
+    } else {
+      // Standard
+      updated.pedagogicalGuidelines = {
+        ...updated.pedagogicalGuidelines,
+        spellingTolerance: isLiteraryDiscipline(config.discipline) ? false : true,
+        rewardEffortAndMethod: true,
+      };
+    }
+
+    onChange(updated);
   };
 
   // AI analysis function: reads the answer key / correction document or text to detect the real title, discipline, and level
@@ -322,7 +670,7 @@ export const Step1Config: React.FC<Step1ConfigProps> = ({ config, onChange, onNe
             <select
               id="discipline-select"
               value={config.discipline}
-              onChange={(e) => updateField('discipline', e.target.value as Discipline)}
+              onChange={(e) => handleDisciplineChange(e.target.value as Discipline)}
               className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-lg text-sm text-slate-900 focus:bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-hidden transition-all"
             >
               {DISCIPLINES.map((d) => (
@@ -419,6 +767,90 @@ export const Step1Config: React.FC<Step1ConfigProps> = ({ config, onChange, onNe
             </div>
           </div>
         </div>
+
+        {/* Specialized Assessment Type Selection (Uniquement pour les matières littéraires et sciences humaines) */}
+        {!isScientificDiscipline(config.discipline) && (
+          <div className="pt-4 border-t border-slate-100 space-y-3">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
+              <label className="block text-xs font-bold text-slate-800 uppercase tracking-wider flex items-center gap-2">
+                <Layers className="w-4 h-4 text-indigo-600" />
+                <span>Type d'épreuve littéraire — {config.discipline} (Spécialise l'IA)</span>
+              </label>
+              <span className="text-[11px] text-slate-500">
+                Adapte instantanément le barème et les critères d'évaluation
+              </span>
+            </div>
+
+            <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-5 gap-2.5">
+              {getOptionsForDiscipline(config.discipline).map((opt) => {
+                const IconComponent = opt.icon;
+                const isSelected = (!config.assessmentType && opt.id === 'standard') || config.assessmentType === opt.id;
+                return (
+                  <button
+                    key={opt.id}
+                    type="button"
+                    onClick={() => selectAssessmentType(opt.id as AssessmentType)}
+                    className={`p-3 rounded-xl border text-left transition-all cursor-pointer flex flex-col justify-between ${
+                      isSelected
+                        ? 'border-indigo-600 bg-indigo-50/80 shadow-xs ring-1 ring-indigo-500/40 text-indigo-950'
+                        : 'border-slate-200 bg-slate-50/60 hover:bg-slate-100/80 text-slate-700'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between mb-1.5">
+                      <IconComponent className={`w-4 h-4 ${isSelected ? 'text-indigo-600' : 'text-slate-400'}`} />
+                      {isSelected && <CheckCircle className="w-3.5 h-3.5 text-indigo-600" />}
+                    </div>
+                    <div>
+                      <p className="text-xs font-bold leading-tight">{opt.label}</p>
+                      <p className="text-[10px] text-slate-500 mt-0.5 leading-tight">{opt.desc}</p>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Contextual notification badge explaining what was tuned */}
+            {config.assessmentType && config.assessmentType !== 'standard' && (
+              <div className={`p-3 rounded-lg border text-xs flex items-start gap-2.5 ${
+                config.assessmentType === 'dictee'
+                  ? 'bg-emerald-50/90 border-emerald-200 text-emerald-900'
+                  : config.assessmentType === 'dissertation'
+                  ? 'bg-purple-50/90 border-purple-200 text-purple-900'
+                  : config.assessmentType === 'commentaire'
+                  ? 'bg-indigo-50/90 border-indigo-200 text-indigo-900'
+                  : config.assessmentType === 'etude_document'
+                  ? 'bg-amber-50/90 border-amber-200 text-amber-900'
+                  : config.assessmentType === 'expression_ecrite'
+                  ? 'bg-sky-50/90 border-sky-200 text-sky-900'
+                  : config.assessmentType === 'traduction'
+                  ? 'bg-rose-50/90 border-rose-200 text-rose-900'
+                  : 'bg-teal-50/90 border-teal-200 text-teal-900'
+              }`}>
+                <Sparkles className="w-4 h-4 shrink-0 mt-0.5" />
+                <div className="space-y-1">
+                  <p className="font-bold">
+                    {config.assessmentType === 'dictee' && 'Mode Dictée activé : Barème déductif & rigueur orthographique'}
+                    {config.assessmentType === 'dissertation' && 'Mode Dissertation / Composition activé : Problématique, plan et argumentation'}
+                    {config.assessmentType === 'commentaire' && 'Mode Commentaire / Explication activé : Analyse des procédés et fidélité au texte'}
+                    {config.assessmentType === 'etude_document' && 'Mode Étude critique activé : Confrontation des documents et recul critique'}
+                    {config.assessmentType === 'expression_ecrite' && 'Mode Expression écrite / Essay activé : Grille CECRL (vocabulaire, syntaxe, connecteurs)'}
+                    {config.assessmentType === 'traduction' && 'Mode Traduction activé : Notation segmentée (contresens, faux-sens, omissions)'}
+                    {config.assessmentType === 'qcm' && 'Mode QCM activé : Notation par clé de réponses et exactitude'}
+                  </p>
+                  <p className="text-[11px] leading-relaxed opacity-90">
+                    {config.assessmentType === 'dictee' && 'Les consignes pédagogiques ont été configurées en tolérance orthographique stricte (-1 pt grammaire, -0.5 pt lexique, -0.25 pt ponctuation/accent).'}
+                    {config.assessmentType === 'dissertation' && 'La grille d\'évaluation intègre l\'introduction problématisée, le plan en 2 ou 3 parties équilibrées, l\'analyse des exemples et la qualité de la langue.'}
+                    {config.assessmentType === 'commentaire' && 'La simple paraphrase est sanctionnée, l\'analyse stylistique ou conceptuelle et l\'appui direct sur le texte sont valorisés.'}
+                    {config.assessmentType === 'etude_document' && 'L\'IA analyse le croisement entre les documents et les connaissances historiques/géographiques/économiques.'}
+                    {config.assessmentType === 'expression_ecrite' && 'L\'évaluation valorise l\'amplitude du vocabulaire, la maîtrise des temps verbaux et la structure du paragraphe.'}
+                    {config.assessmentType === 'traduction' && 'L\'évaluation applique les pénalités usuelles par unité de sens (contresens -2, faux-sens -1, omission -1).'}
+                    {config.assessmentType === 'qcm' && 'L\'IA compare directement les choix cochés par l\'élève sans pénaliser la syntaxe.'}
+                  </p>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Mode de Correction */}
@@ -575,13 +1007,79 @@ export const Step1Config: React.FC<Step1ConfigProps> = ({ config, onChange, onNe
                 rows={6}
                 value={config.rubricContent}
                 onChange={(e) => updateField('rubricContent', e.target.value)}
-                placeholder={`BARÈME & CORRIGÉ OFFICIEL (Exemple indicatif / texte fantôme) :
+                placeholder={
+                  config.assessmentType === 'dictee'
+                    ? `TEXTE DE LA DICTÉE & BARÈME (Exemple indicatif) :
+Texte à dicter :
+"Les enfants s'élancèrent dans la cour sous les rayons dorés du soleil..."
+
+Barème déductif :
+- 20/20 initial.
+- Faute d'accord ou grammaticale : -1 pt
+- Faute lexicale / mot d'usage : -0.5 pt
+- Accent / ponctuation : -0.25 pt`
+                    : config.assessmentType === 'dissertation'
+                    ? `SUJET & CRITÈRES DE DISSERTATION (Exemple indicatif) :
+Sujet : "La littérature permet-elle de transformer le regard que l'on porte sur le monde ?"
+
+Barème analytique :
+1. Introduction & Problématique : /4 pts
+2. Axe 1 - Thèse et exemples littéraires : /4 pts
+3. Axe 2 - Antithèse et mise en perspective : /4 pts
+4. Conclusion & ouverture : /3 pts
+5. Qualité du style et connecteurs logiques : /5 pts`
+                    : config.assessmentType === 'commentaire'
+                    ? `TEXTE À COMMENTER & CRITÈRES D'ANALYSE (Exemple indicatif) :
+Texte : [Extrait du texte ou poème à commenter]
+
+Axes de correction :
+1. Introduction : Présentation de l'auteur, situation du passage, projet de lecture (/4 pts)
+2. Axe 1 : Analyse des procédés stylistiques, métaphores et figures (/6 pts)
+3. Axe 2 : Portée symbolique ou philosophique de l'extrait (/6 pts)
+4. Conclusion & qualité stylistique (/4 pts)`
+                    : config.assessmentType === 'etude_document'
+                    ? `DOCUMENTS D'HISTOIRE-GÉO / SES & CONSIGNES :
+Doc 1 : Discours ou texte source [Auteur, Date, Contexte]
+Doc 2 : Carte ou graphique statistique
+
+Barème :
+1. Présentation contextualisée des sources (/4 pts)
+2. Analyse croisée avec les connaissances du cours (/10 pts)
+3. Regard critique et limites des documents (/4 pts)
+4. Rigueur du vocabulaire disciplinaire (/2 pts)`
+                    : config.assessmentType === 'expression_ecrite'
+                    ? `ESSAY PROMPT & GRILLE CECRL (Exemple indicatif) :
+Topic: "Some people believe that school uniforms foster equality. Discuss and give your opinion."
+
+Grille d'évaluation CECRL :
+1. Respect de la consigne et cohérence des arguments : /6 pts
+2. Richesse du vocabulaire et expressions idiomatiques : /5 pts
+3. Correction grammaticale (temps, passif, modaux) : /5 pts
+4. Articulation logique et fluidité : /4 pts`
+                    : config.assessmentType === 'traduction'
+                    ? `TEXTE SOURCE ET CORRIGÉ MODÈLE SEGMENT PAR SEGMENT :
+Source : "He had never imagined that this discovery would change his life forever..."
+Traduction attendue : "Il n'avait jamais imaginé que cette découverte changerait sa vie à tout jamais..."
+
+Barème par segment :
+- Contresens grave : -2 pts
+- Faux-sens : -1 pt
+- Omission : -1 pt
+- Maladresse d'expression : -0.5 pt`
+                    : config.assessmentType === 'qcm'
+                    ? `CLÉ DE RÉPONSE DU QCM :
+Q1 : B
+Q2 : A
+Q3 : C
+Q4 : D`
+                    : `BARÈME & CORRIGÉ OFFICIEL (Exemple indicatif / texte fantôme) :
 Exercice 1 (8 points) - Question 1 (5 pts)
 Attendu : Le triangle ABC est rectangle en A. D'après le théorème de Pythagore, BC² = AB² + AC² = 36 + 64 = 100, donc BC = 10 cm. (Formule 2 pts, calcul 2 pts, unité 1 pt)
 Question 2 (3 pts)
 Attendu : AM / AB = 3 / 6 = 0,5 (ou 1/2 ou 50%).
 
-Exercice 2 (12 points) - Question 1 (7 pts)...`}
+Exercice 2 (12 points) - Question 1 (7 pts)...`
+                }
                 className="w-full px-3.5 py-2.5 bg-white border border-slate-300 rounded-lg text-sm text-slate-900 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-hidden font-mono text-xs leading-relaxed placeholder:text-slate-400/80 placeholder:italic"
               />
             </div>

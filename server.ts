@@ -889,6 +889,7 @@ app.post('/api/correct', async (req, res) => {
     const discipline = assignmentConfig?.discipline || 'Matière générale';
     const level = assignmentConfig?.level || 'Secondaire';
     const title = assignmentConfig?.title || 'Évaluation scolaire';
+    const assessmentType = assignmentConfig?.assessmentType || 'standard';
     const maxGrade = Number(assignmentConfig?.maxGrade) || 20;
     const rubricContent = assignmentConfig?.rubricContent || '';
     const rubricImagesList: string[] = (Array.isArray(assignmentConfig?.rubricImages) && assignmentConfig.rubricImages.length > 0)
@@ -898,6 +899,134 @@ app.post('/api/correct', async (req, res) => {
 
     // Check if a rubric is available (either images or text)
     const hasRubric = (rubricImagesList.length > 0 || (rubricContent && rubricContent.trim().length > 0));
+
+    // Specific prompt adaptation depending on assessmentType
+    let assessmentTypePrompt = '';
+    if (assessmentType === 'dictee') {
+      assessmentTypePrompt = `
+🎯 TYPE D'ÉPREUVE SPÉCIFIQUE : DICTÉE (ORTHOGRAPHE & GRAMMAIRE)
+RÈGLES IMPÉRATIVES DE NOTATION ET D'ÉVALUATION DE DICTÉE :
+1. MÉTHODE DE NOTATION DÉDUCTIVE / NÉGATIVE :
+   - Pars de la note maximale ${maxGrade}/${maxGrade}.
+   - Applique scrupuleusement le barème de déduction académique officiel :
+     * Erreur grammaticale (accord en genre et nombre, accord sujet-verbe, participe passé en -é/-er, terminaisons verbales, homophones grammaticaux a/à, et/est, son/sont, ce/se, on/ont) : -1 point par faute.
+     * Erreur lexicale ou d'usage (orthographe des mots courants, consonnes doubles, cédilles) : -0,5 point par faute.
+     * Erreur d'accent n'altérant pas le son ou erreur de ponctuation/majuscule : -0,25 point par faute.
+     * Si un même mot d'usage comporte la même erreur répétée à l'identique, ne la compte qu'une seule fois.
+   - La note finale ne peut pas descendre en dessous de 0 (sauf si barème négatif strict, borner entre 0 et ${maxGrade}).
+2. DÉCOMPTE DÉTAILLÉ DANS LES QUESTIONS :
+   - Remplis la liste "questions" en découpant le texte de la dictée par phrases ou par paragraphes.
+   - Pour chaque phrase/segment, relève mot à mot les fautes commises par l'élève dans "reponse_eleve", la graphie exacte dans "reponse_attendue", et dans "justification", précise la règle grammaticale méconnue (ex: 'Confusion infinitif en -er et participe passé en -é après préposition').
+3. COMPÉTENCES SPÉCIFIQUES DICTÉE :
+   - Évalue impérativement : "Orthographe grammaticale & accords", "Orthographe lexicale / d'usage", "Ponctuation et majuscules", "Soin et lisibilité de l'écriture".
+`;
+    } else if (assessmentType === 'dissertation') {
+      assessmentTypePrompt = `
+🎯 TYPE D'ÉPREUVE SPÉCIFIQUE : DISSERTATION / ESSAI ARGUMENTÉ / COMMENTAIRE
+RÈGLES IMPÉRATIVES DE NOTATION ET D'ÉVALUATION DE DISSERTATION :
+1. BARÈME ANALYTIQUE MULTICRITÈRE POSITIF (SUR ${maxGrade} POINTS) :
+   - Introduction (problématique, définition des termes clés, annonce du plan cohérent) : environ 20% des points.
+   - Développement & argumentation (solidité des thèses, présence d'exemples littéraires/historiques précis et analysés, transitions logiques) : environ 40% des points.
+   - Conclusion (bilan nuancé répondant à la problématique, ouverture pertinente) : environ 15% des points.
+   - Qualité de l'expression, style, syntaxe, vocabulaire et connecteurs logiques : environ 25% des points.
+2. DÉCOUPAGE DANS "QUESTIONS" :
+   - Structure la liste "questions" selon les grandes étapes du devoir :
+     1. "Introduction & Problématique"
+     2. "Première partie (Thèse / Axe 1)"
+     3. "Deuxième partie (Antithèse / Axe 2)"
+     4. "Troisième partie ou Nuance (si présente)"
+     5. "Conclusion & Bilan"
+     6. "Qualité de l'expression et rigueur linguistique"
+   - Dans "justification", analyse la pertinence de la réflexion, la finesse de l'analyse des citations et la cohérence de la progression argumentative.
+3. COMPÉTENCES CLÉS :
+   - Évalue : "Problématisation du sujet", "Cohérence de l'argumentation & transitions", "Culture littéraire & exemples analysés", "Maîtrise de la langue écrite".
+`;
+    } else if (assessmentType === 'commentaire') {
+      assessmentTypePrompt = `
+🎯 TYPE D'ÉPREUVE SPÉCIFIQUE : COMMENTAIRE DE TEXTE / EXPLICATION DE TEXTE PHILOSOPHIQUE OU LITTÉRAIRE
+RÈGLES IMPÉRATIVES D'ÉVALUATION :
+1. BARÈME ANALYTIQUE (SUR ${maxGrade} POINTS) :
+   - Introduction (amorce, auteur, œuvre, thèse/problème central, annonce de plan ordonné) : ~20%
+   - Analyse linéaire ou thématique (citation précise du texte, procédés d'écriture ou concepts philosophiques mis en lumière, absence de paraphrase) : ~50%
+   - Conclusion (bilan du sens global du texte, portée philosophique ou esthétique) : ~15%
+   - Qualité de la rédaction, précision lexicale et style : ~15%
+2. DÉCOUPAGE DANS "QUESTIONS" :
+   - Divise en : "1. Introduction & Présentation du texte", "2. Premier mouvement / Axe d'analyse 1", "3. Deuxième mouvement / Axe d'analyse 2", "4. Troisième mouvement (si applicable)", "5. Conclusion & Portée", "6. Qualité de la langue & précision des citations".
+   - Dans "justification", sanctionne sévèrement la simple paraphrase et valorise l'interprétation étayée par les citations du texte.
+3. COMPÉTENCES CLÉS :
+   - Évalue : "Compréhension du sens littéral et philosophique/esthétique", "Analyse des procédés et concepts", "Rigueur de l'explication (anti-paraphrase)", "Expression écrite soignée".
+`;
+    } else if (assessmentType === 'etude_document') {
+      assessmentTypePrompt = `
+🎯 TYPE D'ÉPREUVE SPÉCIFIQUE : ÉTUDE CRITIQUE DE DOCUMENT(S) (HISTOIRE-GÉOGRAPHIE / SES)
+RÈGLES IMPÉRATIVES D'ÉVALUATION :
+1. BARÈME ANALYTIQUE (SUR ${maxGrade} POINTS) :
+   - Présentation critique des documents (nature, auteur, date, contexte historique/économique, destinataire) : ~20%
+   - Prélèvement et analyse des informations (croisement des documents avec les connaissances personnelles du cours) : ~45%
+   - Regard critique (limites du document, parti pris de l'auteur, omissions volontaires) : ~20%
+   - Conclusion et rigueur du vocabulaire spécifique (notions historiques/géographiques/économiques) : ~15%
+2. DÉCOUPAGE DANS "QUESTIONS" :
+   - "1. Présentation des documents & contexte", "2. Analyse du document 1", "3. Analyse du document 2 / Confrontation", "4. Apport des connaissances du cours & Esprit critique", "5. Bilan synthétique".
+3. COMPÉTENCES CLÉS :
+   - Évalue : "Identifier et contextualiser des sources", "Prélever et croiser des informations", "Exercer un esprit critique", "Mobiliser des repères et notions disciplinaires".
+`;
+    } else if (assessmentType === 'expression_ecrite') {
+      assessmentTypePrompt = `
+🎯 TYPE D'ÉPREUVE SPÉCIFIQUE : EXPRESSION ÉCRITE / ESSAY (LANGUES VIVANTES : ANGLAIS, ESPAGNOL, ALLEMAND)
+RÈGLES IMPÉRATIVES D'ÉVALUATION EN LANGUE CIBLE :
+1. GRILLE CECRL (SUR ${maxGrade} POINTS) :
+   - Richesse et pertinence des idées en réponse au sujet / prompt : ~30%
+   - Richesse lexicale et tournures idiomatiques dans la langue cible : ~25%
+   - Correction grammaticale (temps verbaux, syntaxe, prépositions, accords) : ~25%
+   - Cohérence et structuration (connecteurs logiques, alinéas, fluidité) : ~20%
+2. DÉCOUPAGE DANS "QUESTIONS" :
+   - "1. Adéquation au sujet et argumentation", "2. Richesse du lexique & vocabulaire spécifique", "3. Précision grammaticale et morphosyntaxe", "4. Organisation textuelle et connecteurs".
+   - Dans "justification", relève les erreurs récurrentes (faux-amis, calques de la langue maternelle, mauvais auxiliaire ou préposition) et propose la tournure authentique attendue.
+3. COMPÉTENCES CLÉS :
+   - Évalue : "Cohérence argumentative", "Correction grammaticale", "Étendue du vocabulaire", "Aisance stylistique dans la langue cible".
+`;
+    } else if (assessmentType === 'traduction') {
+      assessmentTypePrompt = `
+🎯 TYPE D'ÉPREUVE SPÉCIFIQUE : TRADUCTION / THÈME / VERSION (LANGUES VIVANTES)
+RÈGLES IMPÉRATIVES DE NOTATION DE TRADUCTION :
+1. BARÈME GRADUÉ PAR SEGMENT (SUR ${maxGrade} POINTS) :
+   - Évalue phrase par phrase ou segment de phrase.
+   - Pénalités standard :
+     * Contresens majeur (sens opposé) : sanction maximale sur le segment.
+     * Faux-sens (mauvaise interprétation d'un terme) : sanction modérée.
+     * Non-sens (phrase incompréhensible dans la langue d'arrivée) : sanction lourde.
+     * Omission / omission partielle : sanction proportionnelle.
+     * Maladresse d'expression / calque lourd : légère pénalité de style.
+2. DÉCOUPAGE DANS "QUESTIONS" :
+   - Remplis "questions" segment par segment en comparant la traduction de l'élève à la traduction modèle attendue.
+3. COMPÉTENCES CLÉS :
+   - Évalue : "Fidélité au texte source", "Maîtrise de la grammaire contrastive", "Précision du lexique", "Naturel de la langue d'arrivée".
+`;
+    } else if (assessmentType === 'mathematiques') {
+      assessmentTypePrompt = `
+🎯 TYPE D'ÉPREUVE SPÉCIFIQUE : MATHÉMATIQUES & SCIENCES EXACTES
+RÈGLES IMPÉRATIVES DE NOTATION MATHÉMATIQUE :
+1. VALORISATION DE LA DÉMARCHE ET DES ÉTAPES :
+   - Distingue rigoureusement la formule/théorème énoncé, l'application numérique et le résultat final avec son unité.
+   - Si la démarche est correcte mais qu'une erreur de calcul est commise à la fin, accorde la majorité des points de méthode (ex: 70% des points).
+2. RIGUEUR DES FORMULATIONS :
+   - Exige la mention explicite des hypothèses (ex: "Le triangle ABC est rectangle en A, donc d'après le théorème de Pythagore...").
+   - Sanctionne l'absence d'unité ou un arrondi injustifié si demandé dans la consigne.
+3. COMPÉTENCES CLÉS :
+   - Évalue : "Chercher & Modéliser", "Raisonner & Démontrer", "Calculer & Résoudre", "Communiquer & Rédiger avec rigueur".
+`;
+    } else if (assessmentType === 'qcm') {
+      assessmentTypePrompt = `
+🎯 TYPE D'ÉPREUVE SPÉCIFIQUE : QCM / QUESTIONNAIRE À CHOIX MULTIPLES
+RÈGLES IMPÉRATIVES DE NOTATION DE QCM :
+1. BARÈME PAR QUESTION PRÉCIS :
+   - Évalue chaque item/question de manière binaire ou proportionnelle selon le nombre de choix attendus.
+   - Dans "reponse_eleve", retranscris la lettre ou case cochée/écrite par l'élève (ex: "B" ou "Vrai").
+   - Dans "reponse_attendue", indique la bonne réponse et son explication rapide.
+2. PAS D'AMBIGUÏTÉ :
+   - Si une réponse est raturée avec un choix clairement rectifié, prends en compte la rectification finale de l'élève.
+`;
+    }
 
     let guidelinesPrompt = `
 Consignes pédagogiques du professeur:
@@ -947,6 +1076,8 @@ Tu es chargé d'analyser et corriger la copie d'un élève pour l'évaluation in
 Note maximale prévue: ${maxGrade}.
 ${hasRubric ? 'RÈGLE OBLIGATOIRE : Un CORRIGÉ OFFICIEL est fourni par le professeur. Tu DOIS OBLIGATOIREMENT baser toute ta notation, les réponses attendues et le barème sur ce corrigé de référence.' : ''}
 La copie de cet élève comporte ${pagesList.length} page(s). Analyse TOUTES les pages de façon exhaustive pour noter l'ensemble du devoir sans en omettre aucune.
+
+${assessmentTypePrompt}
 
 ${guidelinesPrompt}
 

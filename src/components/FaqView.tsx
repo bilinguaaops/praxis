@@ -20,10 +20,14 @@ import {
   ArrowRight,
   Download,
   Lock,
+  Phone,
+  Mail,
+  MessageCircle,
 } from 'lucide-react';
 
 interface FaqViewProps {
   onStartCorrection: () => void;
+  onOpenContact?: () => void;
 }
 
 interface FaqItem {
@@ -36,7 +40,7 @@ interface FaqItem {
   detailedContent: React.ReactNode;
 }
 
-export const FaqView: React.FC<FaqViewProps> = ({ onStartCorrection }) => {
+export const FaqView: React.FC<FaqViewProps> = ({ onStartCorrection, onOpenContact }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [expandedIds, setExpandedIds] = useState<Record<string, boolean>>({
@@ -544,25 +548,95 @@ export const FaqView: React.FC<FaqViewProps> = ({ onStartCorrection }) => {
         )}
       </div>
 
-      {/* Bottom Callout Banner */}
-      <div className="bg-gradient-to-r from-blue-700 to-indigo-700 text-white rounded-2xl p-6 sm:p-8 flex flex-col sm:flex-row items-center justify-between gap-6 shadow-xl">
-        <div className="space-y-1.5 text-center sm:text-left">
-          <h3 className="text-lg sm:text-xl font-extrabold tracking-tight">
-            Vous avez une question spécifique sur votre discipline ?
-          </h3>
-          <p className="text-xs sm:text-sm text-blue-100 max-w-xl leading-relaxed">
-            Testez directement le moteur sur une copie d'élève ou contactez notre équipe pédagogique pour configurer vos grilles d'évaluation sur mesure.
-          </p>
+      {/* Bottom Callout Banner with Contact Info */}
+      <div className="bg-gradient-to-r from-blue-700 via-indigo-700 to-blue-800 text-white rounded-2xl p-6 sm:p-8 space-y-6 shadow-xl">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
+          <div className="space-y-1.5 text-center md:text-left">
+            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-blue-500/30 text-blue-100 border border-blue-400/30">
+              Assistance & Équipe Pédagogique
+            </span>
+            <h3 className="text-lg sm:text-xl font-extrabold tracking-tight">
+              Vous avez une question spécifique sur votre discipline ?
+            </h3>
+            <p className="text-xs sm:text-sm text-blue-100 max-w-xl leading-relaxed">
+              Testez directement le moteur sur une copie d'élève ou contactez notre équipe pour configurer vos grilles d'évaluation sur mesure et former vos équipes.
+            </p>
+          </div>
+
+          <div className="flex flex-wrap items-center justify-center md:justify-end gap-3 shrink-0">
+            {onOpenContact && (
+              <button
+                type="button"
+                onClick={onOpenContact}
+                id="btn-faq-open-contact"
+                className="px-4 py-2.5 bg-blue-900/60 hover:bg-blue-900/90 text-white font-bold text-xs sm:text-sm rounded-xl border border-blue-400/30 transition-all shadow-xs cursor-pointer flex items-center gap-2"
+              >
+                <Phone className="w-4 h-4 text-emerald-400" />
+                <span>Nous contacter</span>
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={onStartCorrection}
+              className="px-5 py-2.5 bg-white text-blue-700 hover:bg-blue-50 font-bold text-xs sm:text-sm rounded-xl transition-all shadow-md cursor-pointer flex items-center gap-2"
+            >
+              <span>Démarrer une correction</span>
+              <ArrowRight className="w-4 h-4" />
+            </button>
+          </div>
         </div>
 
-        <button
-          type="button"
-          onClick={onStartCorrection}
-          className="px-5 py-2.5 bg-white text-blue-700 hover:bg-blue-50 font-bold text-xs sm:text-sm rounded-xl transition-all shadow-md shrink-0 cursor-pointer flex items-center gap-2"
-        >
-          <span>Démarrer une correction</span>
-          <ArrowRight className="w-4 h-4" />
-        </button>
+        {/* Direct Contact Cards Bar */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-4 border-t border-blue-600/40 text-xs">
+          <div className="flex items-center justify-between bg-blue-900/40 border border-blue-500/30 rounded-xl p-3">
+            <div className="flex items-center gap-2.5">
+              <div className="w-7 h-7 rounded-lg bg-emerald-500/20 text-emerald-300 flex items-center justify-center">
+                <Phone className="w-4 h-4" />
+              </div>
+              <div>
+                <span className="text-[10px] text-blue-200 block uppercase font-bold tracking-wider">Téléphone & WhatsApp</span>
+                <span className="font-mono font-bold text-sm text-white">+225 0103890314</span>
+              </div>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <a
+                href="https://wa.me/2250103890314"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg font-bold text-[11px] transition-colors"
+                title="Écrire sur WhatsApp"
+              >
+                WhatsApp
+              </a>
+              <a
+                href="tel:+2250103890314"
+                className="px-2.5 py-1 bg-white/15 hover:bg-white/25 text-white rounded-lg font-bold text-[11px] transition-colors"
+                title="Appeler directement"
+              >
+                Appeler
+              </a>
+            </div>
+          </div>
+
+          <div className="flex items-center justify-between bg-blue-900/40 border border-blue-500/30 rounded-xl p-3">
+            <div className="flex items-center gap-2.5 truncate mr-2">
+              <div className="w-7 h-7 rounded-lg bg-blue-400/20 text-blue-200 flex items-center justify-center shrink-0">
+                <Mail className="w-4 h-4" />
+              </div>
+              <div className="truncate">
+                <span className="text-[10px] text-blue-200 block uppercase font-bold tracking-wider">Email support</span>
+                <span className="font-mono font-bold text-sm text-white truncate block">agoussoukevin@gmail.com</span>
+              </div>
+            </div>
+            <a
+              href="mailto:agoussoukevin@gmail.com?subject=Contact%20Praxis%20IA"
+              className="px-2.5 py-1 bg-blue-600 hover:bg-blue-500 text-white rounded-lg font-bold text-[11px] transition-colors shrink-0"
+              title="Envoyer un e-mail"
+            >
+              Écrire
+            </a>
+          </div>
+        </div>
       </div>
     </div>
   );

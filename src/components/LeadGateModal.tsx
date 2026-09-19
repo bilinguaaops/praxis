@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Sparkles, GraduationCap, X, Lock, ArrowRight, LogIn, UserPlus, CheckCircle2, ShieldCheck } from 'lucide-react';
+import { Sparkles, GraduationCap, X, Lock, ArrowRight, LogIn, UserPlus, CheckCircle2, ShieldCheck, Phone, Mail } from 'lucide-react';
 import { LeadData } from '../types';
 
 interface LeadGateModalProps {
@@ -257,6 +257,25 @@ export const LeadGateModal: React.FC<LeadGateModalProps> = ({
             >
               Fermer
             </button>
+          </div>
+
+          <div className="pt-2 border-t border-slate-100 flex items-center justify-center gap-4 text-[11px] text-slate-500">
+            <span className="text-slate-400">Besoin d'aide ?</span>
+            <a
+              href="tel:+2250103890314"
+              className="flex items-center gap-1 text-emerald-700 hover:underline font-medium"
+            >
+              <Phone className="w-3 h-3" />
+              <span>+225 0103890314</span>
+            </a>
+            <span className="text-slate-300">•</span>
+            <a
+              href="mailto:agoussoukevin@gmail.com"
+              className="flex items-center gap-1 text-blue-700 hover:underline font-medium"
+            >
+              <Mail className="w-3 h-3" />
+              <span>agoussoukevin@gmail.com</span>
+            </a>
           </div>
         </form>
       </div>

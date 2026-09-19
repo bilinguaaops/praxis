@@ -24,6 +24,17 @@ export type SchoolLevel =
 
 export type CorrectionMode = 'with_rubric' | 'autonomous';
 
+export type AssessmentType =
+  | 'standard'
+  | 'dictee'
+  | 'dissertation'
+  | 'commentaire'
+  | 'etude_document'
+  | 'expression_ecrite'
+  | 'traduction'
+  | 'mathematiques'
+  | 'qcm';
+
 export interface PedagogicalGuidelines {
   spellingTolerance: boolean;
   rewardEffortAndMethod: boolean;
@@ -38,6 +49,7 @@ export interface AssignmentConfig {
   title: string;
   maxGrade: number;
   correctionMode: CorrectionMode;
+  assessmentType?: AssessmentType; // 'standard' | 'dictee' | 'dissertation' | 'mathematiques' | 'qcm'
   rubricContent: string;
   rubricImage?: string; // base64 (page 1 or single image)
   rubricImages?: string[]; // base64 array (for multi-page PDF or multiple images)

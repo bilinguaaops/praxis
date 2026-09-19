@@ -16,6 +16,7 @@ import { PrintCorrectionSheets } from './components/PrintCorrectionSheets';
 import { AdminDashboard } from './components/AdminDashboard';
 import { FaqView } from './components/FaqView';
 import { LandingPage } from './components/LandingPage';
+import { ContactModal } from './components/ContactModal';
 import {
   SAMPLE_ASSIGNMENT_CONFIG,
 } from './lib/sampleData';
@@ -253,6 +254,7 @@ export default function App() {
 
   // Reset entire assignment
   const [isResetModalOpen, setIsResetModalOpen] = useState(false);
+  const [isContactModalOpen, setIsContactModalOpen] = useState(false);
 
   const handleReset = () => {
     setIsResetModalOpen(true);
@@ -573,6 +575,7 @@ export default function App() {
         currentLead={currentLead}
         onOpenLoginModal={() => setIsLeadGateOpen(true)}
         onLogout={handleLogout}
+        onOpenContactModal={() => setIsContactModalOpen(true)}
       />
 
       {/* VIEW 0: NOTIE AI INSPIRED LANDING PAGE */}
@@ -587,6 +590,7 @@ export default function App() {
             handleViewChange(view);
             window.scrollTo({ top: 0, behavior: 'smooth' });
           }}
+          onOpenContact={() => setIsContactModalOpen(true)}
         />
       )}
 
@@ -686,6 +690,7 @@ export default function App() {
                 handleViewChange('corr');
                 setCurrentStep(1);
               }}
+              onOpenContact={() => setIsContactModalOpen(true)}
             />
           )}
         </main>
@@ -718,6 +723,12 @@ export default function App() {
         isOpen={isLeadGateOpen}
         onClose={handleCloseLeadGate}
         onSubmitSuccess={handleLeadSubmitSuccess}
+      />
+
+      {/* Support & Contact Modal with Phone & Email */}
+      <ContactModal
+        isOpen={isContactModalOpen}
+        onClose={() => setIsContactModalOpen(false)}
       />
 
       {/* In-app Reset Confirmation Modal */}
