@@ -124,27 +124,27 @@ Donc BD = (OB * AC) / OA = (4.5 * 6) / 3 = 9 cm."`,
           <div className="flex justify-center">
             <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-blue-50 border border-blue-200/80 shadow-xs mb-6 text-xs font-semibold text-blue-800">
               <span className="flex h-2 w-2 rounded-full bg-blue-600 animate-pulse" />
-              <span>Conçu pour les enseignants du secondaire et supérieur</span>
+              <span>⚡ Correction express pour enseignants</span>
               <span className="hidden sm:inline text-blue-400">·</span>
               <span className="hidden sm:inline font-normal text-blue-700">100% Souverain & RGPD</span>
             </div>
           </div>
 
           {/* Main Headline */}
-          <div className="text-center max-w-4xl mx-auto space-y-5">
+          <div className="text-center max-w-5xl mx-auto space-y-5">
             <h1 className="text-3xl sm:text-5xl lg:text-6xl font-extrabold tracking-tight text-slate-950 leading-[1.15]">
-              Corrigez un paquet de copies en{' '}
-              <span className="bg-gradient-to-r from-blue-600 via-indigo-600 to-blue-800 bg-clip-text text-transparent">
-                quelques minutes.
+              Corrigez les copies d'une classe en{' '}
+              <span className="inline-block whitespace-nowrap bg-gradient-to-r from-blue-600 via-indigo-600 to-blue-800 bg-clip-text text-transparent">
+                30 secondes chrono.
               </span>
-              <br className="hidden sm:inline" />
+              <br className="hidden md:inline" />
               {' '}Pas tout votre week-end.
             </h1>
 
             <p className="text-base sm:text-xl text-slate-600 max-w-2xl mx-auto leading-relaxed font-normal">
               Photographiez ou scannez n'importe quelle copie manuscrite (dissertation, exercice,
               commentaire ou problème de maths). Obtenez une note précise, des appréciations
-              constructives et un export Pronote direct en moins de 30 secondes par copie.
+              constructives et un export Pronote direct en moins de 30 secondes.
             </p>
 
             {/* Action CTAs */}

@@ -115,8 +115,8 @@ export const Header: React.FC<HeaderProps> = ({
                   IA Vision
                 </span>
               </div>
-              <p className="text-[11px] text-slate-500 hidden sm:block">
-                Correction intelligente de copies & analyse de classe
+              <p className="text-[11px] text-slate-500 hidden sm:block whitespace-nowrap">
+                Corrigez les copies d'une classe en 30 secondes · IA Vision
               </p>
             </div>
           </button>
