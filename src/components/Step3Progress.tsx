@@ -82,7 +82,7 @@ export const Step3Progress: React.FC<Step3ProgressProps> = ({
       throw new Error("Inscription obligatoire : veuillez renseigner votre email d'enseignant.");
     }
 
-    addLog(`Envoi de la copie de "${sub.studentName}" au moteur Claude / Gemini...`);
+    addLog(`Analyse et évaluation de la copie de "${sub.studentName}"...`);
 
     const controller = new AbortController();
     const timeoutId = setTimeout(() => {
@@ -179,7 +179,7 @@ export const Step3Progress: React.FC<Step3ProgressProps> = ({
     }
   };
 
-  // Manual retry for a specific student
+  // Manual retry for a specific student with single auto-retry on transient server overload
   const retryStudent = async (sub: StudentSubmission) => {
     setActiveStudentId(sub.id);
     updateSubmissions((prev) =>
@@ -187,44 +187,56 @@ export const Step3Progress: React.FC<Step3ProgressProps> = ({
     );
     addLog(`🔄 Analyse lancée pour "${sub.studentName}"...`);
 
-    try {
-      const result = await correctStudent(sub);
-      addLog(`✅ Copie de "${result.nom_eleve || sub.studentName}" corrigée : Note ${result.note}/${result.note_sur}`);
+    let attempts = 0;
+    const maxAttempts = 2;
+    while (attempts < maxAttempts) {
+      attempts++;
+      try {
+        const result = await correctStudent(sub);
+        addLog(`✅ Copie de "${result.nom_eleve || sub.studentName}" corrigée avec succès : Note ${result.note}/${result.note_sur}`);
 
-      if (result.nom_manuscrit_detecte) {
-        if (result.nom_manuscrit_detecte.toLowerCase() !== sub.studentName.toLowerCase()) {
-          addLog(`✍️ Nom manuscrit repéré en marge : « ${result.nom_manuscrit_detecte} »`);
+        if (result.nom_manuscrit_detecte) {
+          if (result.nom_manuscrit_detecte.toLowerCase() !== sub.studentName.toLowerCase()) {
+            addLog(`✍️ Nom manuscrit repéré en marge : « ${result.nom_manuscrit_detecte} »`);
+          }
         }
-      }
 
-      updateSubmissions((prev) =>
-        prev.map((s) =>
-          s.id === sub.id
-            ? {
-                ...s,
-                status: 'completed',
-                studentName: result.nom_eleve || s.studentName,
-                result,
-              }
-            : s
-        )
-      );
-    } catch (err: any) {
-      addLog(`❌ Échec de la tentative pour "${sub.studentName}" : ${err.message}`);
-      updateSubmissions((prev) =>
-        prev.map((s) =>
-          s.id === sub.id
-            ? {
-                ...s,
-                status: 'error',
-                errorMessage: err.message || 'Échec de la correction',
-              }
-            : s
-        )
-      );
-    } finally {
-      setActiveStudentId(null);
+        updateSubmissions((prev) =>
+          prev.map((s) =>
+            s.id === sub.id
+              ? {
+                  ...s,
+                  status: 'completed',
+                  studentName: result.nom_eleve || s.studentName,
+                  result,
+                }
+              : s
+          )
+        );
+        break;
+      } catch (err: any) {
+        if (attempts < maxAttempts && !err.message?.includes('Inscription') && !err.message?.includes('Limite')) {
+          addLog(`⚠️ Serveur temporairement sollicité pour "${sub.studentName}", bascule automatique et réessai...`);
+          await new Promise((r) => setTimeout(r, 1800));
+          continue;
+        }
+
+        addLog(`❌ Échec de la tentative pour "${sub.studentName}" : ${err.message}`);
+        updateSubmissions((prev) =>
+          prev.map((s) =>
+            s.id === sub.id
+              ? {
+                  ...s,
+                  status: 'error',
+                  errorMessage: err.message || 'Échec de la correction',
+                }
+              : s
+          )
+        );
+        break;
+      }
     }
+    setActiveStudentId(null);
   };
 
   // Core processing queue loop
@@ -365,7 +377,7 @@ export const Step3Progress: React.FC<Step3ProgressProps> = ({
           </span>
           <h2 className="text-xl font-extrabold text-slate-900 tracking-tight">Inscription requise pour lancer la correction</h2>
           <p className="text-xs text-slate-600 mt-2 max-w-md mx-auto leading-relaxed">
-            Pour activer le moteur IA Claude / Gemini et débloquer vos 30 corrections offertes, veuillez renseigner vos coordonnées d’enseignant.
+            Pour lancer la correction automatique et débloquer vos 30 évaluations offertes, veuillez renseigner vos coordonnées d’enseignant.
           </p>
         </div>
         <div className="pt-2">
@@ -404,7 +416,7 @@ export const Step3Progress: React.FC<Step3ProgressProps> = ({
           <div>
             <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-50 text-blue-700 text-xs font-semibold mb-2">
               <Sparkles className="w-3.5 h-3.5 text-blue-600 animate-pulse" />
-              Étape 3 : Moteur de Vision Multimodal Gemini
+              Étape 3 : Évaluation Pédagogique
             </div>
             <h1 className="text-xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">
               {isRunning
