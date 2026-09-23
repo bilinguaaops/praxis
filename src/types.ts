@@ -55,6 +55,7 @@ export interface AssignmentConfig {
   rubricImages?: string[]; // base64 array (for multi-page PDF or multiple images)
   rubricFileName?: string;
   pedagogicalGuidelines: PedagogicalGuidelines;
+  analysisSpeed?: 'turbo' | 'deep'; // 'turbo' (~4-6s par copie) ou 'deep' (~15-20s avec raisonnement étendu)
 }
 
 export interface StudentSubmission {

@@ -376,10 +376,9 @@ RÉPONDS UNIQUEMENT SOUS FORME D'UN OBJET JSON STRICT.`;
     });
 
     const candidateModels = [
+      'gemini-3.1-flash-lite',
       'gemini-3.8-flash',
       'gemini-flash-latest',
-      'gemini-2.5-flash',
-      'gemini-3.1-flash-lite',
     ];
     const modelsToTry = getPrioritizedModels(candidateModels);
 
@@ -420,7 +419,7 @@ RÉPONDS UNIQUEMENT SOUS FORME D'UN OBJET JSON STRICT.`;
     const anthropic = getAnthropic();
     if (anthropic) {
       const candidates = await getResolvedClaudeCandidates();
-      const claudeCandidates = candidates.filter((m) => isModelHealthy(m));
+      const claudeCandidates = candidates.filter((m) => isModelHealthy(m)).slice(0, 2);
       for (const chosenClaudeModel of claudeCandidates) {
         try {
           console.log(`[AnalyzeRubric] Attempting analysis with Claude (${chosenClaudeModel})...`);
@@ -460,16 +459,27 @@ RÉPONDS UNIQUEMENT SOUS FORME D'UN OBJET JSON STRICT.`;
             text: promptText + `\n\nRenvoie un objet JSON strict avec : { "suggestedTitle": string, "suggestedDiscipline": string, "suggestedLevel": string, "suggestedMaxGrade": number, "extractedRubricText": string, "summary": string }`,
           });
 
-          const claudeRes = await anthropic.messages.create({
+          const timeoutMs = 30000;
+          let timer: any;
+          const timeoutPromise = new Promise<never>((_, reject) => {
+            timer = setTimeout(() => reject(new Error(`Timeout de ${timeoutMs / 1000}s pour Claude (${chosenClaudeModel})`)), timeoutMs);
+          });
+
+          const claudeCall = anthropic.messages.create({
             model: chosenClaudeModel,
             max_tokens: 2000,
-            temperature: 0.1,
+            thinking: { type: 'disabled' },
             messages: [{ role: 'user', content: claudeContent }],
           });
 
-          const firstBlock = claudeRes.content[0];
-          if (firstBlock && firstBlock.type === 'text') {
-            let rawText = firstBlock.text.trim();
+          const claudeRes = await Promise.race([claudeCall, timeoutPromise]);
+          clearTimeout(timer);
+
+          // Support both thinking and text blocks
+          const textBlocks = claudeRes.content.filter((b: any) => b.type === 'text');
+          const extractedText = textBlocks.map((b: any) => (b as any).text || '').join('\n').trim();
+          if (extractedText) {
+            let rawText = extractedText;
             if (rawText.startsWith('```')) {
               rawText = rawText.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '').trim();
             }
@@ -608,6 +618,7 @@ app.post('/api/correct', async (req, res) => {
     const title = assignmentConfig?.title || 'Évaluation scolaire';
     const assessmentType = assignmentConfig?.assessmentType || 'standard';
     const maxGrade = Number(assignmentConfig?.maxGrade) || 20;
+    const analysisSpeed = assignmentConfig?.analysisSpeed || 'turbo'; // 'turbo' (4-6s) or 'deep' (15-20s)
     const rubricContent = assignmentConfig?.rubricContent || '';
     const rubricImagesList: string[] = (Array.isArray(assignmentConfig?.rubricImages) && assignmentConfig.rubricImages.length > 0)
       ? assignmentConfig.rubricImages
@@ -906,10 +917,9 @@ Voici la copie de l'élève (${studentName || 'Nom à détecter'}). Compare chaq
 
     // Prioritize high-availability and fast vision models with automatic failover
     const candidateModels = [
+      'gemini-3.1-flash-lite',
       'gemini-3.8-flash',
       'gemini-flash-latest',
-      'gemini-2.5-flash',
-      'gemini-3.1-flash-lite',
     ];
     const modelsToTry = getPrioritizedModels(candidateModels);
 
@@ -1001,11 +1011,11 @@ Voici la copie de l'élève (${studentName || 'Nom à détecter'}). Compare chaq
     let usedProvider: 'anthropic' | 'gemini' | 'unknown' = 'unknown';
     let usedModel: string = 'default';
 
-    // 1. If Anthropic Claude key is provided and healthy, try dynamic Claude candidates (Primary engine)
-    const anthropic = getAnthropic();
-    if (anthropic) {
+    const tryClaude = async () => {
+      const anthropic = getAnthropic();
+      if (!anthropic) return;
       const candidates = await getResolvedClaudeCandidates();
-      const claudeCandidates = candidates.filter((m) => isModelHealthy(m));
+      const claudeCandidates = candidates.filter((m) => isModelHealthy(m)).slice(0, 2);
       console.log(`[Praxis IA] Candidats Claude actifs à tester :`, claudeCandidates);
 
       for (const chosenClaudeModel of claudeCandidates) {
@@ -1093,20 +1103,45 @@ Renvoie impérativement un objet JSON valide strict avec la structure suivante :
             text: systemPrompt + '\n\n' + jsonInstruction,
           });
 
-          const claudeRes = await anthropic.messages.create({
+          const timeoutMs = 45000;
+          let timer: any;
+          const timeoutPromise = new Promise<never>((_, reject) => {
+            timer = setTimeout(() => reject(new Error(`Timeout de ${timeoutMs / 1000}s pour Claude (${chosenClaudeModel})`)), timeoutMs);
+          });
+
+          const claudeCall = anthropic.messages.create({
             model: chosenClaudeModel,
             max_tokens: 4000,
-            temperature: 0.1,
+            ...(analysisSpeed === 'deep' ? {} : { thinking: { type: 'disabled' } }),
             messages: [{ role: 'user', content: claudeContent }],
           });
 
-          const firstBlock = claudeRes.content[0];
-          if (firstBlock && firstBlock.type === 'text') {
-            responseText = firstBlock.text.trim();
-            usedProvider = 'anthropic';
-            usedModel = chosenClaudeModel;
-            console.log(`[Praxis IA] ✅ ${chosenClaudeModel} a évalué la copie avec succès !`);
-            break;
+          const claudeRes = await Promise.race([claudeCall, timeoutPromise]);
+          clearTimeout(timer);
+
+          // Support both thinking and text content blocks
+          const textBlocks = claudeRes.content.filter((b: any) => b.type === 'text');
+          const extractedText = textBlocks.map((b: any) => (b as any).text || '').join('\n').trim();
+          if (extractedText) {
+            let jsonCand = extractedText;
+            if (jsonCand.startsWith('```')) {
+              jsonCand = jsonCand.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '').trim();
+            }
+            const match = jsonCand.match(/\{[\s\S]*\}/);
+            if (match) {
+              try {
+                JSON.parse(match[0]); // Check valid JSON
+                responseText = extractedText;
+                usedProvider = 'anthropic';
+                usedModel = chosenClaudeModel;
+                console.log(`[Praxis IA] ✅ ${chosenClaudeModel} a évalué la copie avec succès !`);
+                break;
+              } catch {
+                console.log(`[Praxis IA] Claude (${chosenClaudeModel}) : JSON mal formé, passage au suivant...`);
+              }
+            } else {
+              console.log(`[Praxis IA] Claude (${chosenClaudeModel}) n'a pas inclus d'objet JSON exploitable.`);
+            }
           }
         } catch (anthropicErr: any) {
           const isNotFound = anthropicErr?.status === 404 || anthropicErr?.message?.includes('not_found_error');
@@ -1118,17 +1153,15 @@ Renvoie impérativement un objet JSON valide strict avec la structure suivante :
           lastError = anthropicErr;
         }
       }
-    }
+    };
 
-    // 2. If Claude did not answer or wasn't configured, use Google Gemini resilient pool
-    if (!responseText && hasGeminiKey) {
+    const tryGemini = async () => {
+      if (!hasGeminiKey) return;
       const ai = getGenAI();
       const geminiCandidates = [
-        'gemini-2.5-flash',
-        'gemini-3.8-flash',
         'gemini-3.1-flash-lite',
+        'gemini-3.8-flash',
         'gemini-flash-latest',
-        'gemini-2.5-pro',
       ];
       const modelsToTry = getPrioritizedModels(geminiCandidates);
 
@@ -1138,7 +1171,7 @@ Renvoie impérativement un objet JSON valide strict avec la structure suivante :
           try {
             console.log(`[Praxis IA] Requesting correction with Gemini (${modelName}, essai ${attempt}/2)...`);
             
-            const timeoutMs = 28000;
+            const timeoutMs = 32000;
             let timer: any;
             const timeoutPromise = new Promise((_, reject) => {
               timer = setTimeout(() => reject(new Error(`Timeout de ${timeoutMs / 1000}s dépassé pour le modèle ${modelName}`)), timeoutMs);
@@ -1180,6 +1213,23 @@ Renvoie impérativement un objet JSON valide strict avec la structure suivante :
             break;
           }
         }
+      }
+    };
+
+    // Execute based on teacher's speed preference
+    if (analysisSpeed === 'deep') {
+      console.log(`[Praxis IA] Mode Approfondi : priorité Claude Sonnet`);
+      await tryClaude();
+      if (!responseText) {
+        console.log(`[Praxis IA] Repli sur Gemini Flash...`);
+        await tryGemini();
+      }
+    } else {
+      console.log(`[Praxis IA] Mode Turbo Éclair : priorité Gemini Flash ultra-rapide (~3-5s)`);
+      await tryGemini();
+      if (!responseText) {
+        console.log(`[Praxis IA] Repli sur Claude Turbo...`);
+        await tryClaude();
       }
     }
 

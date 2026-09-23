@@ -144,6 +144,50 @@ export const Step2Upload: React.FC<Step2UploadProps> = ({
     });
   };
 
+  const handleMovePage = (subId: string, fromIndex: number, direction: 'prev' | 'next') => {
+    const sub = submissions.find((s) => s.id === subId);
+    if (!sub) return;
+    const pages = [...(sub.allPages && sub.allPages.length > 0 ? sub.allPages : [sub.imageDataUrl])];
+    const toIndex = direction === 'prev' ? fromIndex - 1 : fromIndex + 1;
+    if (toIndex < 0 || toIndex >= pages.length) return;
+
+    const temp = pages[fromIndex];
+    pages[fromIndex] = pages[toIndex];
+    pages[toIndex] = temp;
+
+    onSubmissionsChange(
+      submissions.map((s) =>
+        s.id === subId
+          ? {
+              ...s,
+              allPages: pages,
+              imageDataUrl: pages[0],
+            }
+          : s
+      )
+    );
+    setActiveCardPages((prev) => ({ ...prev, [subId]: toIndex }));
+  };
+
+  const handleReversePages = (subId: string) => {
+    const sub = submissions.find((s) => s.id === subId);
+    if (!sub) return;
+    const pages = [...(sub.allPages && sub.allPages.length > 0 ? sub.allPages : [sub.imageDataUrl])].reverse();
+
+    onSubmissionsChange(
+      submissions.map((s) =>
+        s.id === subId
+          ? {
+              ...s,
+              allPages: pages,
+              imageDataUrl: pages[0],
+            }
+          : s
+      )
+    );
+    setActiveCardPages((prev) => ({ ...prev, [subId]: 0 }));
+  };
+
   const handleAddPageToStudent = async (subId: string, e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files || files.length === 0) return;
@@ -565,34 +609,75 @@ export const Step2Upload: React.FC<Step2UploadProps> = ({
                       </button>
                     </div>
 
-                    {/* Multi-page switcher bar */}
+                    {/* Multi-page switcher and reorder bar */}
                     {totalPages > 1 && (
-                      <div className="absolute bottom-2 inset-x-2 flex items-center justify-between px-2.5 py-1 rounded-lg bg-slate-900/85 backdrop-blur-xs text-white text-xs font-semibold shadow-xs">
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handlePagePrev(sub.id, totalPages);
-                          }}
-                          className="p-0.5 hover:text-blue-300 transition-colors cursor-pointer"
-                          title="Page précédente"
-                        >
-                          <ChevronLeft className="w-3.5 h-3.5" />
-                        </button>
-                        <span>
-                          Page {activePageIdx + 1} / {totalPages}
-                        </span>
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handlePageNext(sub.id, totalPages);
-                          }}
-                          className="p-0.5 hover:text-blue-300 transition-colors cursor-pointer"
-                          title="Page suivante"
-                        >
-                          <ChevronRight className="w-3.5 h-3.5" />
-                        </button>
+                      <div className="absolute bottom-2 inset-x-2 flex flex-col gap-1 px-2 py-1.5 rounded-lg bg-slate-900/90 backdrop-blur-xs text-white text-xs shadow-md">
+                        <div className="flex items-center justify-between">
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handlePagePrev(sub.id, totalPages);
+                            }}
+                            className="p-1 hover:text-blue-300 transition-colors cursor-pointer"
+                            title="Page précédente"
+                          >
+                            <ChevronLeft className="w-3.5 h-3.5" />
+                          </button>
+                          <span className="font-bold text-[11px] tracking-wide">
+                            Page {activePageIdx + 1} sur {totalPages}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handlePageNext(sub.id, totalPages);
+                            }}
+                            className="p-1 hover:text-blue-300 transition-colors cursor-pointer"
+                            title="Page suivante"
+                          >
+                            <ChevronRight className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+
+                        {/* Reorder tools */}
+                        <div className="flex items-center justify-center gap-1 pt-1 border-t border-white/15 text-[10px]">
+                          <button
+                            type="button"
+                            disabled={activePageIdx === 0}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleMovePage(sub.id, activePageIdx, 'prev');
+                            }}
+                            className="px-1.5 py-0.5 rounded bg-white/15 hover:bg-white/30 disabled:opacity-25 disabled:cursor-not-allowed transition-colors cursor-pointer font-medium"
+                            title="Déplacer cette page vers la gauche"
+                          >
+                            ← Déplacer
+                          </button>
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleReversePages(sub.id);
+                            }}
+                            className="px-1.5 py-0.5 rounded bg-blue-600/90 hover:bg-blue-600 text-white font-medium transition-colors cursor-pointer"
+                            title="Inverser l'ordre de toutes les pages de cette copie"
+                          >
+                            ⇄ Inverser
+                          </button>
+                          <button
+                            type="button"
+                            disabled={activePageIdx === totalPages - 1}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleMovePage(sub.id, activePageIdx, 'next');
+                            }}
+                            className="px-1.5 py-0.5 rounded bg-white/15 hover:bg-white/30 disabled:opacity-25 disabled:cursor-not-allowed transition-colors cursor-pointer font-medium"
+                            title="Déplacer cette page vers la droite"
+                          >
+                            Déplacer →
+                          </button>
+                        </div>
                       </div>
                     )}
                   </div>

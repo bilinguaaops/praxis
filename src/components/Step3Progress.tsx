@@ -87,7 +87,7 @@ export const Step3Progress: React.FC<Step3ProgressProps> = ({
     const controller = new AbortController();
     const timeoutId = setTimeout(() => {
       controller.abort();
-    }, 80000);
+    }, 120000);
 
     try {
       const response = await fetch('/api/correct', {
@@ -127,7 +127,7 @@ export const Step3Progress: React.FC<Step3ProgressProps> = ({
       return data.data as CorrectionResult;
     } catch (err: any) {
       if (err.name === 'AbortError') {
-        throw new Error("Délai d'analyse dépassé (80s). Veuillez relancer cette copie.");
+        throw new Error("Délai d'analyse dépassé (120s). Veuillez relancer cette copie.");
       }
       throw err;
     } finally {

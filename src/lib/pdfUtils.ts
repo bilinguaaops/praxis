@@ -7,7 +7,7 @@ if (typeof window !== 'undefined') {
 
 /**
  * Splits a PDF file into individual page image Data URLs (JPEG)
- * Dynamically bounds max resolution to ~1600px for optimal handwriting OCR and fast Gemini ingestion
+ * Dynamically bounds max resolution to ~2048px for optimal handwriting OCR and crisp line deciphering
  */
 export async function convertPdfToImages(file: File): Promise<{ pageNumber: number; dataUrl: string }[]> {
   const arrayBuffer = await file.arrayBuffer();
@@ -19,10 +19,10 @@ export async function convertPdfToImages(file: File): Promise<{ pageNumber: numb
   for (let pageNum = 1; pageNum <= totalPages; pageNum++) {
     const page = await pdfDoc.getPage(pageNum);
     
-    // Calculate balanced scale: ensure max dimension is capped at ~1600px
+    // Calculate balanced scale: ensure max dimension is capped at ~2048px for high readability
     const baseViewport = page.getViewport({ scale: 1.0 });
     const maxDim = Math.max(baseViewport.width, baseViewport.height);
-    const targetScale = Math.min(2.0, Math.max(1.0, 1600 / maxDim));
+    const targetScale = Math.min(2.5, Math.max(1.2, 2048 / maxDim));
     const viewport = page.getViewport({ scale: targetScale });
 
     const canvas = document.createElement('canvas');
@@ -43,7 +43,7 @@ export async function convertPdfToImages(file: File): Promise<{ pageNumber: numb
     };
 
     await page.render(renderContext).promise;
-    const dataUrl = canvas.toDataURL('image/jpeg', 0.85);
+    const dataUrl = canvas.toDataURL('image/jpeg', 0.90);
     results.push({
       pageNumber: pageNum,
       dataUrl,
@@ -54,8 +54,8 @@ export async function convertPdfToImages(file: File): Promise<{ pageNumber: numb
 }
 
 /**
- * Compresses an image file (e.g. smartphone photo) to max 1600px on the longest edge
- * and 0.85 JPEG quality to prevent enormous payloads and 503 gateway overloads.
+ * Compresses an image file (e.g. smartphone photo) to max 2048px on the longest edge
+ * and 0.90 JPEG quality to preserve fine handwriting strokes and accents.
  */
 export async function compressImageFile(file: File): Promise<string> {
   return new Promise((resolve) => {
@@ -63,7 +63,7 @@ export async function compressImageFile(file: File): Promise<string> {
     reader.onload = (e) => {
       const img = new Image();
       img.onload = () => {
-        const maxDim = 1600;
+        const maxDim = 2048;
         let width = img.width;
         let height = img.height;
 
@@ -91,7 +91,7 @@ export async function compressImageFile(file: File): Promise<string> {
         ctx.fillRect(0, 0, width, height);
         ctx.drawImage(img, 0, 0, width, height);
 
-        const compressed = canvas.toDataURL('image/jpeg', 0.85);
+        const compressed = canvas.toDataURL('image/jpeg', 0.90);
         resolve(compressed);
       };
       img.onerror = () => {

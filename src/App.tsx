@@ -24,6 +24,7 @@ const DEFAULT_CONFIG: AssignmentConfig = {
   maxGrade: 20,
   correctionMode: 'with_rubric',
   rubricContent: '',
+  analysisSpeed: 'turbo',
   pedagogicalGuidelines: {
     spellingTolerance: true,
     rewardEffortAndMethod: true,
