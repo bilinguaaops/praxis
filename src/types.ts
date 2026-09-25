@@ -56,6 +56,8 @@ export interface AssignmentConfig {
   rubricFileName?: string;
   pedagogicalGuidelines: PedagogicalGuidelines;
   analysisSpeed?: 'turbo' | 'deep'; // 'turbo' (~4-6s par copie) ou 'deep' (~15-20s avec raisonnement étendu)
+  aiEngine?: 'auto' | 'haiku' | 'gemini'; // 'auto' (Gemini Flash puis Haiku) | 'haiku' (Claude Haiku économique) | 'gemini' (Gemini Flash)
+  pagesPerCopy?: number; // Nombre de pages par copie pour le regroupement automatique des photos (ex: 1, 2, 3, 4...)
 }
 
 export interface StudentSubmission {

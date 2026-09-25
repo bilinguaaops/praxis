@@ -30,7 +30,6 @@ import {
   CheckSquare,
   Layers,
   Languages,
-  Zap,
 } from 'lucide-react';
 
 interface Step1ConfigProps {
@@ -429,6 +428,7 @@ Q5 : B`;
           rubricImages: imagesToUse,
           rubricContent: textToUse,
           currentTitle: config.title,
+          aiEngine: config.aiEngine || 'auto',
         }),
       });
 
@@ -506,6 +506,7 @@ Q5 : B`;
           rubricImages: imagesToUse,
           rubricContent: textToUse,
           currentTitle: config.title,
+          aiEngine: config.aiEngine || 'auto',
         }),
       });
 
@@ -1202,78 +1203,7 @@ Exercice 2 (12 points) - Question 1 (7 pts)...`
         )}
       </div>
 
-      {/* Vitesse & Moteur d'évaluation */}
-      <div className="bg-white rounded-xl border border-slate-200 shadow-xs p-6 space-y-4">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-slate-100">
-          <h2 className="text-lg font-bold text-slate-900 flex items-center gap-2">
-            <Zap className="w-5 h-5 text-amber-500 fill-amber-500" />
-            Vitesse & Moteur d'évaluation
-          </h2>
-          <span className="text-xs px-2.5 py-1 bg-emerald-50 text-emerald-700 font-semibold rounded-full border border-emerald-200 self-start sm:self-auto">
-            ⚡ Mode Turbo actif par défaut
-          </span>
-        </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <button
-            type="button"
-            onClick={() => updateField('analysisSpeed', 'turbo')}
-            className={`p-4 rounded-xl border-2 text-left transition-all cursor-pointer flex flex-col justify-between ${
-              (config.analysisSpeed || 'turbo') === 'turbo'
-                ? 'border-blue-600 bg-blue-50/50 shadow-xs ring-1 ring-blue-600/20'
-                : 'border-slate-200 hover:border-slate-300 bg-white'
-            }`}
-          >
-            <div>
-              <div className="flex items-center justify-between">
-                <span className="font-bold text-slate-900 flex items-center gap-2 text-sm sm:text-base">
-                  <span className="w-6 h-6 rounded-lg bg-amber-100 flex items-center justify-center text-amber-600 text-xs">⚡</span>
-                  Mode Éclair (3 à 5s / copie)
-                </span>
-                {(config.analysisSpeed || 'turbo') === 'turbo' && (
-                  <CheckCircle className="w-5 h-5 text-blue-600 shrink-0" />
-                )}
-              </div>
-              <p className="text-xs text-slate-600 mt-2 leading-relaxed">
-                <strong className="text-slate-900">Vitesse maximale sans perte de qualité.</strong> Lecture OCR haute définition, respect strict du barème et retours détaillés immédiats.
-              </p>
-            </div>
-            <div className="mt-3 pt-2.5 border-t border-slate-100/80 flex items-center justify-between text-[11px]">
-              <span className="text-emerald-700 font-semibold">Idéal pour paquets de 25-35 copies</span>
-              <span className="text-slate-400 font-mono">~3-5 sec</span>
-            </div>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => updateField('analysisSpeed', 'deep')}
-            className={`p-4 rounded-xl border-2 text-left transition-all cursor-pointer flex flex-col justify-between ${
-              config.analysisSpeed === 'deep'
-                ? 'border-blue-600 bg-blue-50/50 shadow-xs ring-1 ring-blue-600/20'
-                : 'border-slate-200 hover:border-slate-300 bg-white'
-            }`}
-          >
-            <div>
-              <div className="flex items-center justify-between">
-                <span className="font-bold text-slate-900 flex items-center gap-2 text-sm sm:text-base">
-                  <span className="w-6 h-6 rounded-lg bg-indigo-100 flex items-center justify-center text-indigo-600 text-xs">🧠</span>
-                  Mode Approfondi (~15s / copie)
-                </span>
-                {config.analysisSpeed === 'deep' && (
-                  <CheckCircle className="w-5 h-5 text-blue-600 shrink-0" />
-                )}
-              </div>
-              <p className="text-xs text-slate-600 mt-2 leading-relaxed">
-                Raisonnement pas à pas étendu. Recommandé uniquement pour les longues dissertations littéraires ou philosophiques complexes.
-              </p>
-            </div>
-            <div className="mt-3 pt-2.5 border-t border-slate-100/80 flex items-center justify-between text-[11px]">
-              <span className="text-indigo-700 font-semibold">Analyse stylistique poussée</span>
-              <span className="text-slate-400 font-mono">~15-20 sec</span>
-            </div>
-          </button>
-        </div>
-      </div>
 
       {/* Consignes Pédagogiques Personnalisables */}
       <div className="bg-white rounded-xl border border-slate-200 shadow-xs p-6 space-y-5">

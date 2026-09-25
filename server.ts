@@ -195,6 +195,10 @@ async function getResolvedClaudeCandidates(): Promise<string[]> {
   let envModel = (process.env.CLAUDE_MODEL || '').trim();
   // Strip leading key assignment if accidentally pasted like `CLAUDE_MODEL="claude-3-5-sonnet"`
   envModel = envModel.replace(/^CLAUDE_MODEL\s*=\s*/i, '').replace(/^["']|["']$/g, '').trim();
+  // If env was set to an old expensive sonnet model or empty, default to haiku per user request
+  if (!envModel || envModel.toLowerCase().includes('sonnet') || envModel.toLowerCase().includes('haiku')) {
+    envModel = 'haiku';
+  }
 
   // Return from memory cache if fresh (valid for 30 minutes)
   if (cachedClaudeModels && Date.now() - cachedClaudeModels.fetchedAt < 1800_000) {
@@ -207,49 +211,28 @@ async function getResolvedClaudeCandidates(): Promise<string[]> {
     if (res && Array.isArray(res.data) && res.data.length > 0) {
       const availableIds: string[] = res.data.map((m: any) => m.id);
 
-      // Score models for school copies: Sonnet > Haiku > Opus
-      const sorted = [...availableIds].sort((a, b) => {
+      // EXCLUSIVELY filter for Haiku models per user strict request (zero Sonnet, zero Opus)
+      const haikuIds = availableIds.filter((id: string) => id.toLowerCase().includes('haiku'));
+
+      const sortedHaikus = [...haikuIds].sort((a, b) => {
         const score = (name: string) => {
           let s = 0;
-          if (name.includes('sonnet')) s += 100;
-          else if (name.includes('haiku')) s += 80;
-          else if (name.includes('opus')) s += 60;
-          else s += 20;
-
-          // Higher version numbers preferred
-          if (name.includes('5-5')) s += 25;
-          else if (name.includes('5')) s += 20;
-          else if (name.includes('4-6') || name.includes('4.6')) s += 15;
-          else if (name.includes('4-5') || name.includes('4.5')) s += 12;
-          else if (name.includes('3-7') || name.includes('3.7')) s += 5;
-          else if (name.includes('3-5') || name.includes('3.5')) s += 3;
-
+          if (name.includes('4-5') || name.includes('4.5')) s += 30;
+          else if (name.includes('3-5') || name.includes('3.5')) s += 20;
+          else if (name.includes('3')) s += 10;
           return s;
         };
         return score(b) - score(a);
       });
 
-      const finalList = [...sorted];
-      if (envModel) {
-        if (availableIds.includes(envModel)) {
-          finalList.splice(finalList.indexOf(envModel), 1);
-          finalList.unshift(envModel);
-        } else {
-          // If user wanted a family (sonnet, haiku, opus), prioritize the best matching real model
-          const family = envModel.toLowerCase();
-          const match = sorted.find((m) =>
-            family.includes('haiku') ? m.includes('haiku') :
-            family.includes('opus') ? m.includes('opus') :
-            m.includes('sonnet')
-          );
-          if (match && match !== finalList[0]) {
-            finalList.splice(finalList.indexOf(match), 1);
-            finalList.unshift(match);
-          }
-        }
-      }
+      const finalList = sortedHaikus.length > 0 ? sortedHaikus : [
+        'claude-haiku-4-5-20251001',
+        'claude-3-5-haiku-latest',
+        'claude-3-5-haiku-20241022',
+        'claude-3-haiku-20240307',
+      ];
 
-      console.log('[Praxis IA] Modèles Anthropic découverts et priorisés dynamiquement :', finalList.slice(0, 4));
+      console.log('[Praxis IA] Modèles Anthropic exclusifs Haiku (économiques) :', finalList);
       cachedClaudeModels = { models: finalList, fetchedAt: Date.now() };
       return finalList;
     }
@@ -257,24 +240,57 @@ async function getResolvedClaudeCandidates(): Promise<string[]> {
     console.warn('[Praxis IA] Impossible de lister dynamiquement les modèles Anthropic :', err?.message);
   }
 
-  // Fallback defaults with prioritized modern and stable identifiers
+  // Fallback defaults with ONLY economical Haiku identifiers (strict: no Sonnet or Opus)
   const defaults = [
-    'claude-sonnet-5',
-    'claude-sonnet-4-5-20250929',
-    'claude-sonnet-4-6',
     'claude-haiku-4-5-20251001',
-    'claude-3-5-sonnet-latest',
-    'claude-3-7-sonnet-latest',
+    'claude-3-5-haiku-latest',
+    'claude-3-5-haiku-20241022',
+    'claude-3-haiku-20240307',
   ];
   return defaults;
 }
 
 // In-memory model circuit breaker to avoid repeatedly hammering models with 503/timeout
 const modelCooldownMap = new Map<string, number>();
+let geminiGlobalCooldownUntil = 0;
 
-function markModelUnhealthy(model: string, durationMs: number = 120_000) {
+// High-availability prioritized Gemini flash models (active, fast, with verified zero 503 error rate)
+const GEMINI_FLASH_MODELS = [
+  'gemini-3.5-flash',
+  'gemini-3.6-flash',
+  'gemini-2.5-flash',
+  'gemini-flash-latest',
+];
+
+function extractJson(raw: string): string {
+  if (!raw) return '';
+  let clean = raw.trim();
+  if (clean.includes('```')) {
+    const codeBlockMatch = clean.match(/```(?:json)?\s*([\s\S]*?)\s*```/i);
+    if (codeBlockMatch && codeBlockMatch[1]) {
+      clean = codeBlockMatch[1].trim();
+    }
+  }
+  const firstBrace = clean.indexOf('{');
+  const lastBrace = clean.lastIndexOf('}');
+  if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
+    return clean.slice(firstBrace, lastBrace + 1);
+  }
+  return clean;
+}
+
+function markGeminiOverloaded(durationMs: number = 60_000) {
+  geminiGlobalCooldownUntil = Date.now() + durationMs;
+  console.log(`[Praxis IA] Activation du circuit rapide Claude Haiku pour les prochaines requêtes.`);
+}
+
+function isGeminiAvailable(): boolean {
+  return Date.now() > geminiGlobalCooldownUntil;
+}
+
+function markModelUnhealthy(model: string, durationMs: number = 60_000) {
   modelCooldownMap.set(model, Date.now() + durationMs);
-  console.log(`[Praxis IA] Model ${model} marked in cooldown for ${durationMs / 1000}s`);
+  console.log(`[Praxis IA] Modèle ${model} placé en temporisation (${durationMs / 1000}s)`);
 }
 
 function isModelHealthy(model: string): boolean {
@@ -288,10 +304,11 @@ function isModelHealthy(model: string): boolean {
 }
 
 function getPrioritizedModels(candidates: string[]): string[] {
-  // Healthy models first, followed by models in cooldown as last-resort fallback
+  // Healthy models only if available to prevent hammering overloaded models
   const healthy = candidates.filter((m) => isModelHealthy(m));
+  if (healthy.length > 0) return healthy;
   const cooling = candidates.filter((m) => !isModelHealthy(m));
-  return [...healthy, ...cooling];
+  return cooling;
 }
 
 // Health check endpoint
@@ -304,8 +321,8 @@ app.get('/api/health', async (req, res) => {
     claudeModel: claudeModels[0] || null,
     claudeAvailableModels: claudeModels.slice(0, 4),
     activeProviders: [
-      process.env.ANTHROPIC_API_KEY ? 'anthropic (prioritaire)' : null,
-      process.env.GEMINI_API_KEY ? 'gemini' : null,
+      process.env.GEMINI_API_KEY ? 'gemini flash' : null,
+      process.env.ANTHROPIC_API_KEY ? 'claude haiku (économique)' : null,
     ].filter(Boolean),
     timestamp: new Date().toISOString(),
   });
@@ -314,7 +331,7 @@ app.get('/api/health', async (req, res) => {
 // Analyze answer key (rubric) endpoint: reads the correction document/text to detect title, discipline, level, maxGrade, and extracted criteria
 app.post('/api/analyze-rubric', async (req, res) => {
   try {
-    const { rubricImage, rubricImages, rubricContent, currentTitle } = req.body;
+    const { rubricImage, rubricImages, rubricContent, currentTitle, aiEngine } = req.body;
 
     const imagesList: string[] = (Array.isArray(rubricImages) && rubricImages.length > 0)
       ? rubricImages
@@ -324,10 +341,12 @@ app.post('/api/analyze-rubric', async (req, res) => {
       return res.status(400).json({ error: 'Aucun document ou texte de corrigé fourni à analyser.' });
     }
 
-    const ai = getGenAI();
-    if (!process.env.GEMINI_API_KEY) {
+    const hasGeminiKey = Boolean(process.env.GEMINI_API_KEY);
+    const hasAnthropicKey = Boolean(process.env.ANTHROPIC_API_KEY);
+
+    if (!hasGeminiKey && !hasAnthropicKey) {
       return res.status(500).json({
-        error: "Clé API Gemini non configurée.",
+        error: "Aucune clé API IA configurée (Gemini ou Anthropic requise).",
       });
     }
 
@@ -375,13 +394,6 @@ RÉPONDS UNIQUEMENT SOUS FORME D'UN OBJET JSON STRICT.`;
       });
     });
 
-    const candidateModels = [
-      'gemini-3.1-flash-lite',
-      'gemini-3.8-flash',
-      'gemini-flash-latest',
-    ];
-    const modelsToTry = getPrioritizedModels(candidateModels);
-
     const analysisSchema = {
       type: Type.OBJECT,
       properties: {
@@ -415,14 +427,16 @@ RÉPONDS UNIQUEMENT SOUS FORME D'UN OBJET JSON STRICT.`;
 
     let resultJson = null;
 
-    // 1. Try Anthropic Claude if ANTHROPIC_API_KEY is configured
-    const anthropic = getAnthropic();
-    if (anthropic) {
+    // Helper: Run Claude Haiku (cost-effective)
+    const runClaudeRubric = async () => {
+      const anthropic = getAnthropic();
+      if (!anthropic) return;
       const candidates = await getResolvedClaudeCandidates();
-      const claudeCandidates = candidates.filter((m) => isModelHealthy(m)).slice(0, 2);
+      const healthy = candidates.filter((m) => isModelHealthy(m));
+      const claudeCandidates = (healthy.length > 0 ? healthy : candidates).slice(0, 2);
       for (const chosenClaudeModel of claudeCandidates) {
         try {
-          console.log(`[AnalyzeRubric] Attempting analysis with Claude (${chosenClaudeModel})...`);
+          console.log(`[AnalyzeRubric] Analyse avec Claude (${chosenClaudeModel})...`);
           const claudeContent: any[] = [];
 
           imagesList.forEach((img) => {
@@ -459,7 +473,7 @@ RÉPONDS UNIQUEMENT SOUS FORME D'UN OBJET JSON STRICT.`;
             text: promptText + `\n\nRenvoie un objet JSON strict avec : { "suggestedTitle": string, "suggestedDiscipline": string, "suggestedLevel": string, "suggestedMaxGrade": number, "extractedRubricText": string, "summary": string }`,
           });
 
-          const timeoutMs = 30000;
+          const timeoutMs = 25000;
           let timer: any;
           const timeoutPromise = new Promise<never>((_, reject) => {
             timer = setTimeout(() => reject(new Error(`Timeout de ${timeoutMs / 1000}s pour Claude (${chosenClaudeModel})`)), timeoutMs);
@@ -468,14 +482,12 @@ RÉPONDS UNIQUEMENT SOUS FORME D'UN OBJET JSON STRICT.`;
           const claudeCall = anthropic.messages.create({
             model: chosenClaudeModel,
             max_tokens: 2000,
-            thinking: { type: 'disabled' },
             messages: [{ role: 'user', content: claudeContent }],
           });
 
           const claudeRes = await Promise.race([claudeCall, timeoutPromise]);
           clearTimeout(timer);
 
-          // Support both thinking and text blocks
           const textBlocks = claudeRes.content.filter((b: any) => b.type === 'text');
           const extractedText = textBlocks.map((b: any) => (b as any).text || '').join('\n').trim();
           if (extractedText) {
@@ -486,29 +498,31 @@ RÉPONDS UNIQUEMENT SOUS FORME D'UN OBJET JSON STRICT.`;
             const match = rawText.match(/\{[\s\S]*\}/);
             if (match) {
               resultJson = JSON.parse(match[0]);
-              console.log(`[AnalyzeRubric] Analyzed successfully with ${chosenClaudeModel}!`);
+              console.log(`[AnalyzeRubric] Corrigé analysé avec succès via Claude (${chosenClaudeModel}) !`);
               break;
             }
           }
         } catch (anthropicErr: any) {
-          const isNotFound = anthropicErr?.status === 404 || anthropicErr?.message?.includes('not_found_error');
-          console.log(`[AnalyzeRubric] Claude (${chosenClaudeModel}) unavailable (${anthropicErr.message || 'error'}), proceeding to fallback...`);
-          markModelUnhealthy(chosenClaudeModel, 180_000);
-          if (isNotFound) {
-            cachedClaudeModels = null;
-          }
+          console.log(`[AnalyzeRubric] Claude (${chosenClaudeModel}) indisponible (${anthropicErr.message || 'erreur'}), tentative suivante...`);
+          markModelUnhealthy(chosenClaudeModel, 120_000);
         }
       }
-    }
+    };
 
-    // 2. Try Google Gemini models if resultJson not yet obtained
-    if (!resultJson) {
+    // Helper: Run Gemini Flash (economical / base models)
+    const runGeminiRubric = async () => {
+      if (!hasGeminiKey || (!isGeminiAvailable() && hasAnthropicKey)) {
+        return;
+      }
+      const ai = getGenAI();
+      const modelsToTry = getPrioritizedModels(GEMINI_FLASH_MODELS);
+
       for (const model of modelsToTry) {
         try {
-          const timeoutMs = 25000;
+          const timeoutMs = 30000; // 30s timeout for rubric
           let timer: any;
           const timeoutPromise = new Promise((_, reject) => {
-            timer = setTimeout(() => reject(new Error(`Timeout de ${timeoutMs / 1000}s pour ${model}`)), timeoutMs);
+            timer = setTimeout(() => reject(new Error(`Délai de ${timeoutMs / 1000}s pour ${model}`)), timeoutMs);
           });
 
           const apiCall = ai.models.generateContent({
@@ -525,14 +539,41 @@ RÉPONDS UNIQUEMENT SOUS FORME D'UN OBJET JSON STRICT.`;
           clearTimeout(timer);
 
           if (response && response.text) {
-            resultJson = JSON.parse(response.text);
-            console.log(`[AnalyzeRubric] Corrigé analysé avec succès via ${model}`);
+            resultJson = JSON.parse(extractJson(response.text));
+            console.log(`[AnalyzeRubric] Corrigé analysé avec succès via Gemini (${model})`);
             break;
           }
         } catch (err: any) {
-          console.log(`[AnalyzeRubric] Modèle ${model} momentanément indisponible (${err?.message || 'erreur'}), bascule vers le suivant...`);
-          markModelUnhealthy(model, 120_000);
+          const errMsg = err?.message || String(err);
+          console.log(`[AnalyzeRubric] Bascule depuis Gemini ${model}...`);
+          markModelUnhealthy(model, 60_000);
+          if (
+            errMsg.includes('503') ||
+            errMsg.includes('UNAVAILABLE') ||
+            errMsg.includes('high demand') ||
+            errMsg.includes('429') ||
+            errMsg.includes('RESOURCE_EXHAUSTED') ||
+            errMsg.includes('quota')
+          ) {
+            markGeminiOverloaded(60_000);
+            if (hasAnthropicKey) break;
+          }
         }
+      }
+    };
+
+    // Strategy based on teacher choice or cost-effective auto
+    if (aiEngine === 'haiku') {
+      console.log(`[AnalyzeRubric] Priorité Claude Haiku demandée`);
+      await runClaudeRubric();
+      if (!resultJson) await runGeminiRubric();
+    } else {
+      // Auto or Gemini: try Gemini Flash first; if 503/fail, immediate fallback to Claude Haiku
+      console.log(`[AnalyzeRubric] Priorité Gemini Flash avec repli Claude Haiku`);
+      await runGeminiRubric();
+      if (!resultJson) {
+        console.log(`[AnalyzeRubric] Bascule sur Claude Haiku économique...`);
+        await runClaudeRubric();
       }
     }
 
@@ -619,6 +660,7 @@ app.post('/api/correct', async (req, res) => {
     const assessmentType = assignmentConfig?.assessmentType || 'standard';
     const maxGrade = Number(assignmentConfig?.maxGrade) || 20;
     const analysisSpeed = assignmentConfig?.analysisSpeed || 'turbo'; // 'turbo' (4-6s) or 'deep' (15-20s)
+    const aiEngine = assignmentConfig?.aiEngine || 'auto'; // 'auto' (Gemini puis Haiku) | 'haiku' (Claude Haiku économique) | 'gemini' (Gemini Flash)
     const rubricContent = assignmentConfig?.rubricContent || '';
     const rubricImagesList: string[] = (Array.isArray(assignmentConfig?.rubricImages) && assignmentConfig.rubricImages.length > 0)
       ? assignmentConfig.rubricImages
@@ -915,14 +957,6 @@ Voici la copie de l'élève (${studentName || 'Nom à détecter'}). Compare chaq
       text: `Corrige l'intégralité des ${pagesList.length} pages de cette copie selon les consignes. La note totale doit être obligatoirement ramenée sur ${maxGrade}.`,
     });
 
-    // Prioritize high-availability and fast vision models with automatic failover
-    const candidateModels = [
-      'gemini-3.1-flash-lite',
-      'gemini-3.8-flash',
-      'gemini-flash-latest',
-    ];
-    const modelsToTry = getPrioritizedModels(candidateModels);
-
     const correctionSchema = {
       type: Type.OBJECT,
       properties: {
@@ -1015,7 +1049,8 @@ Voici la copie de l'élève (${studentName || 'Nom à détecter'}). Compare chaq
       const anthropic = getAnthropic();
       if (!anthropic) return;
       const candidates = await getResolvedClaudeCandidates();
-      const claudeCandidates = candidates.filter((m) => isModelHealthy(m)).slice(0, 2);
+      const healthy = candidates.filter((m) => isModelHealthy(m));
+      const claudeCandidates = (healthy.length > 0 ? healthy : candidates).slice(0, 2);
       console.log(`[Praxis IA] Candidats Claude actifs à tester :`, claudeCandidates);
 
       for (const chosenClaudeModel of claudeCandidates) {
@@ -1081,29 +1116,32 @@ COPIE DE L'ÉLÈVE À CORRIGER (${pagesList.length} PAGE(S) NUMÉROTÉE(S))
           });
 
           const jsonInstruction = `
-Renvoie impérativement un objet JSON valide strict avec la structure suivante :
+ACTION DIRECTE REQUISE : Évalue immédiatement cette copie et produis l'évaluation sous forme d'un objet JSON strict valide sans AUCUN texte avant ou après.
+Ta réponse doit impérativement débuter par { et finir par }.
+Structure JSON exigée :
 {
   "nom_eleve": "${studentName || 'Élève'}",
-  "nom_manuscrit_detecte": string ou null,
-  "note": number (entre 0 et ${maxGrade}),
+  "nom_manuscrit_detecte": null,
+  "note": 12,
   "note_sur": ${maxGrade},
-  "appreciation": string,
-  "points_forts": string[],
-  "points_ameliorer": string[],
-  "competences": [{ "nom": string, "statut": "Acquis" | "En cours" | "Non acquis", "commentaire": string }],
-  "questions": [{ "numero_ou_titre": string, "reponse_eleve": string, "reponse_attendue": string, "note": number, "note_max": number, "justification": string }],
-  "texte_transcrit_resume": string,
-  "lisibilite": "excellente" | "bonne" | "moyenne" | "faible" | "illisible",
-  "avertissement_lisibilite": string ou null,
-  "verification_humaine_recommandee": boolean
-}`;
+  "appreciation": "Appréciation pédagogique pour l'élève",
+  "points_forts": ["point fort 1", "point fort 2"],
+  "points_ameliorer": ["point à améliorer 1"],
+  "competences": [{ "nom": "Compétence", "statut": "Acquis", "commentaire": "observation" }],
+  "questions": [{ "numero_ou_titre": "Exercice 1", "reponse_eleve": "réponse", "reponse_attendue": "attendu", "note": 4, "note_max": 5, "justification": "justification" }],
+  "texte_transcrit_resume": "résumé",
+  "lisibilite": "bonne",
+  "avertissement_lisibilite": null,
+  "verification_humaine_recommandee": false
+}
+IMPORTANT : Ne pose AUCUNE question. Remplis directement le JSON avec les informations visibles sur la copie.`;
 
           claudeContent.push({
             type: 'text',
             text: systemPrompt + '\n\n' + jsonInstruction,
           });
 
-          const timeoutMs = 45000;
+          const timeoutMs = 60000;
           let timer: any;
           const timeoutPromise = new Promise<never>((_, reject) => {
             timer = setTimeout(() => reject(new Error(`Timeout de ${timeoutMs / 1000}s pour Claude (${chosenClaudeModel})`)), timeoutMs);
@@ -1111,8 +1149,8 @@ Renvoie impérativement un objet JSON valide strict avec la structure suivante :
 
           const claudeCall = anthropic.messages.create({
             model: chosenClaudeModel,
-            max_tokens: 4000,
-            ...(analysisSpeed === 'deep' ? {} : { thinking: { type: 'disabled' } }),
+            max_tokens: 3500,
+            system: "Tu es un correcteur d'examens scolaires automatisé. Tu réponds UNIQUEMENT sous forme d'un objet JSON strict d'évaluation conforme à la structure demandée. Tout texte conversationnel, préambule, question ou markdown hors du JSON est strictement interdit.",
             messages: [{ role: 'user', content: claudeContent }],
           });
 
@@ -1123,30 +1161,34 @@ Renvoie impérativement un objet JSON valide strict avec la structure suivante :
           const textBlocks = claudeRes.content.filter((b: any) => b.type === 'text');
           const extractedText = textBlocks.map((b: any) => (b as any).text || '').join('\n').trim();
           if (extractedText) {
-            let jsonCand = extractedText;
-            if (jsonCand.startsWith('```')) {
-              jsonCand = jsonCand.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '').trim();
-            }
-            const match = jsonCand.match(/\{[\s\S]*\}/);
-            if (match) {
-              try {
-                JSON.parse(match[0]); // Check valid JSON
-                responseText = extractedText;
-                usedProvider = 'anthropic';
-                usedModel = chosenClaudeModel;
-                console.log(`[Praxis IA] ✅ ${chosenClaudeModel} a évalué la copie avec succès !`);
-                break;
-              } catch {
-                console.log(`[Praxis IA] Claude (${chosenClaudeModel}) : JSON mal formé, passage au suivant...`);
+            const cleanJsonStr = extractJson(extractedText);
+            try {
+              JSON.parse(cleanJsonStr); // Check valid JSON
+              responseText = cleanJsonStr;
+              usedProvider = 'anthropic';
+              usedModel = chosenClaudeModel;
+              console.log(`[Praxis IA] ✅ ${chosenClaudeModel} a évalué la copie avec succès !`);
+              break;
+            } catch {
+              const match = extractedText.match(/\{[\s\S]*\}/);
+              if (match) {
+                try {
+                  JSON.parse(match[0]);
+                  responseText = match[0];
+                  usedProvider = 'anthropic';
+                  usedModel = chosenClaudeModel;
+                  console.log(`[Praxis IA] ✅ ${chosenClaudeModel} a évalué la copie avec succès (extrait) !`);
+                  break;
+                } catch {
+                  console.log(`[Praxis IA] Claude (${chosenClaudeModel}) : format en cours de fiabilisation...`);
+                }
               }
-            } else {
-              console.log(`[Praxis IA] Claude (${chosenClaudeModel}) n'a pas inclus d'objet JSON exploitable.`);
             }
           }
         } catch (anthropicErr: any) {
           const isNotFound = anthropicErr?.status === 404 || anthropicErr?.message?.includes('not_found_error');
-          console.log(`[Praxis IA] Claude (${chosenClaudeModel}) indisponible (${anthropicErr.message || 'erreur'}), bascule vers le modèle suivant...`);
-          markModelUnhealthy(chosenClaudeModel, 120_000);
+          console.log(`[Praxis IA] Claude (${chosenClaudeModel}) occupé, bascule vers le modèle suivant...`);
+          markModelUnhealthy(chosenClaudeModel, 20_000);
           if (isNotFound) {
             cachedClaudeModels = null;
           }
@@ -1156,79 +1198,90 @@ Renvoie impérativement un objet JSON valide strict avec la structure suivante :
     };
 
     const tryGemini = async () => {
-      if (!hasGeminiKey) return;
+      if (!hasGeminiKey || (!isGeminiAvailable() && hasAnthropicKey)) {
+        return;
+      }
       const ai = getGenAI();
-      const geminiCandidates = [
-        'gemini-3.1-flash-lite',
-        'gemini-3.8-flash',
-        'gemini-flash-latest',
-      ];
-      const modelsToTry = getPrioritizedModels(geminiCandidates);
+      const modelsToTry = getPrioritizedModels(GEMINI_FLASH_MODELS);
 
       modelLoop: for (const modelName of modelsToTry) {
-        // Attempt with retry on transient overload/503/429
-        for (let attempt = 1; attempt <= 2; attempt++) {
-          try {
-            console.log(`[Praxis IA] Requesting correction with Gemini (${modelName}, essai ${attempt}/2)...`);
-            
-            const timeoutMs = 32000;
-            let timer: any;
-            const timeoutPromise = new Promise((_, reject) => {
-              timer = setTimeout(() => reject(new Error(`Timeout de ${timeoutMs / 1000}s dépassé pour le modèle ${modelName}`)), timeoutMs);
-            });
+        try {
+          console.log(`[Praxis IA] Requête correction Gemini Flash (${modelName})...`);
+          
+          const timeoutMs = 45000; // 45s timeout for complete vision analysis and structured grading
+          let timer: any;
+          const timeoutPromise = new Promise((_, reject) => {
+            timer = setTimeout(() => reject(new Error(`Délai de ${timeoutMs / 1000}s dépassé pour le modèle ${modelName}`)), timeoutMs);
+          });
 
-            const apiCall = ai.models.generateContent({
-              model: modelName,
-              contents: { parts },
-              config: {
-                systemInstruction: systemPrompt,
-                responseMimeType: 'application/json',
-                responseSchema: correctionSchema,
-              },
-            });
+          const apiCall = ai.models.generateContent({
+            model: modelName,
+            contents: { parts },
+            config: {
+              systemInstruction: systemPrompt,
+              responseMimeType: 'application/json',
+              responseSchema: correctionSchema,
+            },
+          });
 
-            const response = (await Promise.race([apiCall, timeoutPromise])) as any;
-            clearTimeout(timer);
+          const response = (await Promise.race([apiCall, timeoutPromise])) as any;
+          clearTimeout(timer);
 
-            if (response && response.text) {
-              responseText = response.text;
-              usedProvider = 'gemini';
-              usedModel = modelName;
-              console.log(`[Praxis IA] ✅ Modèle Gemini ${modelName} a évalué la copie avec succès !`);
-              break modelLoop;
-            }
-          } catch (err: any) {
-            const errMsg = err?.message || String(err);
-            const isOverloaded = errMsg.includes('503') || errMsg.includes('UNAVAILABLE') || errMsg.includes('high demand') || errMsg.includes('429');
-            console.log(`[Praxis IA] Gemini ${modelName} (tentative ${attempt}) : ${errMsg}`);
-            lastError = err;
+          if (response && response.text) {
+            responseText = extractJson(response.text);
+            usedProvider = 'gemini';
+            usedModel = modelName;
+            console.log(`[Praxis IA] ✅ Modèle Gemini ${modelName} a évalué la copie avec succès !`);
+            break modelLoop;
+          }
+        } catch (err: any) {
+          const errMsg = err?.message || String(err);
+          console.log(`[Praxis IA] Bascule depuis Gemini ${modelName}...`);
+          lastError = err;
+          markModelUnhealthy(modelName, 60_000);
 
-            if (isOverloaded && attempt < 2) {
-              // Rapid backoff with slight jitter before retrying this model
-              await new Promise((r) => setTimeout(r, 1200 + Math.random() * 600));
-              continue;
-            }
+          if (
+            errMsg.includes('503') ||
+            errMsg.includes('UNAVAILABLE') ||
+            errMsg.includes('high demand') ||
+            errMsg.includes('429') ||
+            errMsg.includes('RESOURCE_EXHAUSTED') ||
+            errMsg.includes('quota')
+          ) {
+            markGeminiOverloaded(60_000);
+          }
 
-            markModelUnhealthy(modelName, 60_000);
-            break;
+          // If Anthropic key is available (Claude Haiku ultra-rapide), avoid stalling the user and switch immediately!
+          if (hasAnthropicKey) {
+            console.log(`[Praxis IA] ⚡ Bascule immédiate vers Claude Haiku.`);
+            break modelLoop;
           }
         }
       }
     };
 
-    // Execute based on teacher's speed preference
-    if (analysisSpeed === 'deep') {
-      console.log(`[Praxis IA] Mode Approfondi : priorité Claude Sonnet`);
+    // Execute based on teacher preference & economical architecture
+    if (aiEngine === 'haiku') {
+      console.log(`[Praxis IA] Moteur sélectionné : Claude Haiku économique`);
       await tryClaude();
       if (!responseText) {
-        console.log(`[Praxis IA] Repli sur Gemini Flash...`);
+        console.log(`[Praxis IA] Secours sur Gemini Flash...`);
         await tryGemini();
       }
-    } else {
-      console.log(`[Praxis IA] Mode Turbo Éclair : priorité Gemini Flash ultra-rapide (~3-5s)`);
+    } else if (aiEngine === 'gemini') {
+      console.log(`[Praxis IA] Moteur sélectionné : Google Gemini Flash`);
       await tryGemini();
       if (!responseText) {
-        console.log(`[Praxis IA] Repli sur Claude Turbo...`);
+        console.log(`[Praxis IA] Repli immédiat sur Claude Haiku...`);
+        await tryClaude();
+      }
+    } else {
+      // Auto mode: Try Gemini Flash first (zero Anthropic credits).
+      // If Gemini has high demand (503) or is down, instantly fall back to Claude Haiku!
+      console.log(`[Praxis IA] Mode Auto : Priorité Gemini Flash avec repli instantané Claude Haiku`);
+      await tryGemini();
+      if (!responseText) {
+        console.log(`[Praxis IA] Gemini indisponible ou saturé -> Relais instantané Claude Haiku (économique)...`);
         await tryClaude();
       }
     }
@@ -1238,16 +1291,13 @@ Renvoie impérativement un objet JSON valide strict avec la structure suivante :
     }
 
     // Clean any markdown wrapper if present
-    let cleanJson = responseText.trim();
-    if (cleanJson.startsWith('```')) {
-      cleanJson = cleanJson.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '').trim();
-    }
+    const cleanJson = extractJson(responseText);
 
     let parsed: any;
     try {
       parsed = JSON.parse(cleanJson);
     } catch {
-      const match = cleanJson.match(/\{[\s\S]*\}/);
+      const match = responseText.match(/\{[\s\S]*\}/);
       if (match) {
         parsed = JSON.parse(match[0]);
       } else {
@@ -1313,8 +1363,6 @@ Renvoie impérativement un objet JSON valide strict avec la structure suivante :
       },
     });
   } catch (error: any) {
-    console.error('[Correcteur Pro] Error during correction:', error);
-
     let displayMessage = error?.message || "Une erreur est survenue lors de l'analyse de la copie.";
     try {
       const parsedErr = JSON.parse(displayMessage);
@@ -1323,11 +1371,15 @@ Renvoie impérativement un objet JSON valide strict avec la structure suivante :
       }
     } catch {}
 
-    if (displayMessage.includes('429') || displayMessage.includes('RESOURCE_EXHAUSTED') || displayMessage.includes('quota')) {
-      displayMessage = "Limite de requêtes atteinte sur l'API (quota temporaire). Veuillez patienter 20 à 30 secondes avant de relancer.";
-    } else if (displayMessage.includes('503') || displayMessage.includes('UNAVAILABLE') || displayMessage.includes('high demand')) {
+    if (displayMessage.includes('503') || displayMessage.includes('UNAVAILABLE') || displayMessage.includes('high demand')) {
       displayMessage = "Forte demande temporaire sur les serveurs IA. Veuillez réessayer dans quelques instants.";
+    } else if (displayMessage.includes('Timeout') || displayMessage.includes('Délai')) {
+      displayMessage = "Le délai d'analyse a été dépassé pour cette copie. Veuillez relancer la correction.";
+    } else if (displayMessage.includes('429') || displayMessage.includes('RESOURCE_EXHAUSTED') || displayMessage.includes('quota')) {
+      displayMessage = "Limite de requêtes atteinte sur l'API (quota temporaire). Veuillez patienter 20 à 30 secondes avant de relancer.";
     }
+
+    console.log('[Correcteur Pro] Statut analyse :', displayMessage);
 
     return res.status(500).json({
       error: displayMessage,

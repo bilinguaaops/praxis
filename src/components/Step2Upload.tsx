@@ -1,4 +1,4 @@
-import React, { useState, useRef, useMemo } from 'react';
+import React, { useState, useRef, useMemo, useEffect } from 'react';
 import { StudentSubmission, AssignmentConfig, ClassGroup } from '../types';
 import { convertPdfToImages, extractStudentNameFromFileName, compressImageFile } from '../lib/pdfUtils';
 import {
@@ -24,6 +24,11 @@ import {
   Download,
   Check,
   Camera,
+  Layers,
+  Split,
+  Combine,
+  Smartphone,
+  Scissors,
 } from 'lucide-react';
 
 interface Step2UploadProps {
@@ -58,6 +63,49 @@ export const Step2Upload: React.FC<Step2UploadProps> = ({
   const [showClearConfirm, setShowClearConfirm] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const cameraInputRef = useRef<HTMLInputElement>(null);
+  const guidedCameraInputRef = useRef<HTMLInputElement>(null);
+
+  // Multi-page photo grouping settings
+  const [pagesPerCopy, setPagesPerCopy] = useState<number>(() => {
+    return config?.pagesPerCopy && config.pagesPerCopy >= 1 ? config.pagesPerCopy : 1;
+  });
+  const [showCustomPagesInput, setShowCustomPagesInput] = useState(false);
+  const [customPagesVal, setCustomPagesVal] = useState<string>('3');
+
+  // Batch grouping modal state
+  const [showBatchGroupModal, setShowBatchGroupModal] = useState(false);
+  const [batchGroupCount, setBatchGroupCount] = useState<number>(3);
+
+  // Guided camera scanner modal state
+  const [isGuidedScannerOpen, setIsGuidedScannerOpen] = useState(false);
+  const [guidedStudents, setGuidedStudents] = useState<{ name: string; pages: string[] }[]>([]);
+  const [currentDraftName, setCurrentDraftName] = useState<string>('');
+  const [currentDraftPages, setCurrentDraftPages] = useState<string[]>([]);
+  const [guidedTargetPages, setGuidedTargetPages] = useState<number>(3);
+  const [isGuidedProcessing, setIsGuidedProcessing] = useState(false);
+
+  // User notification toast
+  const [statusToast, setStatusToast] = useState<{ text: string; type: 'success' | 'info' } | null>(null);
+
+  const showToast = (text: string, type: 'success' | 'info' = 'success') => {
+    setStatusToast({ text, type });
+  };
+
+  useEffect(() => {
+    if (statusToast) {
+      const timer = setTimeout(() => setStatusToast(null), 4000);
+      return () => clearTimeout(timer);
+    }
+  }, [statusToast]);
+
+  // Sync pagesPerCopy to config if changed
+  const updatePagesPerCopy = (val: number) => {
+    const validVal = Math.max(1, Math.min(20, val));
+    setPagesPerCopy(validVal);
+    if (config && onConfigChange) {
+      onConfigChange({ ...config, pagesPerCopy: validVal });
+    }
+  };
 
   // All known students from classes for datalist
   const allClassStudents = useMemo(() => {
@@ -70,64 +118,342 @@ export const Step2Upload: React.FC<Step2UploadProps> = ({
     return list;
   }, [classes]);
 
+  // Total pages across all submissions
+  const totalAllPagesCount = useMemo(() => {
+    return submissions.reduce((sum, s) => {
+      const p = s.allPages && s.allPages.length > 0 ? s.allPages.length : 1;
+      return sum + p;
+    }, 0);
+  }, [submissions]);
+
   const handleFiles = async (files: FileList | null) => {
     if (!files || files.length === 0) return;
 
-    const newItems: StudentSubmission[] = [];
+    // Separate PDFs from Images
+    const pdfFiles: File[] = [];
+    const imageFiles: File[] = [];
 
     for (let i = 0; i < files.length; i++) {
       const file = files[i];
-
-      // Handle PDF (Each PDF file represents 1 student, with 1 or multiple pages)
       if (file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf')) {
-        setIsProcessingPdf(true);
-        setPdfProgressText(`Extraction des pages du document PDF "${file.name}" en cours...`);
-        try {
-          const pages = await convertPdfToImages(file);
-          if (pages.length > 0) {
-            const studentName = extractStudentNameFromFileName(file.name, submissions.length + newItems.length + 1);
-            const pageUrls = pages.map((p) => p.dataUrl);
+        pdfFiles.push(file);
+      } else if (file.type.startsWith('image/')) {
+        imageFiles.push(file);
+      }
+    }
 
+    const newItems: StudentSubmission[] = [];
+
+    // 1. Process PDFs (Each PDF represents 1 student with 1 or multiple pages)
+    for (let i = 0; i < pdfFiles.length; i++) {
+      const file = pdfFiles[i];
+      setIsProcessingPdf(true);
+      setPdfProgressText(`Extraction des pages du document PDF "${file.name}" en cours...`);
+      try {
+        const pages = await convertPdfToImages(file);
+        if (pages.length > 0) {
+          const studentName = extractStudentNameFromFileName(file.name, submissions.length + newItems.length + 1);
+          const pageUrls = pages.map((p) => p.dataUrl);
+
+          newItems.push({
+            id: 'sub-' + Date.now() + '-' + Math.random().toString(36).substring(2, 7) + '-' + i,
+            studentName,
+            fileName: file.name,
+            pageCount: pages.length,
+            imageDataUrl: pageUrls[0],
+            allPages: pageUrls,
+            rotation: 0,
+            status: 'pending',
+          });
+        }
+      } catch (err: any) {
+        console.error('Failed to parse PDF:', err);
+        alert('Impossible de lire le document PDF. Vérifiez qu’il n’est pas protégé par mot de passe.');
+      } finally {
+        setIsProcessingPdf(false);
+        setPdfProgressText('');
+      }
+    }
+
+    // 2. Process Images (JPG, PNG, WebP) with multi-page grouping support!
+    if (imageFiles.length > 0) {
+      setIsProcessingPdf(true);
+      setPdfProgressText(`Compression et analyse de ${imageFiles.length} photo(s)...`);
+      const compressedImages: { name: string; url: string }[] = [];
+
+      for (const imgFile of imageFiles) {
+        try {
+          const url = await compressImageFile(imgFile);
+          if (url) compressedImages.push({ name: imgFile.name, url });
+        } catch (e) {
+          console.error('Erreur compression image:', e);
+        }
+      }
+      setIsProcessingPdf(false);
+      setPdfProgressText('');
+
+      if (compressedImages.length > 0) {
+        if (pagesPerCopy <= 1) {
+          // Standard: 1 image = 1 student copy
+          compressedImages.forEach((item, idx) => {
+            const studentName = extractStudentNameFromFileName(item.name, submissions.length + newItems.length + 1);
             newItems.push({
-              id: 'sub-' + Date.now() + '-' + Math.random().toString(36).substring(2, 7) + '-' + i,
+              id: 'sub-' + Date.now() + '-' + Math.random().toString(36).substring(2, 7) + '-' + idx,
               studentName,
-              fileName: file.name,
-              pageCount: pages.length,
-              imageDataUrl: pageUrls[0],
-              allPages: pageUrls,
+              fileName: item.name,
+              pageCount: 1,
+              imageDataUrl: item.url,
+              allPages: [item.url],
               rotation: 0,
               status: 'pending',
             });
-          }
-        } catch (err: any) {
-          console.error('Failed to parse PDF:', err);
-          alert('Impossible de lire le document PDF. Vérifiez qu’il n’est pas protégé par mot de passe.');
-        } finally {
-          setIsProcessingPdf(false);
-          setPdfProgressText('');
-        }
-      }
-      // Handle Images (JPG, PNG, WebP)
-      else if (file.type.startsWith('image/')) {
-        const studentName = extractStudentNameFromFileName(file.name, submissions.length + newItems.length + 1);
-        const imageDataUrl = await compressImageFile(file);
+          });
+          showToast(`${compressedImages.length} photo(s) ajoutée(s) comme copie(s) individuelle(s).`);
+        } else {
+          // MULTI-PAGE MODE: Group images by bundles of pagesPerCopy!
+          let currentSubs = [...submissions, ...newItems];
+          let imgIdx = 0;
 
-        newItems.push({
-          id: 'sub-' + Date.now() + '-' + Math.random().toString(36).substring(2, 7) + '-' + i,
-          studentName,
-          fileName: file.name,
-          pageCount: 1,
-          imageDataUrl,
-          allPages: [imageDataUrl],
-          rotation: 0,
-          status: 'pending',
-        });
+          // Check if last existing submission was incomplete (< pagesPerCopy)
+          const lastSub = currentSubs.length > 0 ? currentSubs[currentSubs.length - 1] : null;
+          const lastPages = lastSub?.allPages || (lastSub?.imageDataUrl ? [lastSub.imageDataUrl] : []);
+
+          if (lastSub && lastPages.length < pagesPerCopy) {
+            const needed = pagesPerCopy - lastPages.length;
+            const toAdd = compressedImages.slice(0, needed).map((c) => c.url);
+            const updatedAll = [...lastPages, ...toAdd];
+            currentSubs[currentSubs.length - 1] = {
+              ...lastSub,
+              allPages: updatedAll,
+              pageCount: updatedAll.length,
+            };
+            imgIdx += toAdd.length;
+          }
+
+          // Chunk remaining into groups of pagesPerCopy
+          let createdCount = 0;
+          while (imgIdx < compressedImages.length) {
+            const chunk = compressedImages.slice(imgIdx, imgIdx + pagesPerCopy);
+            const chunkUrls = chunk.map((c) => c.url);
+            const studentIdx = currentSubs.length;
+            const studentName = allClassStudents[studentIdx] || extractStudentNameFromFileName(chunk[0].name, studentIdx + 1);
+
+            currentSubs.push({
+              id: 'sub-' + Date.now() + '-' + Math.random().toString(36).substring(2, 7) + '-' + imgIdx,
+              studentName,
+              fileName: chunk.length > 1 ? `${chunk[0].name} (+${chunk.length - 1} pages)` : chunk[0].name,
+              pageCount: chunkUrls.length,
+              imageDataUrl: chunkUrls[0],
+              allPages: chunkUrls,
+              rotation: 0,
+              status: 'pending',
+            });
+            createdCount++;
+            imgIdx += pagesPerCopy;
+          }
+
+          onSubmissionsChange(currentSubs);
+          showToast(`📸 ${compressedImages.length} photos assemblées en copies de ${pagesPerCopy} pages !`);
+          return;
+        }
       }
     }
 
     if (newItems.length > 0) {
       onSubmissionsChange([...submissions, ...newItems]);
     }
+  };
+
+  // Batch group existing submissions into bundles of N pages
+  const handleBatchGroupSubmissions = (groupSize: number) => {
+    if (submissions.length === 0 || groupSize < 1) return;
+
+    // Collect all pages in order
+    const allPagesOrdered: string[] = [];
+    submissions.forEach((sub) => {
+      const p = sub.allPages && sub.allPages.length > 0 ? sub.allPages : [sub.imageDataUrl];
+      allPagesOrdered.push(...p);
+    });
+
+    if (groupSize === 1) {
+      // Explode into single page copies
+      const exploded: StudentSubmission[] = allPagesOrdered.map((pageUrl, idx) => ({
+        id: 'sub-exp-' + Date.now() + '-' + idx,
+        studentName: allClassStudents[idx] || `Élève ${idx + 1}`,
+        fileName: `Page_${idx + 1}.jpg`,
+        pageCount: 1,
+        imageDataUrl: pageUrl,
+        allPages: [pageUrl],
+        rotation: 0,
+        status: 'pending',
+      }));
+      onSubmissionsChange(exploded);
+      setShowBatchGroupModal(false);
+      showToast(`✓ Toutes les pages ont été dégroupées (${exploded.length} copies de 1 page).`);
+      return;
+    }
+
+    // Chunk into bundles of groupSize
+    const newGrouped: StudentSubmission[] = [];
+    for (let i = 0; i < allPagesOrdered.length; i += groupSize) {
+      const chunk = allPagesOrdered.slice(i, i + groupSize);
+      const studentIdx = Math.floor(i / groupSize);
+      const studentName = allClassStudents[studentIdx] || submissions[studentIdx]?.studentName || `Élève ${studentIdx + 1}`;
+      newGrouped.push({
+        id: 'sub-grp-' + Date.now() + '-' + studentIdx,
+        studentName,
+        fileName: `Copie_${studentIdx + 1} (${chunk.length} pages)`,
+        pageCount: chunk.length,
+        imageDataUrl: chunk[0],
+        allPages: chunk,
+        rotation: 0,
+        status: 'pending',
+      });
+    }
+
+    onSubmissionsChange(newGrouped);
+    setShowBatchGroupModal(false);
+    updatePagesPerCopy(groupSize);
+    showToast(`✓ Regroupement appliqué : ${newGrouped.length} copies de ${groupSize} pages créées.`);
+  };
+
+  // Merge student card at index with student card at index + 1
+  const handleMergeWithNext = (idx: number) => {
+    if (idx < 0 || idx >= submissions.length - 1) return;
+    const cur = submissions[idx];
+    const nxt = submissions[idx + 1];
+
+    const curPages = cur.allPages && cur.allPages.length > 0 ? cur.allPages : [cur.imageDataUrl];
+    const nxtPages = nxt.allPages && nxt.allPages.length > 0 ? nxt.allPages : [nxt.imageDataUrl];
+    const combined = [...curPages, ...nxtPages];
+
+    const updatedCurrent: StudentSubmission = {
+      ...cur,
+      allPages: combined,
+      pageCount: combined.length,
+    };
+
+    const newSubs = [...submissions];
+    newSubs.splice(idx, 2, updatedCurrent);
+    onSubmissionsChange(newSubs);
+    showToast(`✓ Copies fusionnées : ${cur.studentName} comprend maintenant ${combined.length} pages.`);
+  };
+
+  // Detach a single page from a multi-page submission into its own copy
+  const handleDetachPage = (subId: string, pageIdx: number) => {
+    const subIndex = submissions.findIndex((s) => s.id === subId);
+    if (subIndex === -1) return;
+    const sub = submissions[subIndex];
+    const pages = sub.allPages && sub.allPages.length > 0 ? sub.allPages : [sub.imageDataUrl];
+    if (pages.length <= 1) return;
+
+    const detachedUrl = pages[pageIdx];
+    const remaining = pages.filter((_, i) => i !== pageIdx);
+
+    const updatedOrig: StudentSubmission = {
+      ...sub,
+      imageDataUrl: remaining[0],
+      allPages: remaining,
+      pageCount: remaining.length,
+    };
+
+    const newSub: StudentSubmission = {
+      id: 'sub-det-' + Date.now() + '-' + Math.random().toString(36).substring(2, 6),
+      studentName: `Copie détachée (p.${pageIdx + 1})`,
+      fileName: `Page_detachee_${pageIdx + 1}.jpg`,
+      pageCount: 1,
+      imageDataUrl: detachedUrl,
+      allPages: [detachedUrl],
+      rotation: 0,
+      status: 'pending',
+    };
+
+    const newSubs = [...submissions];
+    newSubs.splice(subIndex, 1, updatedOrig, newSub);
+    onSubmissionsChange(newSubs);
+    setActiveCardPages((prev) => ({ ...prev, [subId]: 0 }));
+    showToast(`✓ La page a été détachée en une nouvelle copie distincte.`);
+  };
+
+  // Guided camera scanner functions
+  const openGuidedScanner = () => {
+    const target = pagesPerCopy > 1 ? pagesPerCopy : 3;
+    setGuidedTargetPages(target);
+    setGuidedStudents([]);
+    setCurrentDraftPages([]);
+    const defaultName = allClassStudents[0] || `Élève ${submissions.length + 1}`;
+    setCurrentDraftName(defaultName);
+    setIsGuidedScannerOpen(true);
+  };
+
+  const handleGuidedCameraCapture = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+    setIsGuidedProcessing(true);
+    try {
+      for (let i = 0; i < files.length; i++) {
+        const compressed = await compressImageFile(files[i]);
+        if (compressed) {
+          setCurrentDraftPages((prev) => [...prev, compressed]);
+        }
+      }
+    } catch (err) {
+      console.error('Erreur lors de la capture guidée:', err);
+    } finally {
+      setIsGuidedProcessing(false);
+      e.target.value = '';
+    }
+  };
+
+  const handleGuidedValidateAndNextStudent = () => {
+    if (currentDraftPages.length === 0) {
+      alert('Veuillez prendre au moins une photo pour cet élève.');
+      return;
+    }
+
+    const completed = {
+      name: currentDraftName.trim() || `Élève ${submissions.length + guidedStudents.length + 1}`,
+      pages: [...currentDraftPages],
+    };
+
+    const newGuidedList = [...guidedStudents, completed];
+    setGuidedStudents(newGuidedList);
+
+    // Setup next student
+    const nextIdx = submissions.length + newGuidedList.length;
+    const nextName = allClassStudents[newGuidedList.length] || `Élève ${nextIdx + 1}`;
+    setCurrentDraftName(nextName);
+    setCurrentDraftPages([]);
+  };
+
+  const handleGuidedFinishAndSave = () => {
+    const finalDrafts = [...guidedStudents];
+    if (currentDraftPages.length > 0) {
+      finalDrafts.push({
+        name: currentDraftName.trim() || `Élève ${submissions.length + guidedStudents.length + 1}`,
+        pages: [...currentDraftPages],
+      });
+    }
+
+    if (finalDrafts.length === 0) {
+      setIsGuidedScannerOpen(false);
+      return;
+    }
+
+    const newSubs: StudentSubmission[] = finalDrafts.map((d, idx) => ({
+      id: 'sub-cam-' + Date.now() + '-' + idx,
+      studentName: d.name,
+      fileName: `Scan_Caméra_${d.name.replace(/\s+/g, '_')} (${d.pages.length} pages)`,
+      pageCount: d.pages.length,
+      imageDataUrl: d.pages[0],
+      allPages: d.pages,
+      rotation: 0,
+      status: 'pending',
+    }));
+
+    onSubmissionsChange([...submissions, ...newSubs]);
+    setIsGuidedScannerOpen(false);
+    showToast(`📸 ${newSubs.length} copie(s) numérisée(s) (${newSubs.reduce((s, c) => s + (c.allPages?.length || 1), 0)} pages au total) !`);
   };
 
   const handlePagePrev = (subId: string, totalPages: number) => {
@@ -225,6 +551,8 @@ export const Step2Upload: React.FC<Step2UploadProps> = ({
               : s
           )
         );
+        setActiveCardPages((prev) => ({ ...prev, [subId]: updatedAll.length - 1 }));
+        showToast(`✓ Page ajoutée à la copie de ${sub.studentName} (${updatedAll.length} pages).`);
       }
     } catch (err) {
       console.error("Erreur lors de l'ajout de page:", err);
@@ -267,7 +595,28 @@ export const Step2Upload: React.FC<Step2UploadProps> = ({
   };
 
   return (
-    <div className="max-w-6xl mx-auto space-y-6 pb-24 sm:pb-12">
+    <div className="max-w-6xl mx-auto space-y-6 pb-24 sm:pb-12 relative">
+      {/* Toast Notification for quick actions */}
+      {statusToast && (
+        <div className="fixed top-4 left-1/2 -translate-x-1/2 z-50 animate-in fade-in slide-in-from-top-3 duration-200">
+          <div className="flex items-center gap-2 px-4 py-2.5 rounded-full bg-slate-900/95 text-white shadow-xl text-xs font-bold border border-slate-700 backdrop-blur-md">
+            <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+            <span>{statusToast.text}</span>
+          </div>
+        </div>
+      )}
+
+      {/* Hidden input for guided scanner camera capture */}
+      <input
+        ref={guidedCameraInputRef}
+        type="file"
+        accept="image/*"
+        capture="environment"
+        multiple
+        className="hidden"
+        onChange={handleGuidedCameraCapture}
+      />
+
       {/* Title banner */}
       <div className="bg-white rounded-xl border border-slate-200 shadow-xs p-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
@@ -275,11 +624,16 @@ export const Step2Upload: React.FC<Step2UploadProps> = ({
             <Users className="w-3.5 h-3.5" />
             Étape 2 sur 4 : Dépôt des copies
           </div>
-          <h1 className="text-2xl font-extrabold text-slate-900 tracking-tight">
-            Copies de la classe ({submissions.length})
+          <h1 className="text-2xl font-extrabold text-slate-900 tracking-tight flex items-center gap-3 flex-wrap">
+            <span>Copies de la classe ({submissions.length})</span>
+            {submissions.length > 0 && totalAllPagesCount > submissions.length && (
+              <span className="text-xs px-2.5 py-1 rounded-full bg-blue-100 text-blue-800 font-bold border border-blue-200">
+                {totalAllPagesCount} pages au total
+              </span>
+            )}
           </h1>
           <p className="text-xs sm:text-sm text-slate-600 mt-1">
-            Déposez les photos individuelles des copies ou un seul fichier PDF contenant toutes les pages scannées.
+            Déposez les photos des copies (1 ou plusieurs pages par élève) ou un document PDF multipages complet.
           </p>
         </div>
 
@@ -369,6 +723,108 @@ export const Step2Upload: React.FC<Step2UploadProps> = ({
         </div>
       )}
 
+      {/* SÉLECTEUR DE FORMAT DES COPIES & REGROUPEMENT MULTI-PAGES */}
+      <div className="bg-gradient-to-r from-blue-50/90 via-indigo-50/60 to-white border border-blue-200/80 rounded-2xl p-4 sm:p-5 shadow-2xs space-y-3">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-xl bg-blue-600 text-white flex items-center justify-center shrink-0 shadow-2xs">
+              <Layers className="w-4 h-4" />
+            </div>
+            <div>
+              <span className="font-extrabold text-slate-900 text-xs sm:text-sm block">
+                Nombre de pages par copie d'élève
+              </span>
+              <p className="text-[11px] text-slate-500">
+                Définissez combien de pages comporte le devoir pour regrouper automatiquement vos photos
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-1.5 flex-wrap">
+            {[1, 2, 3, 4].map((cnt) => (
+              <button
+                key={cnt}
+                type="button"
+                onClick={() => {
+                  updatePagesPerCopy(cnt);
+                  setShowCustomPagesInput(false);
+                  showToast(`Mode configuré : ${cnt} ${cnt === 1 ? 'page' : 'pages'} par copie d'élève.`);
+                }}
+                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer shadow-2xs ${
+                  pagesPerCopy === cnt && !showCustomPagesInput
+                    ? 'bg-blue-600 text-white shadow-blue-500/20'
+                    : 'bg-white border border-slate-200 hover:border-blue-300 text-slate-700 hover:bg-blue-50/50'
+                }`}
+              >
+                {cnt === 1 ? '1 page (recto)' : `${cnt} pages`}
+              </button>
+            ))}
+
+            <button
+              type="button"
+              onClick={() => setShowCustomPagesInput(true)}
+              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer shadow-2xs ${
+                showCustomPagesInput || pagesPerCopy > 4
+                  ? 'bg-blue-600 text-white shadow-blue-500/20'
+                  : 'bg-white border border-slate-200 hover:border-blue-300 text-slate-700 hover:bg-blue-50/50'
+              }`}
+            >
+              {pagesPerCopy > 4 && !showCustomPagesInput ? `${pagesPerCopy} pages` : 'Personnalisé...'}
+            </button>
+          </div>
+        </div>
+
+        {/* Custom pages input if active */}
+        {showCustomPagesInput && (
+          <div className="flex items-center gap-2 pt-2 border-t border-blue-100 animate-in fade-in">
+            <span className="text-xs font-semibold text-slate-700">Nombre de pages par élève :</span>
+            <input
+              type="number"
+              min="1"
+              max="20"
+              value={customPagesVal}
+              onChange={(e) => setCustomPagesVal(e.target.value)}
+              className="w-16 px-2.5 py-1 text-xs font-bold text-center bg-white border border-blue-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-hidden"
+            />
+            <button
+              type="button"
+              onClick={() => {
+                const parsed = parseInt(customPagesVal, 10);
+                if (!isNaN(parsed) && parsed >= 1) {
+                  updatePagesPerCopy(parsed);
+                  setShowCustomPagesInput(false);
+                  showToast(`Mode configuré : ${parsed} pages par copie.`);
+                }
+              }}
+              className="px-3 py-1 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-lg cursor-pointer transition-colors"
+            >
+              Valider
+            </button>
+            <button
+              type="button"
+              onClick={() => setShowCustomPagesInput(false)}
+              className="px-2 py-1 text-slate-500 hover:text-slate-700 text-xs cursor-pointer"
+            >
+              Annuler
+            </button>
+          </div>
+        )}
+
+        {/* Description hint */}
+        <div className="flex items-start gap-2 pt-1 text-[11px] text-slate-600">
+          <CheckCircle2 className="w-3.5 h-3.5 text-blue-600 shrink-0 mt-0.5" />
+          {pagesPerCopy > 1 ? (
+            <span>
+              <strong>Mode multipages actif ({pagesPerCopy} pages par élève) :</strong> Les photos prises avec votre appareil ou sélectionnées en lot dans votre galerie seront automatiquement assemblées par paquets de <strong>{pagesPerCopy} pages par copie</strong> (ex: photos 1 à {pagesPerCopy} pour l'élève 1, les {pagesPerCopy} suivantes pour l'élève 2).
+            </span>
+          ) : (
+            <span>
+              <strong>Mode standard (1 page par copie) :</strong> Chaque photo prise ou sélectionnée constituera une copie d'élève distincte (idéal pour les devoirs recto simple).
+            </span>
+          )}
+        </div>
+      </div>
+
       {/* Drag & Drop Zone */}
       <div
         onDragOver={(e) => {
@@ -407,7 +863,7 @@ export const Step2Upload: React.FC<Step2UploadProps> = ({
           <div className="flex flex-col items-center justify-center py-4 space-y-3">
             <Loader2 className="w-10 h-10 text-blue-600 animate-spin" />
             <p className="font-semibold text-slate-800 text-sm">{pdfProgressText}</p>
-            <p className="text-xs text-slate-500">Découpage automatique page par page...</p>
+            <p className="text-xs text-slate-500">Traitement automatique page par page...</p>
           </div>
         ) : (
           <div className="flex flex-col items-center justify-center space-y-3">
@@ -424,7 +880,7 @@ export const Step2Upload: React.FC<Step2UploadProps> = ({
               </p>
             </div>
 
-            <div className="flex flex-wrap items-center justify-center gap-2 pt-1">
+            <div className="flex flex-wrap items-center justify-center gap-2.5 pt-2">
               <button
                 type="button"
                 onClick={(e) => {
@@ -435,7 +891,20 @@ export const Step2Upload: React.FC<Step2UploadProps> = ({
                 title="Prendre des photos directement avec la caméra de votre smartphone"
               >
                 <Camera className="w-4 h-4 text-blue-600" />
-                <span>Prendre en photo (Smartphone / Tablette)</span>
+                <span>Prendre en photo (Caméra directe)</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  openGuidedScanner();
+                }}
+                className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white rounded-xl text-xs font-bold transition-all shadow-xs cursor-pointer"
+                title="Ouvrir le mode scanner guidé pas-à-pas pour photographier chaque copie page par page"
+              >
+                <Smartphone className="w-4 h-4" />
+                <span>Scanner guidé pas-à-pas ({pagesPerCopy > 1 ? `${pagesPerCopy} pages/copie` : 'multi-pages'})</span>
               </button>
             </div>
 
@@ -444,7 +913,7 @@ export const Step2Upload: React.FC<Step2UploadProps> = ({
                 📄 PDF multipages
               </span>
               <span className="px-2.5 py-1 rounded-md bg-slate-100 border border-slate-200">
-                🖼️ Images individuelles
+                📸 Photos de copies (1 à 4+ pages)
               </span>
               <span className="px-2.5 py-1 rounded-md bg-slate-100 border border-slate-200">
                 ✍️ Écritures manuscrites
@@ -461,13 +930,34 @@ export const Step2Upload: React.FC<Step2UploadProps> = ({
             <div>
               <h2 className="text-sm font-bold text-slate-800 uppercase tracking-wider flex items-center gap-2">
                 <span>Copies prêtes pour la correction ({submissions.length})</span>
+                {totalAllPagesCount > submissions.length && (
+                  <span className="text-xs px-2 py-0.5 rounded-md bg-blue-100 text-blue-800 font-semibold normal-case">
+                    {totalAllPagesCount} pages scannées
+                  </span>
+                )}
               </h2>
               <span className="text-xs text-slate-500">
-                Vous pouvez renommer un élève ou intervertir deux copies directement
+                Vérifiez l'attribution, regroupez les pages ou renommez un élève
               </span>
             </div>
 
             <div className="flex flex-wrap items-center gap-2">
+              {/* Batch grouping tool */}
+              {submissions.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setBatchGroupCount(pagesPerCopy > 1 ? pagesPerCopy : 3);
+                    setShowBatchGroupModal(true);
+                  }}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 rounded-lg text-xs font-bold transition-colors cursor-pointer shadow-2xs"
+                  title="Regrouper automatiquement toutes les photos existantes par paquets de 2, 3 ou 4 pages par copie"
+                >
+                  <Layers className="w-3.5 h-3.5 text-blue-600" />
+                  <span>Regrouper les photos</span>
+                </button>
+              )}
+
               {/* Quick Class Roster Linker */}
               {classes.length > 0 && (
                 <div className="flex items-center gap-2">
@@ -683,28 +1173,83 @@ export const Step2Upload: React.FC<Step2UploadProps> = ({
                   </div>
 
                   {/* Card Body with Name Input */}
-                  <div className="p-3.5 flex-1 flex flex-col justify-between space-y-2">
+                  <div className="p-3.5 flex-1 flex flex-col justify-between space-y-2.5">
                     <div>
-                      <div className="flex items-center justify-between text-[11px] font-bold text-slate-700 mb-1">
+                      <div className="flex items-center justify-between text-[11px] font-bold text-slate-700 mb-1.5 gap-2">
                         <span className="truncate">
                           Copie de {sub.studentName} {totalPages > 1 ? `• ${totalPages} pages` : '• 1 page'}
                         </span>
-                        <label
-                          htmlFor={`add-page-${sub.id}`}
-                          className="inline-flex items-center gap-1 text-blue-600 hover:text-blue-800 text-[10px] font-bold cursor-pointer transition-colors"
-                          title="Ajouter une page supplémentaire à cette copie"
-                        >
-                          <Plus className="w-3 h-3" />
-                          <span>+ Page</span>
-                          <input
-                            type="file"
-                            id={`add-page-${sub.id}`}
-                            accept="image/png,image/jpeg,image/webp,application/pdf"
-                            className="hidden"
-                            onChange={(e) => handleAddPageToStudent(sub.id, e)}
-                          />
-                        </label>
+                        
+                        <div className="flex items-center gap-1.5 shrink-0">
+                          {/* Snap additional photo with camera */}
+                          <label
+                            htmlFor={`camera-page-${sub.id}`}
+                            className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 text-[10px] font-bold cursor-pointer transition-colors"
+                            title="Prendre une photo supplémentaire avec la caméra pour cet élève"
+                          >
+                            <Camera className="w-3 h-3 text-emerald-600" />
+                            <span>+ Photo</span>
+                            <input
+                              type="file"
+                              id={`camera-page-${sub.id}`}
+                              accept="image/*"
+                              capture="environment"
+                              className="hidden"
+                              onChange={(e) => handleAddPageToStudent(sub.id, e)}
+                            />
+                          </label>
+
+                          {/* Add page from file */}
+                          <label
+                            htmlFor={`add-page-${sub.id}`}
+                            className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 text-[10px] font-bold cursor-pointer transition-colors"
+                            title="Ajouter un fichier image ou PDF à cette copie"
+                          >
+                            <Plus className="w-3 h-3 text-blue-600" />
+                            <span>+ Page</span>
+                            <input
+                              type="file"
+                              id={`add-page-${sub.id}`}
+                              accept="image/png,image/jpeg,image/webp,application/pdf"
+                              className="hidden"
+                              onChange={(e) => handleAddPageToStudent(sub.id, e)}
+                            />
+                          </label>
+                        </div>
                       </div>
+
+                      {/* Interactive page selector pills if multi-page */}
+                      {totalPages > 1 && (
+                        <div className="flex items-center gap-1 overflow-x-auto py-1 mb-1.5">
+                          <span className="text-[10px] text-slate-400 font-bold mr-0.5">Pages :</span>
+                          {pages.map((_, pIdx) => (
+                            <button
+                              key={pIdx}
+                              type="button"
+                              onClick={() => setActiveCardPages((prev) => ({ ...prev, [sub.id]: pIdx }))}
+                              className={`px-1.5 py-0.5 rounded text-[10px] font-bold transition-all cursor-pointer ${
+                                activePageIdx === pIdx
+                                  ? 'bg-blue-600 text-white shadow-2xs'
+                                  : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                              }`}
+                            >
+                              p.{pIdx + 1}
+                            </button>
+                          ))}
+
+                          {totalPages > 1 && (
+                            <button
+                              type="button"
+                              onClick={() => handleDetachPage(sub.id, activePageIdx)}
+                              className="ml-auto inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-amber-50 hover:bg-amber-100 text-amber-700 text-[10px] font-bold border border-amber-200 transition-colors cursor-pointer shrink-0"
+                              title={`Détacher la page ${activePageIdx + 1} en une nouvelle copie d'élève distincte`}
+                            >
+                              <Scissors className="w-2.5 h-2.5" />
+                              <span>Détacher p.{activePageIdx + 1}</span>
+                            </button>
+                          )}
+                        </div>
+                      )}
 
                       <div className="relative">
                         <div className="flex items-center gap-1.5">
@@ -736,13 +1281,28 @@ export const Step2Upload: React.FC<Step2UploadProps> = ({
                     </div>
 
                     <div className="flex items-center justify-between text-[11px] text-slate-500 pt-1.5 border-t border-slate-100">
-                      <span className="truncate max-w-[160px]" title={sub.fileName}>
+                      <span className="truncate max-w-[130px]" title={sub.fileName}>
                         {sub.fileName}
                       </span>
-                      <span className="inline-flex items-center gap-1 text-emerald-600 font-medium">
-                        <CheckCircle2 className="w-3 h-3" />
-                        {totalPages > 1 ? `${totalPages} p.` : 'Prête'}
-                      </span>
+
+                      <div className="flex items-center gap-1.5">
+                        {index < submissions.length - 1 && (
+                          <button
+                            type="button"
+                            onClick={() => handleMergeWithNext(index)}
+                            className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-slate-100 hover:bg-indigo-50 text-slate-600 hover:text-indigo-700 border border-slate-200 hover:border-indigo-200 transition-colors cursor-pointer"
+                            title="Fusionner cette copie avec la suivante dans la liste"
+                          >
+                            <Combine className="w-3 h-3 text-indigo-600" />
+                            <span>Fusionner</span>
+                          </button>
+                        )}
+
+                        <span className="inline-flex items-center gap-1 text-emerald-600 font-bold">
+                          <CheckCircle2 className="w-3 h-3" />
+                          {totalPages > 1 ? `${totalPages} p.` : 'Prête'}
+                        </span>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -929,6 +1489,345 @@ export const Step2Upload: React.FC<Step2UploadProps> = ({
                 className="px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold transition-colors cursor-pointer"
               >
                 Fermer
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL 1: BATCH GROUPING TOOL (Regrouper les photos existantes par 2, 3 ou 4 pages) */}
+      {showBatchGroupModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in">
+          <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 max-w-lg w-full p-5 space-y-4 max-h-[90vh] flex flex-col">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100 shrink-0">
+              <div className="flex items-center gap-2.5">
+                <div className="w-10 h-10 rounded-xl bg-blue-100 text-blue-800 flex items-center justify-center shrink-0">
+                  <Layers className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-extrabold text-slate-900 text-base">
+                    Regrouper les photos par copie
+                  </h3>
+                  <p className="text-xs text-slate-500">
+                    Assemble automatiquement les photos existantes en paquets par élève
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowBatchGroupModal(false)}
+                className="p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg cursor-pointer transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-3.5 bg-blue-50/70 border border-blue-100 rounded-xl text-xs text-slate-700 space-y-1">
+              <div className="font-bold text-blue-900 flex items-center gap-1.5">
+                <CheckCircle2 className="w-4 h-4 text-blue-600" />
+                <span>État actuel de vos copies :</span>
+              </div>
+              <p>
+                Vous avez <strong>{totalAllPagesCount} pages / photos</strong> réparties sur <strong>{submissions.length} fiches</strong>.
+              </p>
+              <p className="text-[11px] text-slate-500">
+                Toutes les pages seront conservées dans l'ordre et regroupées par élève.
+              </p>
+            </div>
+
+            <div className="space-y-2">
+              <label className="text-xs font-bold text-slate-800 uppercase tracking-wide block">
+                Combien de pages comporte la copie de chaque élève ?
+              </label>
+
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                {[2, 3, 4, 5].map((num) => {
+                  const estCopies = Math.ceil(totalAllPagesCount / num);
+                  return (
+                    <button
+                      key={num}
+                      type="button"
+                      onClick={() => setBatchGroupCount(num)}
+                      className={`p-3 rounded-xl border text-center transition-all cursor-pointer ${
+                        batchGroupCount === num
+                          ? 'border-blue-600 bg-blue-50/80 text-blue-900 ring-2 ring-blue-500/20 font-bold'
+                          : 'border-slate-200 hover:border-slate-300 bg-white text-slate-700 hover:bg-slate-50 font-medium'
+                      }`}
+                    >
+                      <div className="text-base font-extrabold">{num} pages</div>
+                      <div className="text-[10px] text-slate-500 mt-0.5">
+                        ≈ {estCopies} copies
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Custom or Explode Options */}
+            <div className="pt-2 border-t border-slate-100 space-y-3">
+              <div className="flex items-center justify-between text-xs">
+                <span className="font-medium text-slate-600">Autre nombre de pages :</span>
+                <div className="flex items-center gap-1.5">
+                  <input
+                    type="number"
+                    min="1"
+                    max="20"
+                    value={batchGroupCount}
+                    onChange={(e) => setBatchGroupCount(Math.max(1, parseInt(e.target.value, 10) || 1))}
+                    className="w-16 px-2 py-1 text-xs font-bold text-center border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-hidden"
+                  />
+                  <span className="text-slate-500">pages / copie</span>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-between pt-2 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => handleBatchGroupSubmissions(1)}
+                  className="inline-flex items-center gap-1.5 text-xs text-slate-500 hover:text-slate-800 font-semibold cursor-pointer underline underline-offset-2"
+                  title="Séparer chaque page en une copie distincte"
+                >
+                  <Split className="w-3.5 h-3.5" />
+                  <span>Dégrouper en pages uniques (1 page/copie)</span>
+                </button>
+              </div>
+            </div>
+
+            <div className="pt-3 border-t border-slate-100 flex items-center justify-end gap-2 shrink-0">
+              <button
+                type="button"
+                onClick={() => setShowBatchGroupModal(false)}
+                className="px-4 py-2 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-100 transition-colors cursor-pointer"
+              >
+                Annuler
+              </button>
+              <button
+                type="button"
+                onClick={() => handleBatchGroupSubmissions(batchGroupCount)}
+                className="px-5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-extrabold shadow-sm transition-all cursor-pointer flex items-center gap-1.5"
+              >
+                <Layers className="w-4 h-4" />
+                <span>Appliquer le regroupement ({batchGroupCount} pages/copie)</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL 2: GUIDED CAMERA SCANNER (Prise de vue pas-à-pas multi-pages) */}
+      {isGuidedScannerOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-900/70 backdrop-blur-xs animate-in fade-in">
+          <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 max-w-xl w-full p-5 space-y-4 max-h-[92vh] flex flex-col">
+            {/* Header */}
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100 shrink-0">
+              <div className="flex items-center gap-2.5">
+                <div className="w-10 h-10 rounded-xl bg-emerald-100 text-emerald-800 flex items-center justify-center shrink-0">
+                  <Smartphone className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-extrabold text-slate-900 text-base">
+                    Scanner photo pas-à-pas
+                  </h3>
+                  <p className="text-xs text-slate-500">
+                    Photographiez les pages de chaque copie d'élève à la suite
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsGuidedScannerOpen(false)}
+                className="p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg cursor-pointer transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Target pages selector */}
+            <div className="flex items-center justify-between bg-slate-50 p-2.5 rounded-xl border border-slate-200 text-xs shrink-0">
+              <span className="font-semibold text-slate-700">Pages attendues par copie :</span>
+              <div className="flex items-center gap-1">
+                {[1, 2, 3, 4].map((num) => (
+                  <button
+                    key={num}
+                    type="button"
+                    onClick={() => setGuidedTargetPages(num)}
+                    className={`px-2.5 py-1 rounded-lg font-bold text-xs transition-colors cursor-pointer ${
+                      guidedTargetPages === num
+                        ? 'bg-emerald-600 text-white'
+                        : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-100'
+                    }`}
+                  >
+                    {num} {num === 1 ? 'page' : 'pages'}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Active Student Draft Section */}
+            <div className="flex-1 overflow-y-auto space-y-3.5 pr-1 min-h-0">
+              <div className="border-2 border-emerald-200 bg-emerald-50/30 rounded-2xl p-4 space-y-3">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                  <div className="flex items-center gap-2">
+                    <span className="w-6 h-6 rounded-full bg-emerald-600 text-white text-xs font-bold flex items-center justify-center">
+                      {guidedStudents.length + 1}
+                    </span>
+                    <span className="font-extrabold text-slate-900 text-sm">
+                      Copie en cours de numérisation
+                    </span>
+                  </div>
+
+                  <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-white text-emerald-800 border border-emerald-200 self-start sm:self-auto">
+                    {currentDraftPages.length} {guidedTargetPages > 0 ? `sur ${guidedTargetPages}` : ''} page(s) prise(s)
+                  </span>
+                </div>
+
+                <div>
+                  <label className="text-[11px] font-bold text-slate-600 uppercase tracking-wider block mb-1">
+                    Nom de l'élève :
+                  </label>
+                  <input
+                    type="text"
+                    list="class-students-datalist"
+                    value={currentDraftName}
+                    onChange={(e) => setCurrentDraftName(e.target.value)}
+                    placeholder="Nom ou prénom de l'élève..."
+                    className="w-full px-3 py-2 bg-white border border-emerald-300 rounded-xl text-sm font-semibold text-slate-900 focus:ring-2 focus:ring-emerald-500 outline-hidden"
+                  />
+                </div>
+
+                {/* Thumbnails of pages taken for current student */}
+                {currentDraftPages.length > 0 && (
+                  <div>
+                    <span className="text-[11px] font-bold text-slate-600 uppercase tracking-wider block mb-1.5">
+                      Pages prises pour cet élève :
+                    </span>
+                    <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
+                      {currentDraftPages.map((url, pIdx) => (
+                        <div
+                          key={pIdx}
+                          className="relative aspect-3/4 rounded-lg bg-slate-100 border border-slate-200 overflow-hidden group shadow-2xs"
+                        >
+                          <img src={url} alt="" className="w-full h-full object-cover" />
+                          <span className="absolute top-1 left-1 px-1.5 py-0.5 rounded bg-slate-900/80 text-white text-[10px] font-bold">
+                            Page {pIdx + 1}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => setCurrentDraftPages((prev) => prev.filter((_, i) => i !== pIdx))}
+                            className="absolute top-1 right-1 p-1 rounded bg-rose-600 text-white opacity-80 hover:opacity-100 transition-opacity cursor-pointer"
+                            title="Supprimer cette page"
+                          >
+                            <Trash2 className="w-3 h-3" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Big Camera Trigger Button */}
+                <div className="pt-2">
+                  <label
+                    htmlFor="guided-camera-file"
+                    className={`w-full py-3.5 px-4 rounded-xl text-white font-extrabold text-sm flex items-center justify-center gap-2 cursor-pointer transition-all shadow-md ${
+                      isGuidedProcessing
+                        ? 'bg-slate-400 cursor-wait'
+                        : 'bg-emerald-600 hover:bg-emerald-700 shadow-emerald-600/20 active:scale-[0.99]'
+                    }`}
+                  >
+                    {isGuidedProcessing ? (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        <span>Traitement de la photo...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Camera className="w-5 h-5" />
+                        <span>📸 Photographier la page {currentDraftPages.length + 1}</span>
+                      </>
+                    )}
+                    <input
+                      type="file"
+                      id="guided-camera-file"
+                      accept="image/*"
+                      capture="environment"
+                      className="hidden"
+                      onChange={handleGuidedCameraCapture}
+                      disabled={isGuidedProcessing}
+                    />
+                  </label>
+                </div>
+
+                {/* Target reached message */}
+                {guidedTargetPages > 0 && currentDraftPages.length >= guidedTargetPages && (
+                  <div className="p-2.5 rounded-xl bg-emerald-100 border border-emerald-300 text-emerald-900 text-xs font-bold flex items-center justify-between">
+                    <span className="flex items-center gap-1.5">
+                      <CheckCircle2 className="w-4 h-4 text-emerald-700" />
+                      Toutes les {guidedTargetPages} pages ont été prises !
+                    </span>
+                    <button
+                      type="button"
+                      onClick={handleGuidedValidateAndNextStudent}
+                      className="px-2.5 py-1 bg-emerald-700 hover:bg-emerald-800 text-white rounded-lg text-xs font-extrabold cursor-pointer transition-colors"
+                    >
+                      Élève suivant ➔
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              {/* Already Completed Students Summary */}
+              {guidedStudents.length > 0 && (
+                <div className="space-y-1.5 pt-2">
+                  <span className="text-xs font-bold text-slate-700 uppercase tracking-wide block">
+                    Copies prêtes ({guidedStudents.length}) :
+                  </span>
+                  <div className="space-y-1 max-h-36 overflow-y-auto divide-y divide-slate-100">
+                    {guidedStudents.map((st, idx) => (
+                      <div key={idx} className="flex items-center justify-between text-xs py-1.5 px-2 bg-slate-50 rounded-lg">
+                        <div className="flex items-center gap-2 truncate">
+                          <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                          <span className="font-bold text-slate-800 truncate">{st.name}</span>
+                          <span className="text-slate-500 font-medium">({st.pages.length} pages)</span>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => setGuidedStudents((prev) => prev.filter((_, i) => i !== idx))}
+                          className="text-slate-400 hover:text-red-600 p-1 cursor-pointer"
+                          title="Supprimer cette copie"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Modal Footer Actions */}
+            <div className="pt-3 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-2.5 shrink-0">
+              <button
+                type="button"
+                onClick={handleGuidedValidateAndNextStudent}
+                disabled={currentDraftPages.length === 0}
+                className="w-full sm:w-auto px-4 py-2 rounded-xl border border-emerald-300 text-emerald-800 bg-emerald-50 hover:bg-emerald-100 disabled:opacity-40 disabled:cursor-not-allowed text-xs font-bold transition-colors cursor-pointer flex items-center justify-center gap-1.5"
+              >
+                <span>Valider cet élève et passer au suivant</span>
+                <ChevronRight className="w-3.5 h-3.5" />
+              </button>
+
+              <button
+                type="button"
+                onClick={handleGuidedFinishAndSave}
+                disabled={guidedStudents.length === 0 && currentDraftPages.length === 0}
+                className="w-full sm:w-auto px-5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed text-white text-xs font-extrabold shadow-sm transition-all cursor-pointer flex items-center justify-center gap-1.5"
+              >
+                <Check className="w-4 h-4" />
+                <span>
+                  Terminer et ajouter ({guidedStudents.length + (currentDraftPages.length > 0 ? 1 : 0)} copies)
+                </span>
               </button>
             </div>
           </div>

@@ -25,6 +25,7 @@ const DEFAULT_CONFIG: AssignmentConfig = {
   correctionMode: 'with_rubric',
   rubricContent: '',
   analysisSpeed: 'turbo',
+  aiEngine: 'auto',
   pedagogicalGuidelines: {
     spellingTolerance: true,
     rewardEffortAndMethod: true,
