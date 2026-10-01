@@ -1,5 +1,5 @@
 import React, { useState, useRef, useMemo, useEffect } from 'react';
-import { StudentSubmission, AssignmentConfig, ClassGroup } from '../types';
+import { StudentSubmission, AssignmentConfig, ClassGroup, LeadData } from '../types';
 import { convertPdfToImages, extractStudentNameFromFileName, compressImageFile } from '../lib/pdfUtils';
 import {
   UploadCloud,
@@ -41,6 +41,7 @@ interface Step2UploadProps {
   onConfigChange?: (config: AssignmentConfig) => void;
   classes?: ClassGroup[];
   onSwapSubmissions?: (subId1: string, subId2: string, mode?: 'names' | 'all') => void;
+  currentLead?: LeadData | null;
 }
 
 export const Step2Upload: React.FC<Step2UploadProps> = ({
@@ -53,6 +54,7 @@ export const Step2Upload: React.FC<Step2UploadProps> = ({
   onConfigChange,
   classes = [],
   onSwapSubmissions,
+  currentLead,
 }) => {
   const [isDragging, setIsDragging] = useState(false);
   const [isProcessingPdf, setIsProcessingPdf] = useState(false);
@@ -1317,6 +1319,46 @@ export const Step2Upload: React.FC<Step2UploadProps> = ({
           <p className="text-xs text-slate-500 mt-1">
             Déposez les scans PDF ou photos de vos vraies copies d'élèves ci-dessus pour préparer la correction IA.
           </p>
+        </div>
+      )}
+
+      {/* Cost before launch estimate box (#4) */}
+      {submissions.length > 0 && (
+        <div className="p-4 sm:p-5 rounded-2xl bg-gradient-to-r from-blue-50/90 via-indigo-50/70 to-slate-50 border border-blue-200/80 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+          <div className="flex items-center gap-3.5">
+            <div className="w-10 h-10 rounded-xl bg-blue-600 text-white flex items-center justify-center font-black text-sm shrink-0 shadow-xs">
+              ⚡
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="font-extrabold text-sm text-slate-900">
+                  {submissions.length} {submissions.length > 1 ? 'copies détectées' : 'copie détectée'}
+                </span>
+                <span className="px-2 py-0.2 rounded-md bg-blue-100 text-blue-800 text-[10px] font-black">
+                  1 copie = 1 correction
+                </span>
+              </div>
+              <p className="text-slate-600 text-xs mt-0.5">
+                Votre solde actuel : <strong className="font-mono text-blue-700">{(currentLead?.subscriptionCredits ?? 460) + (currentLead?.extraCredits ?? 0)} corrections</strong>
+                {' · '}
+                Solde après correction : <strong className="font-mono text-emerald-700">{Math.max(0, ((currentLead?.subscriptionCredits ?? 460) + (currentLead?.extraCredits ?? 0)) - submissions.length)} corrections</strong>
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2 self-start sm:self-center">
+            {((currentLead?.subscriptionCredits ?? 460) + (currentLead?.extraCredits ?? 0)) >= submissions.length ? (
+              <span className="px-3 py-1 rounded-full bg-emerald-100 text-emerald-800 text-xs font-bold border border-emerald-200 flex items-center gap-1.5">
+                <Check className="w-3.5 h-3.5" />
+                <span>Crédits suffisants</span>
+              </span>
+            ) : (
+              <span className="px-3 py-1 rounded-full bg-amber-100 text-amber-900 text-xs font-bold border border-amber-200 flex items-center gap-1.5">
+                <AlertCircle className="w-3.5 h-3.5" />
+                <span>Recharge recommandée</span>
+              </span>
+            )}
+          </div>
         </div>
       )}
 

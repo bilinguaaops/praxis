@@ -1,5 +1,50 @@
 [
   {
+    "id": "lead_1790691661041_pb6oy",
+    "name": "Professeur Kouassi",
+    "email": "prof.abidjan@gmail.com",
+    "whatsapp": "+2250708091011",
+    "school": "",
+    "city": "",
+    "plan": "monthly",
+    "status": "active",
+    "copiesCorrected": 0,
+    "quota": 1500,
+    "totalSpent": 15.25,
+    "createdAt": "2026-09-29T14:21:01.041Z",
+    "lastActiveAt": "2026-09-29T14:21:04.002Z",
+    "notes": "Inscription directe via Paywall Wave / CB.\n[Paiement Wave Mobile Money (CI) le 29/09/2026 14:21:01] : 6500 FCFA - Abonnement Mensuel Pro\n[Paiement Carte Bancaire (Visa •••• 4242) le 29/09/2026 14:21:04] : 3500 FCFA - Recharge Pack 500 copies",
+    "transactions": [
+      {
+        "id": "txn_mumrkyv6_3cs",
+        "teacherId": "lead_1790691661041_pb6oy",
+        "teacherName": "Professeur Kouassi",
+        "teacherEmail": "prof.abidjan@gmail.com",
+        "date": "2026-09-29",
+        "amount": 5.34,
+        "currency": "XOF",
+        "plan": "monthly",
+        "status": "succeeded",
+        "paymentMethod": "Carte Bancaire (Visa •••• 4242)",
+        "description": "Recharge Pack 500 copies · 3 500 FCFA"
+      },
+      {
+        "id": "txn_mumrkwkx_n64",
+        "teacherId": "lead_1790691661041_pb6oy",
+        "teacherName": "Professeur Kouassi",
+        "teacherEmail": "prof.abidjan@gmail.com",
+        "date": "2026-09-29",
+        "amount": 9.91,
+        "currency": "XOF",
+        "plan": "monthly",
+        "status": "succeeded",
+        "paymentMethod": "Wave Mobile Money (CI)",
+        "description": "Abonnement Mensuel Pro · 6 500 FCFA (Réf Wave: TXN-WAVE-99214)"
+      }
+    ],
+    "renewalDate": "2026-10-29"
+  },
+  {
     "id": "lead_1789825256565_ea0x2",
     "name": "Enseignant",
     "email": "bilingua.agency@gmail.com",

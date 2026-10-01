@@ -87,12 +87,23 @@ export interface QuestionEvaluation {
   note: number;
   note_max: number;
   justification: string;
+  confiance?: 'elevee' | 'moyenne' | 'faible';
+  verification_recommandee?: boolean;
+  difficulte_lecture?: boolean;
+  remarque_enseignant?: string;
 }
 
 export interface CorrectionResult {
   nom_eleve: string;
   note: number;
   note_sur: number;
+  note_ia?: number;
+  confiance_globale?: 'elevee' | 'moyenne' | 'faible';
+  verification_humaine_recommandee?: boolean;
+  motif_verification?: string;
+  statut_validation?: 'propose_ia' | 'en_cours_examen' | 'valide_professeur';
+  valide_par_nom?: string;
+  valide_le?: string;
   appreciation: string;
   points_forts: string[];
   points_ameliorer: string[];
@@ -102,7 +113,6 @@ export interface CorrectionResult {
   nom_manuscrit_detecte?: string;
   lisibilite?: 'excellente' | 'bonne' | 'moyenne' | 'faible' | 'illisible';
   avertissement_lisibilite?: string;
-  verification_humaine_recommandee?: boolean;
   teacherNotes?: string;
   manuallyAdjusted?: boolean;
 }
@@ -159,11 +169,53 @@ export interface LeadData {
   email: string;
   whatsapp: string;
   school?: string;
+  plan?: SaaSPlan;
+  quota?: number;
+  copiesCorrected?: number;
+  subscriptionCredits?: number; // Incluses dans l'abonnement (max 1500)
+  extraCredits?: number; // Séries supplémentaires achetées à part (sans expiration)
+  status?: AccountStatus;
+  totalSpent?: number;
+  firstPurchaseDiscountUsed?: boolean;
+  usedPromoCodes?: string[];
+  referredByPartner?: string;
+  userId?: string;
+  role?: 'teacher' | 'admin' | 'partner';
+  referralCode?: string;
 }
 
-export type MainView = 'landing' | 'corr' | 'classes' | 'suivi' | 'hist' | 'dashboard' | 'faq';
+export interface ReferralItem {
+  id: string;
+  referrerUserId: string;
+  referredUserId: string;
+  referredName: string;
+  referredSchool?: string;
+  referralCode: string;
+  status: 'pending' | 'rewarded' | 'canceled';
+  rewardGranted: boolean;
+  rewardAmount: number;
+  rewardedAt?: string | null;
+  createdAt: string;
+}
 
-export type SaaSPlan = 'free' | 'trial' | 'monthly' | 'annual' | 'institution';
+export type MainView =
+  | 'landing'
+  | 'login'
+  | 'register'
+  | 'forgot-password'
+  | 'dashboard'
+  | 'corr'
+  | 'classes'
+  | 'suivi'
+  | 'hist'
+  | 'faq'
+  | 'pricing'
+  | 'referrals'
+  | 'settings'
+  | 'admin';
+
+export type SaaSPlan = 'free' | 'trial' | 'monthly' | 'quarterly' | 'school_year' | 'annual' | 'institution' | 'pack';
+export type PaywallPlanId = 'monthly' | 'quarterly' | 'school_year' | 'extra_100' | 'extra_500';
 export type AccountStatus = 'active' | 'trial' | 'paused' | 'inactive' | 'canceled';
 
 export interface TransactionRecord {
@@ -180,6 +232,12 @@ export interface TransactionRecord {
   description: string;
   refundReason?: string;
   refundedAt?: string;
+  originalAmount?: number;
+  discountAmount?: number;
+  promoCode?: string;
+  discountPercent?: number;
+  partnerAttribution?: string;
+  partnerCommission?: number;
 }
 
 export interface TeacherAccount {

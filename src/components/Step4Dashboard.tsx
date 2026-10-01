@@ -45,7 +45,7 @@ interface Step4DashboardProps {
   onValidateClassCorrection?: () => void;
 }
 
-type FilterType = 'all' | 'struggling' | 'success' | 'pending' | 'needs_review';
+type FilterType = 'all' | 'to_validate' | 'validated' | 'needs_review' | 'struggling' | 'success' | 'pending';
 
 export const Step4Dashboard: React.FC<Step4DashboardProps> = ({
   config,
@@ -145,6 +145,52 @@ export const Step4Dashboard: React.FC<Step4DashboardProps> = ({
   }, [submissions]);
 
   const needsReviewCount = needsReviewSubmissions.length;
+
+  const validatedCount = useMemo(() => {
+    return submissions.filter(
+      (s) => s.status === 'completed' && s.result && (s.result.statut_validation === 'valide_professeur' || isValidatedState)
+    ).length;
+  }, [submissions, isValidatedState]);
+
+  const toValidateCount = useMemo(() => {
+    return submissions.filter(
+      (s) => s.status === 'completed' && s.result && s.result.statut_validation !== 'valide_professeur' && !isValidatedState
+    ).length;
+  }, [submissions, isValidatedState]);
+
+  const handleQuickValidateSingle = (e: React.MouseEvent, subId: string) => {
+    e.stopPropagation();
+    const updated = submissions.map((s) => {
+      if (s.id !== subId || !s.result) return s;
+      return {
+        ...s,
+        result: {
+          ...s.result,
+          statut_validation: 'valide_professeur' as const,
+          valide_par_nom: 'Professeur',
+          valide_le: new Date().toISOString(),
+        },
+      };
+    });
+    onSubmissionsChange(updated);
+  };
+
+  const handleValidateAllPending = () => {
+    const now = new Date().toISOString();
+    const updated = submissions.map((s) => {
+      if (!s.result || s.result.statut_validation === 'valide_professeur') return s;
+      return {
+        ...s,
+        result: {
+          ...s.result,
+          statut_validation: 'valide_professeur' as const,
+          valide_par_nom: 'Professeur',
+          valide_le: now,
+        },
+      };
+    });
+    onSubmissionsChange(updated);
+  };
 
   const handleShowReviewCopies = () => {
     setIsReviewBannerExpanded(true);
@@ -275,6 +321,12 @@ export const Step4Dashboard: React.FC<Step4DashboardProps> = ({
         const matchesSearch = s.studentName.toLowerCase().includes(searchQuery.toLowerCase());
         if (!matchesSearch) return false;
 
+        if (filterType === 'to_validate') {
+          return s.status === 'completed' && s.result && s.result.statut_validation !== 'valide_professeur' && !isValidatedState;
+        }
+        if (filterType === 'validated') {
+          return s.status === 'completed' && s.result && (s.result.statut_validation === 'valide_professeur' || isValidatedState);
+        }
         if (filterType === 'struggling') {
           return s.status === 'completed' && s.result && s.result.note < passingThreshold;
         }

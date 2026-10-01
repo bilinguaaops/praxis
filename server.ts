@@ -26,12 +26,19 @@ export interface TransactionItem {
   date: string;
   amount: number;
   currency: string;
-  plan: 'free' | 'trial' | 'monthly' | 'annual' | 'institution';
+  plan: 'free' | 'trial' | 'monthly' | 'quarterly' | 'school_year' | 'annual' | 'institution' | 'pack';
   status: 'succeeded' | 'refunded' | 'pending';
   paymentMethod: string;
   description: string;
   refundReason?: string;
   refundedAt?: string;
+  // Strictly separated promo & partner attribution
+  originalAmount?: number;
+  discountAmount?: number;
+  promoCode?: string;
+  discountPercent?: number;
+  partnerAttribution?: string;
+  partnerCommission?: number;
 }
 
 export interface LeadRecord {
@@ -41,18 +48,93 @@ export interface LeadRecord {
   whatsapp: string;
   school?: string;
   city?: string;
-  plan: 'free' | 'trial' | 'monthly' | 'annual' | 'institution';
+  plan: 'free' | 'trial' | 'monthly' | 'quarterly' | 'school_year' | 'annual' | 'institution' | 'pack';
   status: 'active' | 'trial' | 'paused' | 'inactive' | 'canceled';
   notes?: string;
   createdAt: string;
   lastActiveAt?: string;
   copiesCorrected?: number;
+  subscriptionCredits?: number; // Incluses dans l'abonnement (max 1500 pour mensuel)
+  extraCredits?: number; // Séries supplémentaires achetées à part (sans expiration)
   quota?: number;
   totalSpent?: number;
   renewalDate?: string;
   trialDaysLeft?: number;
+  firstPurchaseDiscountUsed?: boolean;
+  usedPromoCodes?: string[];
+  referredByPartner?: string;
   transactions?: TransactionItem[];
 }
+
+export interface PromoCodeConfig {
+  code: string;
+  discountPercent: number;
+  firstMonthOnly: boolean;
+  partnerId?: string;
+  partnerName?: string;
+  partnerCommissionPercent?: number; // Strictly internal commission, never shown to user as discount
+  active: boolean;
+  allowedPlans?: string[];
+  description: string;
+}
+
+export const PROMO_CODES_REGISTRY: Record<string, PromoCodeConfig> = {
+  PROFJEAN: {
+    code: 'PROFJEAN',
+    discountPercent: 30,
+    firstMonthOnly: true,
+    partnerId: 'partner_jean',
+    partnerName: 'Professeur Jean',
+    partnerCommissionPercent: 20,
+    active: true,
+    allowedPlans: ['monthly', 'quarterly', 'school_year'],
+    description: 'Code promo partenaire -30% sur le premier mois',
+  },
+  BIENVENUE30: {
+    code: 'BIENVENUE30',
+    discountPercent: 30,
+    firstMonthOnly: true,
+    partnerId: 'praxis_welcome',
+    partnerName: 'Bienvenue Praxis',
+    partnerCommissionPercent: 0,
+    active: true,
+    allowedPlans: ['monthly', 'quarterly', 'school_year'],
+    description: 'Offre de bienvenue -30% premier mois',
+  },
+  PROFMARIE: {
+    code: 'PROFMARIE',
+    discountPercent: 30,
+    firstMonthOnly: true,
+    partnerId: 'partner_marie',
+    partnerName: 'Professeure Marie',
+    partnerCommissionPercent: 20,
+    active: true,
+    allowedPlans: ['monthly', 'quarterly', 'school_year'],
+    description: 'Code promo influenceur -30% premier mois',
+  },
+  PRAXIS30: {
+    code: 'PRAXIS30',
+    discountPercent: 30,
+    firstMonthOnly: true,
+    partnerId: 'praxis_internal',
+    partnerName: 'Offre Spéciale Praxis',
+    partnerCommissionPercent: 0,
+    active: true,
+    allowedPlans: ['monthly', 'quarterly', 'school_year'],
+    description: 'Réduction spéciale 30% premier mois',
+  },
+  AMBASSADEUR20: {
+    code: 'AMBASSADEUR20',
+    discountPercent: 30,
+    firstMonthOnly: true,
+    partnerId: 'partner_ambassadeur',
+    partnerName: 'Ambassadeur Enseignant',
+    partnerCommissionPercent: 25,
+    active: true,
+    allowedPlans: ['monthly', 'quarterly', 'school_year'],
+    description: 'Code ambassadeur -30% premier mois',
+  },
+};
 
 // Master Admin Password & In-Memory Session Tokens
 const ADMIN_PASSWORD = process.env.ADMIN_MASTER_PASSWORD || 'PraxisAdmin2026!';
@@ -617,20 +699,39 @@ app.post('/api/correct', async (req, res) => {
       });
     }
 
-    // Check Quota Limit (Default 30 free copies per teacher in test phase)
+    // Check Quota Limit: Evaluate subscriptionCredits + extraCredits, with fallback to quota - copiesCorrected
     const currentCopies = lead.copiesCorrected || 0;
-    const defaultTrialQuota = Number(process.env.FREE_TRIAL_QUOTA) || 30;
+    const defaultTrialQuota = Number(process.env.FREE_TRIAL_QUOTA) || 50;
+
+    const hasExplicitCredits = typeof lead.subscriptionCredits === 'number' || typeof lead.extraCredits === 'number';
+    const subCredits = typeof lead.subscriptionCredits === 'number' ? lead.subscriptionCredits : 0;
+    const extraCredits = typeof lead.extraCredits === 'number' ? lead.extraCredits : 0;
+    const availableBalance = subCredits + extraCredits;
+
     const maxQuota = typeof lead.quota === 'number'
       ? (lead.quota <= 5 && (lead.plan === 'trial' || lead.plan === 'free') ? defaultTrialQuota : lead.quota)
       : defaultTrialQuota;
 
-    if (lead.plan === 'trial' || lead.plan === 'free') {
-      if (currentCopies >= maxQuota) {
+    if (hasExplicitCredits) {
+      if (availableBalance <= 0) {
         return res.status(403).json({
-          error: `Limite de copies d'essai atteinte (${currentCopies}/${maxQuota} copies gratuites). Contactez l'administrateur ou passez au forfait Pro pour continuer.`,
+          error: `Solde de copies épuisé (0 crédit restant). Vos corrections mensuelles (${subCredits}) et supplémentaires (${extraCredits}) sont consommées. Choisissez un forfait ou rechargez par Wave ou Carte Bancaire.`,
           quotaReached: true,
           quota: maxQuota,
           copiesCorrected: currentCopies,
+          subscriptionCredits: subCredits,
+          extraCredits: extraCredits,
+        });
+      }
+    } else {
+      if (currentCopies >= maxQuota) {
+        return res.status(403).json({
+          error: `Limite de copies atteinte (${currentCopies}/${maxQuota} copies). Choisissez une formule adaptée (Mensuel, 3 mois, Année scolaire) ou rechargez vos copies par Wave ou Carte Bancaire.`,
+          quotaReached: true,
+          quota: maxQuota,
+          copiesCorrected: currentCopies,
+          subscriptionCredits: 0,
+          extraCredits: 0,
         });
       }
     }
@@ -862,21 +963,24 @@ RÈGLES D'ÉVALUATION ET D'EXHAUSTIVITÉ :
      * Ce nom manuscrit réel DÉTRÔNE et REMPLACE obligatoirement le nom de fichier : utilise-le pour "nom_eleve" et dans ton appréciation générale ! (Exemple : si le fichier est nommé "nemezys.pdf" mais que la marge indique "Joseph", nom_eleve DOIT ÊTRE "Joseph").
    - Si aucun nom manuscrit n'est visible sur la copie papier, conserve "${studentName || 'Élève'}".
 
-2. EXHAUSTIVITÉ ABSOLUE DE TOUS LES EXERCICES (NE RIEN SAUTER) :
+2. EXHAUSTIVITÉ ABSOLUE, FIABILITÉ ET TRANSPARENCE :
    - Tu NE DOIS JAMAIS abréger ni tronquer la correction.
-   - Si le corrigé officiel ou le sujet comporte plusieurs exercices (ex: 3, 4, 5 exercices ou questions) :
-     * Tu DOIS OBLIGATOIREMENT évaluer et faire figurer TOUS les exercices prévus au barème dans la liste "questions".
-     * Si l'élève a sauté un exercice, n'a rien rédigé ou n'a pas eu le temps de le faire : TU NE DOIS PAS L'OMÈTRE ! Tu dois inscrire obligatoirement l'exercice dans "questions" avec :
-       - "numero_ou_titre": intitulé de l'exercice (ex: "Exercice 3")
-       - "reponse_eleve": "Non traité (aucune réponse rédigée sur la copie)"
-       - "note": 0
-       - "note_max": points prévus au barème
-       - "justification": "Exercice non abordé par l'élève."
-   - ATTENTION AUX ÉCRITURES DIFFICILES OU DENSES (cas d'élèves comme Sass) :
-     * Si un élève a une écriture serrée, désordonnée, au crayon de papier, avec des ratures ou sans titres d'exercices très marqués :
-       - Prends le temps de scruter chaque recoin, chaque bas de page et chaque page supplémentaire (${pagesList.length} page(s)).
-       - Ne confonds JAMAIS une écriture difficile à lire avec une absence de travail ! Déchiffre ce qui peut l'être, accorde les points mérités selon la démarche visible, et si un passage est raturé ou difficilement déchiffrable, indique '[Passage raturé ou difficilement lisible]' dans 'reponse_eleve'.
-       - Signale clairement cette difficulté dans "avertissement_lisibilite" et passe "verification_humaine_recommandee" à true.
+   - SUPPORT MULTIFORMAT & MULTI-PAGES (${pagesList.length} page(s)) :
+     * Gère avec la même précision : écriture manuscrite d'élève (stylo bille, plume, crayon), texte imprimé, photos de copies prises au smartphone, scans inclinés, contrastes variables, légers flous.
+     * Calculs mathématiques & sciences : analyse minutieusement chaque étape du raisonnement, formule posée et démarche. Valorise toujours les étapes de méthode même si le calcul numérique final comporte une étourderie.
+     * Réponses longues & rédactions : analyse la structure argumentative, la clarté d'expression et la pertinence des arguments.
+     * Tableaux et schémas : prends en compte les légendes et structures décelables sur la copie.
+     * Ratures et brouillons : si l'élève a raturé un mot ou une ligne pour réécrire sa réponse à côté, ignore le passage barré et note uniquement sa réponse finale corrigée, sans pénalité pour la rature.
+     * Réponses partielles : attribue les points proportionnels prévus au barème.
+     * Questions sans réponse : ne saute JAMAIS une question du barème ! Inscris-la avec "numero_ou_titre", "reponse_eleve": "Non traité (aucune réponse rédigée sur la copie)", "note": 0, "note_max": points prévus, et "justification": "Exercice non abordé par l'élève."
+   - RÈGLE D'OR D'ANTI-HALLUCINATION ET DE TRANSPARENCE :
+     * Praxis ne doit JAMAIS inventer une réponse ou deviner ce qui n'est pas lisible lorsqu'il n'est pas suffisamment sûr.
+     * Si l'IA manque de confiance sur un mot, un calcul ou une question entière :
+       - Transcris fidèlement dans "reponse_eleve" ce qui peut être déchiffré ou indique "[Passage difficilement lisible / raturé]".
+       - Passe "confiance" de cette question à "faible" ou "moyenne".
+       - Passe "verification_recommandee" à true et "difficulte_lecture" à true sur la question.
+       - Au niveau global de la copie, active impérativement "verification_humaine_recommandee": true et fournis dans "motif_verification" une explication précise (ex: "La réponse à la question 4 est difficile à lire" ou "Calcul mathématique raturé sur l'exercice 2").
+       - Le système privilégie la transparence pédagogique plutôt qu'une fausse certitude.
 
 3. DÉTAIL DE CHAQUE QUESTION DU BARÈME :
    Pour chaque question ou exercice figurant au devoir, fournis :
@@ -886,9 +990,14 @@ RÈGLES D'ÉVALUATION ET D'EXHAUSTIVITÉ :
    - "note": points obtenus pour cette question
    - "note_max": points max attribués à cette question
    - "justification": explication bienveillante du barème accordé
+   - "confiance": "elevee", "moyenne" ou "faible"
+   - "verification_recommandee": true si ambigu ou incertain, false sinon
+   - "difficulte_lecture": true si l'écriture ou le scan est difficile à déchiffrer sur cette question
 
 4. NOTE GLOBALE & APPRÉCIATION :
    - Note globale réaliste ramenée exactement sur ${maxGrade} (arrondie au quart ou demi-point).
+   - "confiance_globale": "elevee", "moyenne" ou "faible"
+   - "motif_verification": explication concise du doute si vérification recommandée (ou null si confiance élevée)
    - Appréciation constructive, encourageante et claire, utile à la progression de l'élève.
    - Au moins 2 points forts et 2 axes concrets d'amélioration.
    - 3 à 5 compétences clés ("Acquis", "En cours", ou "Non acquis").
@@ -976,6 +1085,14 @@ Voici la copie de l'élève (${studentName || 'Nom à détecter'}). Compare chaq
           type: Type.NUMBER,
           description: `Valeur maximale du barème (${maxGrade})`,
         },
+        confiance_globale: {
+          type: Type.STRING,
+          description: "Niveau de confiance global de l'IA : 'elevee', 'moyenne' ou 'faible'",
+        },
+        motif_verification: {
+          type: Type.STRING,
+          description: "Explication claire du doute si vérification recommandée (ex: 'La réponse à la question 4 est difficile à lire')",
+        },
         appreciation: {
           type: Type.STRING,
           description: "Commentaire général bienveillant, clair et pédagogique pour l'élève et ses parents",
@@ -1016,6 +1133,18 @@ Voici la copie de l'élève (${studentName || 'Nom à détecter'}). Compare chaq
               note: { type: Type.NUMBER },
               note_max: { type: Type.NUMBER },
               justification: { type: Type.STRING },
+              confiance: {
+                type: Type.STRING,
+                description: "'elevee', 'moyenne' ou 'faible'",
+              },
+              verification_recommandee: {
+                type: Type.BOOLEAN,
+                description: "true si l'écriture est difficile à lire ou douteuse",
+              },
+              difficulte_lecture: {
+                type: Type.BOOLEAN,
+                description: "true si écriture serrée, rature ou flou",
+              },
             },
             required: ['numero_ou_titre', 'reponse_eleve', 'reponse_attendue', 'note', 'note_max', 'justification'],
           },
@@ -1249,13 +1378,15 @@ IMPORTANT : Ne pose AUCUNE question. Remplis directement le JSON avec les inform
             errMsg.includes('quota')
           ) {
             markGeminiOverloaded(60_000);
+            // If Gemini is globally overloaded or quota exhausted, fall back to Claude Haiku
+            if (hasAnthropicKey) {
+              console.log(`[Praxis IA] ⚡ Gemini saturé/quota -> Bascule de secours vers Claude Haiku.`);
+              break modelLoop;
+            }
           }
 
-          // If Anthropic key is available (Claude Haiku ultra-rapide), avoid stalling the user and switch immediately!
-          if (hasAnthropicKey) {
-            console.log(`[Praxis IA] ⚡ Bascule immédiate vers Claude Haiku.`);
-            break modelLoop;
-          }
+          // Otherwise continue to next Gemini Flash model candidate before falling back to Claude
+          console.log(`[Praxis IA] Tentative avec le modèle Gemini Flash suivant...`);
         }
       }
     };
@@ -1330,21 +1461,64 @@ IMPORTANT : Ne pose AUCUNE question. Remplis directement le JSON avec les inform
     const validLisib = ['excellente', 'bonne', 'moyenne', 'faible', 'illisible'];
     parsed.lisibilite = validLisib.includes(rawLisib) ? rawLisib : 'bonne';
 
-    // If legibility is medium, poor or illegible, automatically flag human review
-    if (parsed.lisibilite === 'faible' || parsed.lisibilite === 'illisible' || parsed.lisibilite === 'moyenne') {
+    // Store original AI-proposed grade
+    parsed.note_ia = parsed.note;
+    parsed.statut_validation = 'propose_ia';
+
+    // Scan questions for uncertainty or reading difficulty
+    let hasUncertainQuestion = false;
+    let firstUncertainReason = '';
+    if (Array.isArray(parsed.questions)) {
+      parsed.questions.forEach((q: any) => {
+        if (q.verification_recommandee || q.difficulte_lecture || q.confiance === 'faible') {
+          hasUncertainQuestion = true;
+          if (!firstUncertainReason && q.numero_ou_titre) {
+            firstUncertainReason = `La réponse à « ${q.numero_ou_titre} » est difficile à lire ou incertaine.`;
+          }
+        }
+      });
+    }
+
+    // Determine global confidence level
+    const rawConf = String(parsed.confiance_globale || '').toLowerCase();
+    if (rawConf === 'elevee' || rawConf === 'moyenne' || rawConf === 'faible') {
+      parsed.confiance_globale = rawConf;
+    } else {
+      if (parsed.lisibilite === 'illisible' || parsed.lisibilite === 'faible' || hasUncertainQuestion) {
+        parsed.confiance_globale = 'faible';
+      } else if (parsed.lisibilite === 'moyenne') {
+        parsed.confiance_globale = 'moyenne';
+      } else {
+        parsed.confiance_globale = 'elevee';
+      }
+    }
+
+    // If legibility is medium/poor or an uncertain question was detected, flag human review
+    if (hasUncertainQuestion || parsed.lisibilite === 'faible' || parsed.lisibilite === 'illisible' || parsed.lisibilite === 'moyenne') {
       parsed.verification_humaine_recommandee = true;
       if (!parsed.avertissement_lisibilite) {
         parsed.avertissement_lisibilite =
           parsed.lisibilite === 'illisible'
-            ? "Copie ou passages indéchiffrables : une vérification directe sur la copie papier est indispensable."
-            : `Écriture ou scan de lisibilité ${parsed.lisibilite} : relecture recommandée par l'enseignant avant validation finale.`;
+            ? "Copie ou passages indéchiffrables : une vérification directe sur la copie originale est indispensable."
+            : `Écriture ou scan de lisibilité ${parsed.lisibilite} : relecture recommandée par l'enseignant.`;
+      }
+      if (!parsed.motif_verification) {
+        parsed.motif_verification = firstUncertainReason || parsed.avertissement_lisibilite;
       }
     } else {
       parsed.verification_humaine_recommandee = Boolean(parsed.verification_humaine_recommandee);
     }
 
-    // 📈 Increment teacher's copiesCorrected counter in leads.json
+    // 📈 Increment teacher's copiesCorrected counter and deduct credit in leads.json
     lead.copiesCorrected = (lead.copiesCorrected || 0) + 1;
+    if (typeof lead.subscriptionCredits === 'number' && lead.subscriptionCredits > 0) {
+      // 1. Décrément prioritaire sur l'abonnement mensuel (cumulable jusqu'à 1500)
+      lead.subscriptionCredits -= 1;
+    } else if (typeof lead.extraCredits === 'number' && lead.extraCredits > 0) {
+      // 2. Décrément sur les crédits supplémentaires achetés à part (sans expiration)
+      lead.extraCredits -= 1;
+    }
+    lead.quota = (lead.copiesCorrected || 0) + (lead.subscriptionCredits || 0) + (lead.extraCredits || 0);
     lead.lastActiveAt = new Date().toISOString();
     saveLeads(leads);
 
@@ -1357,8 +1531,10 @@ IMPORTANT : Ne pose AUCUNE question. Remplis directement le JSON avec les inform
       },
       teacherStats: {
         copiesCorrected: lead.copiesCorrected,
-        quota: maxQuota,
-        remainingCopies: Math.max(0, maxQuota - lead.copiesCorrected),
+        quota: lead.quota,
+        remainingCopies: (lead.subscriptionCredits || 0) + (lead.extraCredits || 0),
+        subscriptionCredits: lead.subscriptionCredits || 0,
+        extraCredits: lead.extraCredits || 0,
         plan: lead.plan,
       },
     });
@@ -1416,7 +1592,9 @@ app.post('/api/leads', async (req, res) => {
     plan: 'trial',
     status: 'trial',
     trialDaysLeft: 7,
-    quota: Number(process.env.FREE_TRIAL_QUOTA) || 30,
+    quota: Number(process.env.FREE_TRIAL_QUOTA) || 50,
+    subscriptionCredits: Number(process.env.FREE_TRIAL_QUOTA) || 50,
+    extraCredits: 0,
     copiesCorrected: 0,
     totalSpent: 0,
     notes: 'Inscription via formulaire d’accès ou portail de démonstration.',
@@ -1444,6 +1622,521 @@ app.post('/api/leads', async (req, res) => {
   );
 
   res.status(201).json({ success: true, lead: newLead });
+});
+
+// --- Paywall & African Mobile Money / Card Payments (Wave & CB) ---
+
+const PAYWALL_PLANS = [
+  {
+    id: 'monthly',
+    name: 'Abonnement Mensuel',
+    category: 'subscription',
+    priceFcfa: 5000,
+    priceEur: 7.60,
+    period: '/ mois',
+    copiesIncluded: 500,
+    monthlyRateFcfa: 5000,
+    monthlyRateEur: 7.60,
+    savingsFcfa: 0,
+    tag: 'Flexibilité mensuelle',
+    popular: false,
+    description: '500 corrections par mois. Vos corrections non utilisées sont reportées chaque mois jusqu’à 1 500 max.',
+    features: [
+      '500 corrections par mois incluses',
+      'Cumulable jusqu’à 1 500 corrections maximum',
+      'Corrections reportées d’un mois sur l’autre',
+      'Détection manuscrite & multi-pages illimitée',
+      'Moteur IA prioritaire Gemini Flash + Secours Haiku',
+      'Sans engagement, annulable à tout moment',
+    ],
+  },
+  {
+    id: 'quarterly',
+    name: 'Formule Trimestrielle (3 mois)',
+    category: 'subscription',
+    priceFcfa: 12000,
+    originalPriceFcfa: 15000,
+    priceEur: 18.30,
+    originalPriceEur: 22.80,
+    period: 'pour 3 mois',
+    copiesIncluded: 1500,
+    monthlyRateFcfa: 4000,
+    monthlyRateEur: 6.10,
+    savingsFcfa: 3000,
+    tag: '⭐ Le plus choisi',
+    popular: true,
+    description: '1 500 corrections pour tout un trimestre. Revient à 4 000 FCFA/mois (3 000 FCFA d’économie).',
+    features: [
+      '1 500 corrections au total (500 / mois)',
+      'Revient à seulement 4 000 FCFA / mois',
+      'Économisez 3 000 FCFA par rapport au mensuel',
+      'Vos corrections non utilisées restent disponibles',
+      'Export Pronote & Bulletins complets',
+      'Support enseignant prioritaire',
+    ],
+  },
+  {
+    id: 'school_year',
+    name: 'Pass Année Scolaire (9 mois)',
+    category: 'subscription',
+    priceFcfa: 30000,
+    originalPriceFcfa: 45000,
+    priceEur: 45.75,
+    originalPriceEur: 68.60,
+    period: 'pour 9 mois scolaires',
+    copiesIncluded: 4500,
+    monthlyRateFcfa: 3333,
+    monthlyRateEur: 5.08,
+    savingsFcfa: 15000,
+    tag: '🎓 Meilleur rapport valeur / prix',
+    popular: false,
+    description: '4 500 corrections pour toute l’année scolaire. Revient à 3 333 FCFA/mois (15 000 FCFA d’économie).',
+    features: [
+      '4 500 corrections incluses (500 / mois × 9)',
+      'Revient à seulement 3 333 FCFA / mois',
+      'Économisez 15 000 FCFA (soit 3 mois complets offerts !)',
+      'Vos crédits vous accompagnent toute l’année scolaire',
+      'Multi-classes et devoirs illimités',
+      'Ligne WhatsApp directe avec l’équipe 7j/7',
+    ],
+  },
+  {
+    id: 'extra_100',
+    name: 'Recharge Extra +100 corrections',
+    category: 'pack',
+    priceFcfa: 1000,
+    priceEur: 1.50,
+    period: 'paiement unique',
+    copiesIncluded: 100,
+    tag: 'Crédits permanents',
+    popular: false,
+    description: '+100 corrections supplémentaires. Elles n’expirent JAMAIS tant que votre compte est actif.',
+    features: [
+      '+100 corrections ajoutées immédiatement',
+      'Pas d’expiration tant que le compte est actif',
+      'Consommées en réserve après votre forfait',
+      'Compatible avec ou sans abonnement actif',
+    ],
+  },
+  {
+    id: 'extra_500',
+    name: 'Recharge Extra +500 corrections',
+    category: 'pack',
+    priceFcfa: 5000,
+    priceEur: 7.60,
+    period: 'paiement unique',
+    copiesIncluded: 500,
+    tag: 'Grand Paquet Extra',
+    popular: false,
+    description: '+500 corrections supplémentaires sans expiration. Idéal examens blancs et fins de semestre.',
+    features: [
+      '+500 corrections permanentes',
+      'Validité sans date d’expiration',
+      'Idéal examens blancs et paquets imprévus',
+      'Report automatique garanti',
+    ],
+  },
+];
+
+// Public endpoint to retrieve plans & Wave merchant info
+app.get('/api/paywall/plans', (req, res) => {
+  res.json({
+    currencyRates: {
+      EUR_TO_XOF: 655.957,
+      baseCurrency: 'XOF',
+    },
+    waveMerchant: {
+      accountName: 'Praxis Éducation / Kévin Agoussou',
+      phoneNumber: '+2250103890314',
+      displayPhone: '+225 01 03 89 03 14',
+      country: 'CI',
+      currency: 'XOF',
+      wavePayUrl: 'https://wave.com/pay',
+    },
+    plans: PAYWALL_PLANS,
+  });
+});
+
+// Teacher account query (to sync remaining quota & plan state)
+app.get('/api/teacher/me', (req, res) => {
+  const email = typeof req.query.email === 'string' ? req.query.email.trim() : '';
+  const whatsapp = typeof req.query.whatsapp === 'string' ? req.query.whatsapp.trim() : '';
+
+  if (!email && !whatsapp) {
+    return res.status(400).json({ error: 'Email ou numéro requis.' });
+  }
+
+  const leads = loadLeads();
+  const teacher = leads.find((l) => (email && l.email && l.email.toLowerCase() === email.toLowerCase()) || (whatsapp && l.whatsapp === whatsapp));
+
+  if (!teacher) {
+    return res.status(404).json({ error: 'Compte enseignant non trouvé.' });
+  }
+
+  const defaultTrialQuota = Number(process.env.FREE_TRIAL_QUOTA) || 50;
+  const currentQuota = typeof teacher.quota === 'number' ? teacher.quota : defaultTrialQuota;
+  const copiesUsed = teacher.copiesCorrected || 0;
+  const remaining = Math.max(0, currentQuota - copiesUsed);
+
+  res.json({
+    id: teacher.id,
+    name: teacher.name,
+    email: teacher.email,
+    whatsapp: teacher.whatsapp,
+    school: teacher.school,
+    plan: teacher.plan,
+    status: teacher.status,
+    quota: currentQuota,
+    copiesCorrected: copiesUsed,
+    subscriptionCredits: teacher.subscriptionCredits || 0,
+    extraCredits: teacher.extraCredits || 0,
+    remainingCopies: remaining,
+    totalSpent: teacher.totalSpent || 0,
+    transactions: teacher.transactions || [],
+  });
+});
+
+// Endpoint to validate a promo code against server registry and user history
+app.post('/api/promo/validate', (req, res) => {
+  const { code, email, whatsapp, planId = 'monthly', currency = 'XOF' } = req.body;
+  if (!code || typeof code !== 'string' || !code.trim()) {
+    return res.status(400).json({ valid: false, error: 'Veuillez saisir un code promo.' });
+  }
+
+  const cleanCode = code.trim().toUpperCase();
+  const promo = PROMO_CODES_REGISTRY[cleanCode];
+
+  if (!promo || !promo.active) {
+    return res.status(404).json({
+      valid: false,
+      error: 'Code promo invalide ou expiré.',
+    });
+  }
+
+  // Find plan details
+  const targetPlan = PAYWALL_PLANS.find((p) => p.id === planId) || PAYWALL_PLANS[0];
+  if (promo.allowedPlans && !promo.allowedPlans.includes(targetPlan.id)) {
+    return res.status(400).json({
+      valid: false,
+      error: `Ce code promo n'est pas applicable à cette formule (${targetPlan.name}).`,
+    });
+  }
+
+  // Check if this teacher account has already used this promo code
+  const leads = loadLeads();
+  const cleanEmail = (email || '').toString().trim().toLowerCase();
+  const cleanPhone = (whatsapp || '').toString().trim();
+
+  let teacher = leads.find(
+    (l) =>
+      (cleanEmail && l.email && l.email.toLowerCase() === cleanEmail) ||
+      (cleanPhone && l.whatsapp && l.whatsapp === cleanPhone)
+  );
+
+  if (teacher) {
+    const usedCodes = (teacher.usedPromoCodes || []).map((c) => c.toUpperCase());
+    if (usedCodes.includes(cleanCode)) {
+      return res.status(400).json({
+        valid: false,
+        error: 'Ce code promo a déjà été utilisé sur votre compte.',
+      });
+    }
+  }
+
+  const originalPriceFcfa = targetPlan.priceFcfa;
+  const originalPriceEur = targetPlan.priceEur;
+
+  // 30% discount strictly for first month / first payment
+  const discountFcfa = Math.round(originalPriceFcfa * (promo.discountPercent / 100));
+  const discountEur = Number((originalPriceEur * (promo.discountPercent / 100)).toFixed(2));
+  const finalPriceFcfa = Math.max(0, originalPriceFcfa - discountFcfa);
+  const finalPriceEur = Number(Math.max(0, originalPriceEur - discountEur).toFixed(2));
+
+  return res.json({
+    valid: true,
+    code: promo.code,
+    discountPercent: promo.discountPercent,
+    firstMonthOnly: promo.firstMonthOnly,
+    originalPriceFcfa,
+    originalPriceEur,
+    discountAmountFcfa: discountFcfa,
+    discountAmountEur: discountEur,
+    finalPriceFcfa,
+    finalPriceEur,
+    partnerName: promo.partnerName,
+    partnerId: promo.partnerId,
+    // Note: partner commission percentage is strictly separated and not returned as user discount
+    message: `✓ Code ${promo.code} appliqué`,
+  });
+});
+
+// Paywall Checkout endpoint: handles Wave Mobile Money & Carte Bancaire payments
+app.post('/api/paywall/checkout', async (req, res) => {
+  const {
+    email,
+    name,
+    whatsapp,
+    planId,
+    paymentMethod,
+    currency = 'XOF',
+    waveNumber,
+    waveTxId,
+    cardDetails,
+    promoCode,
+  } = req.body;
+
+  if (!planId) {
+    return res.status(400).json({ error: 'Veuillez sélectionner un forfait ou une recharge.' });
+  }
+
+  const selectedPlan = PAYWALL_PLANS.find((p) => p.id === planId);
+  if (!selectedPlan) {
+    return res.status(400).json({ error: 'Forfait invalide.' });
+  }
+
+  if (paymentMethod !== 'wave' && paymentMethod !== 'card') {
+    return res.status(400).json({ error: 'Moyen de paiement invalide (Wave ou Carte bancaire uniquement).' });
+  }
+
+  if (!email && !whatsapp && !waveNumber) {
+    return res.status(400).json({ error: 'Adresse email ou numéro de contact requis pour activer votre compte.' });
+  }
+
+  const leads = loadLeads();
+  let teacher = leads.find(
+    (l) =>
+      (email && l.email && l.email.toLowerCase() === email.toLowerCase()) ||
+      (whatsapp && l.whatsapp && l.whatsapp === whatsapp) ||
+      (waveNumber && l.whatsapp && l.whatsapp === waveNumber)
+  );
+
+  if (!teacher) {
+    teacher = {
+      id: 'lead_' + Date.now() + '_' + Math.random().toString(36).substring(2, 7),
+      name: name || 'Enseignant',
+      email: email || (waveNumber ? `${waveNumber.replace(/[^0-9]/g, '')}@praxis.education` : 'prof@praxis.education'),
+      whatsapp: whatsapp || waveNumber || '',
+      school: '',
+      city: '',
+      plan: 'trial',
+      status: 'active',
+      copiesCorrected: 0,
+      subscriptionCredits: 50,
+      extraCredits: 0,
+      quota: 50,
+      totalSpent: 0,
+      createdAt: new Date().toISOString(),
+      lastActiveAt: new Date().toISOString(),
+      notes: 'Inscription directe via Paywall Wave / CB.',
+      transactions: [],
+      usedPromoCodes: [],
+    };
+    leads.unshift(teacher);
+  }
+
+  // --- STRICT SERVER-SIDE PROMO CODE & DISCOUNT VALIDATION ---
+  // RULE 1: If no promo code is supplied, price is 100% normal (0 reduction)
+  // RULE 2: Valid promo code grants -30% on the first month only
+  // RULE 3: Invalid code returns explicit error
+  // RULE 4: Already used code returns explicit error
+  const rawCode = (promoCode || '').toString().trim().toUpperCase();
+  let appliedPromo: PromoCodeConfig | null = null;
+  let applyDiscount = false;
+
+  if (rawCode) {
+    const promo = PROMO_CODES_REGISTRY[rawCode];
+    if (!promo || !promo.active) {
+      return res.status(400).json({
+        error: 'Code promo invalide ou expiré.',
+        invalidPromo: true,
+      });
+    }
+
+    // Check if user already used this promo code
+    const usedCodes = (teacher.usedPromoCodes || []).map((c) => c.toUpperCase());
+    if (usedCodes.includes(rawCode)) {
+      return res.status(400).json({
+        error: 'Ce code promo a déjà été utilisé sur votre compte.',
+        codeAlreadyUsed: true,
+      });
+    }
+
+    if (promo.allowedPlans && !promo.allowedPlans.includes(selectedPlan.id)) {
+      return res.status(400).json({
+        error: `Ce code promo n'est pas applicable à cette formule (${selectedPlan.name}).`,
+      });
+    }
+
+    appliedPromo = promo;
+    applyDiscount = true;
+  }
+
+  const isXof = currency === 'XOF';
+  const originalPriceFcfa = selectedPlan.priceFcfa;
+  const originalPriceEur = selectedPlan.priceEur;
+
+  let finalPriceFcfa = originalPriceFcfa;
+  let finalPriceEur = originalPriceEur;
+  let discountFcfa = 0;
+  let discountEur = 0;
+
+  if (applyDiscount && appliedPromo) {
+    discountFcfa = Math.round(originalPriceFcfa * (appliedPromo.discountPercent / 100));
+    discountEur = Number((originalPriceEur * (appliedPromo.discountPercent / 100)).toFixed(2));
+    finalPriceFcfa = Math.max(0, originalPriceFcfa - discountFcfa);
+    finalPriceEur = Number(Math.max(0, originalPriceEur - discountEur).toFixed(2));
+
+    // Register promo code as used for this account
+    teacher.usedPromoCodes = Array.from(new Set([...(teacher.usedPromoCodes || []), appliedPromo.code]));
+    teacher.firstPurchaseDiscountUsed = true;
+    if (appliedPromo.partnerName) {
+      teacher.referredByPartner = appliedPromo.partnerName;
+    }
+  }
+
+  const displayAmount = isXof ? finalPriceFcfa : finalPriceEur;
+  const eurEquivalent = isXof ? Number((finalPriceFcfa / 655.957).toFixed(2)) : finalPriceEur;
+
+  const currentCopies = teacher.copiesCorrected || 0;
+  const currentSub = teacher.subscriptionCredits || 0;
+  const currentExtra = teacher.extraCredits || 0;
+  let creditNotice = '';
+
+  if (selectedPlan.id === 'monthly') {
+    // 500 copies/mois cumulables jusqu'à un plafond de 1 500
+    const newSub = Math.min(1500, currentSub + 500);
+    teacher.subscriptionCredits = newSub;
+    teacher.plan = 'monthly';
+    teacher.renewalDate = new Date(Date.now() + 30 * 24 * 3600 * 1000).toISOString().slice(0, 10);
+    creditNotice = `${newSub} corrections incluses (cumulable max 1 500)`;
+  } else if (selectedPlan.id === 'quarterly') {
+    // 1 500 corrections pour 3 mois
+    teacher.subscriptionCredits = currentSub + 1500;
+    teacher.plan = 'quarterly';
+    teacher.renewalDate = new Date(Date.now() + 90 * 24 * 3600 * 1000).toISOString().slice(0, 10);
+    creditNotice = `1 500 corrections trimestrielles ajoutées`;
+  } else if (selectedPlan.id === 'school_year') {
+    // 4 500 corrections pour 9 mois (année scolaire)
+    teacher.subscriptionCredits = currentSub + 4500;
+    teacher.plan = 'school_year';
+    teacher.renewalDate = new Date(Date.now() + 270 * 24 * 3600 * 1000).toISOString().slice(0, 10);
+    creditNotice = `4 500 corrections Année Scolaire ajoutées`;
+  } else if (selectedPlan.id === 'extra_100') {
+    // Extra +100 corrections permanentes sans expiration
+    teacher.extraCredits = currentExtra + 100;
+    if (teacher.plan === 'free' || teacher.plan === 'trial') teacher.plan = 'pack';
+    creditNotice = `+100 corrections supplémentaires permanentes ajoutées`;
+  } else if (selectedPlan.id === 'extra_500') {
+    // Extra +500 corrections permanentes sans expiration
+    teacher.extraCredits = currentExtra + 500;
+    if (teacher.plan === 'free' || teacher.plan === 'trial') teacher.plan = 'pack';
+    creditNotice = `+500 corrections supplémentaires permanentes ajoutées`;
+  }
+
+  // Quota calculation: copies already graded + remaining active subscription credits + extra credits
+  teacher.quota = currentCopies + (teacher.subscriptionCredits || 0) + (teacher.extraCredits || 0);
+  teacher.status = 'active';
+  teacher.lastActiveAt = new Date().toISOString();
+  teacher.totalSpent = Number(((teacher.totalSpent || 0) + eurEquivalent).toFixed(2));
+  if (name && (!teacher.name || teacher.name === 'Enseignant')) {
+    teacher.name = name;
+  }
+  if (whatsapp && !teacher.whatsapp) {
+    teacher.whatsapp = whatsapp;
+  }
+
+  // Create real transaction record with separate promo & partner commission concepts
+  const txnId = 'txn_' + Date.now().toString(36) + '_' + Math.random().toString(36).substring(2, 5);
+  const paymentMethodLabel =
+    paymentMethod === 'wave'
+      ? `Wave Mobile Money (CI)`
+      : `Carte Bancaire (${cardDetails?.brand || 'Visa/Mastercard'}${cardDetails?.last4 ? ' •••• ' + cardDetails.last4 : ''})`;
+
+  // Partner commission calculation (e.g. 20% on the first payment) - strictly internal metric
+  const partnerCommissionAmount = (appliedPromo && appliedPromo.partnerCommissionPercent)
+    ? Number((eurEquivalent * (appliedPromo.partnerCommissionPercent / 100)).toFixed(2))
+    : undefined;
+
+  const promoDetailNotice = applyDiscount && appliedPromo
+    ? ` [Code ${appliedPromo.code} appliqué : -${appliedPromo.discountPercent}% sur le 1er mois]`
+    : '';
+
+  const newTxn: TransactionItem = {
+    id: txnId,
+    teacherId: teacher.id,
+    teacherName: teacher.name,
+    teacherEmail: teacher.email,
+    date: new Date().toISOString().slice(0, 10),
+    amount: eurEquivalent,
+    currency: isXof ? 'XOF' : 'EUR',
+    plan: teacher.plan,
+    status: 'succeeded',
+    paymentMethod: paymentMethodLabel,
+    description: `${selectedPlan.name}${promoDetailNotice} · ${displayAmount.toLocaleString('fr-FR')} ${isXof ? 'FCFA' : '€'}${
+      waveTxId ? ` (Réf Wave: ${waveTxId})` : ''
+    }`,
+    originalAmount: isXof ? originalPriceFcfa : originalPriceEur,
+    discountAmount: isXof ? discountFcfa : discountEur,
+    promoCode: appliedPromo ? appliedPromo.code : undefined,
+    discountPercent: appliedPromo ? appliedPromo.discountPercent : 0,
+    partnerAttribution: appliedPromo ? (appliedPromo.partnerName || appliedPromo.code) : teacher.referredByPartner,
+    partnerCommission: partnerCommissionAmount,
+  };
+
+  teacher.transactions = [newTxn, ...(teacher.transactions || [])];
+  teacher.notes = `${teacher.notes || ''}\n[Paiement ${paymentMethodLabel} le ${new Date().toLocaleString('fr-FR')}] : ${displayAmount} ${isXof ? 'FCFA' : '€'} - ${selectedPlan.name}${promoDetailNotice}`.trim();
+
+  saveLeads(leads);
+
+  // Send real-time Telegram alert to admin
+  const telegramMessage = `💰 *Nouveau Paiement Reçu sur Praxis IA !*
+━━━━━━━━━━━━━━━━━━━━
+👤 *Enseignant :* ${teacher.name}
+📧 *Email :* ${teacher.email}
+📱 *Contact / Wave :* ${waveNumber || teacher.whatsapp || 'Non renseigné'}
+💳 *Moyen :* ${paymentMethod === 'wave' ? '📱 Wave Mobile Money CI' : '💳 Carte Bancaire (Visa/Mastercard)'}
+💵 *Montant :* *${displayAmount.toLocaleString('fr-FR')} ${isXof ? 'FCFA' : '€'}* (~${eurEquivalent} €)${applyDiscount && appliedPromo ? ` _(Réduction -${appliedPromo.discountPercent}% avec code ${appliedPromo.code})_` : ''}
+${appliedPromo ? `🏷️ *Code Promo :* ${appliedPromo.code} (-${appliedPromo.discountPercent}% 1er mois)\n` : ''}${appliedPromo?.partnerName ? `🤝 *Partenaire :* ${appliedPromo.partnerName} (Commission interne: ${appliedPromo.partnerCommissionPercent}%)\n` : ''}📦 *Formule :* ${selectedPlan.name}
+🎯 *Solde :* ${teacher.subscriptionCredits || 0} incluses + ${teacher.extraCredits || 0} extra permanentes (${Math.max(0, teacher.quota - currentCopies)} prêtes)
+${waveTxId ? `🔖 *Réf Wave :* \`${waveTxId}\`\n` : ''}⏰ *Date :* ${new Date().toLocaleString('fr-FR')}
+━━━━━━━━━━━━━━━━━━━━
+👉 *Voir dans le CRM :* /dashboard`;
+
+  sendTelegramNotification(telegramMessage).catch((err) =>
+    console.warn('[Telegram Paywall] Notification non envoyée:', err)
+  );
+
+  const remainingCopies = Math.max(0, teacher.quota - currentCopies);
+  const waveLaunchUrl = `https://wave.com/pay?amount=${finalPriceFcfa}&recipient=${encodeURIComponent('+2250103890314')}&memo=${encodeURIComponent(`Praxis ${selectedPlan.name} ${teacher.name}`)}`;
+
+  res.status(200).json({
+    success: true,
+    teacher: {
+      id: teacher.id,
+      name: teacher.name,
+      email: teacher.email,
+      whatsapp: teacher.whatsapp,
+      plan: teacher.plan,
+      status: teacher.status,
+      quota: teacher.quota,
+      subscriptionCredits: teacher.subscriptionCredits || 0,
+      extraCredits: teacher.extraCredits || 0,
+      copiesCorrected: currentCopies,
+      remainingCopies,
+      totalSpent: teacher.totalSpent,
+      firstPurchaseDiscountUsed: teacher.firstPurchaseDiscountUsed,
+      usedPromoCodes: teacher.usedPromoCodes,
+      referredByPartner: teacher.referredByPartner,
+    },
+    transaction: newTxn,
+    appliedDiscount: applyDiscount,
+    discountPercent: applyDiscount && appliedPromo ? appliedPromo.discountPercent : 0,
+    promoCode: appliedPromo ? appliedPromo.code : null,
+    amountPaid: displayAmount,
+    currency: isXof ? 'XOF' : 'EUR',
+    waveLaunchUrl,
+    message: `Paiement de ${displayAmount.toLocaleString('fr-FR')} ${isXof ? 'FCFA' : '€'}${applyDiscount && appliedPromo ? ` (Code ${appliedPromo.code} appliqué)` : ''} validé avec succès ! ${creditNotice}. Vous avez ${remainingCopies} corrections prêtes à l'emploi.`,
+  });
 });
 
 // Admin login: verifies master password and issues an authenticated session token

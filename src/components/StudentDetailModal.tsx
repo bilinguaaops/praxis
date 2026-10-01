@@ -50,6 +50,7 @@ interface StudentDetailModalProps {
   onSave: (updatedSubmission: StudentSubmission) => void;
   onSwapSubmissions?: (subId1: string, subId2: string, mode?: 'names' | 'all') => void;
   isValidated?: boolean;
+  teacherName?: string;
 }
 
 export const StudentDetailModal: React.FC<StudentDetailModalProps> = ({
@@ -60,6 +61,7 @@ export const StudentDetailModal: React.FC<StudentDetailModalProps> = ({
   onSave,
   onSwapSubmissions,
   isValidated = false,
+  teacherName = 'Professeur',
 }) => {
   const result = submission.result;
   if (!result) return null;
@@ -73,6 +75,12 @@ export const StudentDetailModal: React.FC<StudentDetailModalProps> = ({
   const [questions, setQuestions] = useState<QuestionEvaluation[]>(result.questions || []);
   const [competences, setCompetences] = useState<CompetenceItem[]>(result.competences || []);
   const [teacherNotes, setTeacherNotes] = useState<string>(result.teacherNotes || '');
+  const [statutValidation, setStatutValidation] = useState<'propose_ia' | 'en_cours_examen' | 'valide_professeur'>(
+    result.statut_validation || (isValidated ? 'valide_professeur' : 'propose_ia')
+  );
+  const [validePar, setValidePar] = useState<string>(result.valide_par_nom || (isValidated ? teacherName : ''));
+  const [valideLe, setValideLe] = useState<string>(result.valide_le || '');
+  const initialAiGrade = typeof result.note_ia === 'number' ? result.note_ia : result.note;
   const [rotation, setRotation] = useState<number>(submission.rotation || 0);
   const [zoom, setZoom] = useState<number>(1);
   const [isSavedNotice, setIsSavedNotice] = useState(false);
@@ -262,17 +270,25 @@ export const StudentDetailModal: React.FC<StudentDetailModalProps> = ({
     setCompetences(updated);
   };
 
-  const handleSaveChanges = () => {
+  const handleSaveWithValidation = (
+    newStatus: 'propose_ia' | 'en_cours_examen' | 'valide_professeur',
+    valName: string,
+    valDate: string
+  ) => {
     const updatedResult: CorrectionResult = {
       ...result,
       nom_eleve: studentName,
       note: Number(grade),
       note_sur: gradeMax,
+      note_ia: initialAiGrade,
+      statut_validation: newStatus,
+      valide_par_nom: valName,
+      valide_le: valDate,
       appreciation,
       questions,
       competences,
       teacherNotes,
-      manuallyAdjusted: true,
+      manuallyAdjusted: Number(grade) !== initialAiGrade || Boolean(result.manuallyAdjusted),
     };
 
     onSave({
@@ -283,7 +299,11 @@ export const StudentDetailModal: React.FC<StudentDetailModalProps> = ({
     });
 
     setIsSavedNotice(true);
-    setTimeout(() => setIsSavedNotice(false), 2000);
+    setTimeout(() => setIsSavedNotice(false), 2500);
+  };
+
+  const handleSaveChanges = () => {
+    handleSaveWithValidation(statutValidation, validePar, valideLe);
   };
 
   const handleDownload = async (
@@ -963,65 +983,134 @@ export const StudentDetailModal: React.FC<StudentDetailModalProps> = ({
               </div>
             )}
 
-            {/* Prominent Human Verification / Legibility Notice */}
-            {(result.verification_humaine_recommandee ||
-              result.lisibilite === 'moyenne' ||
-              result.lisibilite === 'faible' ||
-              result.lisibilite === 'illisible' ||
-              result.avertissement_lisibilite) && (
-              <div
-                id="alert-lisibilite-detail"
-                className="bg-amber-50 border-2 border-amber-300 rounded-xl p-3 shadow-xs space-y-1.5 text-amber-950 animate-in fade-in duration-200"
-              >
-                <div className="flex items-center justify-between gap-2">
-                  <div className="flex items-center gap-2 font-black text-xs text-amber-900">
-                    <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
-                    <span>Vérification humaine recommandée (Lisibilité : {result.lisibilite || 'délicate'})</span>
+            {/* Human Validation & AI Confidence Bar */}
+            <div
+              id="praxis-human-validation-bar"
+              className={`rounded-2xl border p-4 shadow-xs transition-all ${
+                statutValidation === 'valide_professeur'
+                  ? 'bg-emerald-50/95 border-emerald-300 text-emerald-950'
+                  : (result.verification_humaine_recommandee || result.motif_verification || result.lisibilite === 'faible' || result.lisibilite === 'illisible' || result.lisibilite === 'moyenne')
+                  ? 'bg-amber-50/95 border-amber-300 text-amber-950'
+                  : 'bg-slate-50 border-slate-200 text-slate-900'
+              }`}
+            >
+              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                <div className="flex items-start gap-3 min-w-0">
+                  <div
+                    className={`p-2.5 rounded-xl shrink-0 ${
+                      statutValidation === 'valide_professeur'
+                        ? 'bg-emerald-600 text-white'
+                        : (result.verification_humaine_recommandee || result.motif_verification)
+                        ? 'bg-amber-500 text-white'
+                        : 'bg-blue-600 text-white'
+                    }`}
+                  >
+                    {statutValidation === 'valide_professeur' ? (
+                      <CheckCircle2 className="w-5 h-5" />
+                    ) : (result.verification_humaine_recommandee || result.motif_verification) ? (
+                      <AlertTriangle className="w-5 h-5" />
+                    ) : (
+                      <Sparkles className="w-5 h-5" />
+                    )}
                   </div>
-                  <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold uppercase bg-amber-200 text-amber-900 border border-amber-300">
-                    Contrôle prof
+
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="font-extrabold text-xs uppercase tracking-wider">
+                        {statutValidation === 'valide_professeur'
+                          ? '✓ Copie validée par l’enseignant'
+                          : 'Proposition de correction IA'}
+                      </span>
+
+                      <span
+                        className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold ${
+                          (result.confiance_globale === 'elevee' || (!result.confiance_globale && (result.lisibilite === 'bonne' || result.lisibilite === 'excellente')))
+                            ? 'bg-emerald-100 text-emerald-800 border border-emerald-300'
+                            : result.confiance_globale === 'moyenne'
+                            ? 'bg-blue-100 text-blue-800 border border-blue-300'
+                            : 'bg-amber-100 text-amber-900 border border-amber-300'
+                        }`}
+                      >
+                        {(result.confiance_globale === 'elevee' || (!result.confiance_globale && (result.lisibilite === 'bonne' || result.lisibilite === 'excellente')))
+                          ? '🟢 Confiance Élevée'
+                          : result.confiance_globale === 'moyenne'
+                          ? '🟡 Confiance Moyenne'
+                          : '🔴 Confiance Faible'}
+                      </span>
+                    </div>
+
+                    {statutValidation === 'valide_professeur' ? (
+                      <p className="text-xs text-emerald-800 font-medium mt-1 leading-snug">
+                        Note définitive certifiée par <strong>{validePar || teacherName || 'Professeur'}</strong>
+                        {valideLe ? ` le ${new Date(valideLe).toLocaleDateString('fr-FR')} à ${new Date(valideLe).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}` : ''}.
+                        {initialAiGrade !== Number(grade) && (
+                          <span className="block text-[11px] text-emerald-700 mt-0.5">
+                            Note IA d'origine : {initialAiGrade}/{gradeMax} → Ajustement prof : {grade > initialAiGrade ? `+${(grade - initialAiGrade).toFixed(2)}` : `${(grade - initialAiGrade).toFixed(2)}`} pt
+                          </span>
+                        )}
+                      </p>
+                    ) : (result.verification_humaine_recommandee || result.motif_verification) ? (
+                      <div className="mt-1">
+                        <span className="text-xs font-bold text-amber-900 block">
+                          ⚠ Vérification recommandée
+                        </span>
+                        <p className="text-xs text-amber-800 font-medium leading-snug">
+                          {result.motif_verification || result.avertissement_lisibilite || "Certains passages manuscrits ou calculs sont difficiles à lire avec certitude. Vérifiez la copie originale ci-contre."}
+                        </p>
+                      </div>
+                    ) : (
+                      <p className="text-xs text-slate-600 font-medium mt-1 leading-snug">
+                        Note proposée par l'IA : <strong>{initialAiGrade}/{gradeMax}</strong>. Vous pouvez modifier la note, les points par question ou valider directement.
+                      </p>
+                    )}
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2 self-stretch sm:self-center justify-end shrink-0">
+                  {statutValidation === 'valide_professeur' ? (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setStatutValidation('propose_ia');
+                        handleSaveWithValidation('propose_ia', '', '');
+                      }}
+                      className="px-3.5 py-2 rounded-xl border border-emerald-300 bg-white hover:bg-emerald-50 text-emerald-800 text-xs font-bold transition-colors cursor-pointer flex items-center gap-1.5 shadow-2xs"
+                      title="Déverrouiller la copie pour modifier la note ou les critères"
+                    >
+                      <Edit3 className="w-3.5 h-3.5" />
+                      <span>Modifier à nouveau</span>
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const now = new Date().toISOString();
+                        const prof = teacherName || 'Professeur';
+                        setStatutValidation('valide_professeur');
+                        setValidePar(prof);
+                        setValideLe(now);
+                        handleSaveWithValidation('valide_professeur', prof, now);
+                      }}
+                      id="btn-valider-copie-modal"
+                      className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-extrabold transition-all cursor-pointer flex items-center gap-1.5 shadow-xs hover:shadow-md"
+                    >
+                      <ShieldCheck className="w-4 h-4" />
+                      <span>✓ Valider la copie</span>
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* Transcription excerpt if present */}
+              {result.texte_transcrit_resume && (
+                <div className="mt-2.5 pt-2.5 border-t border-slate-200/80 text-[11px] font-mono leading-relaxed max-h-28 overflow-y-auto">
+                  <span className="font-bold text-slate-700 not-mono block mb-0.5">
+                    Transcription détectée sur la copie :
                   </span>
+                  <span className="text-slate-800 whitespace-pre-wrap">{result.texte_transcrit_resume}</span>
                 </div>
-                <p className="text-[11px] text-amber-800 leading-relaxed font-medium">
-                  {result.avertissement_lisibilite ||
-                    "L'IA a éprouvé des difficultés à déchiffrer avec certitude certains calculs, mots ou passages manuscrits sur cette copie. Ne vous fiez pas à 100% à la note automatique et vérifiez directement la copie originale ci-contre."}
-                </p>
-
-                {result.texte_transcrit_resume && (
-                  <div className="mt-1 pt-1 border-t border-amber-300/80 space-y-1">
-                    <div className="text-[11px] font-bold text-amber-950 flex items-center gap-1">
-                      <FileText className="w-3.5 h-3.5 text-amber-700 shrink-0" />
-                      <span>Trace & transcription déchiffrée par l'IA :</span>
-                    </div>
-                    <div className="text-[11px] text-amber-950 bg-amber-100/90 p-2 rounded-lg border border-amber-300 font-mono whitespace-pre-wrap leading-relaxed max-h-36 overflow-y-auto">
-                      {result.texte_transcrit_resume}
-                    </div>
-                  </div>
-                )}
-              </div>
-            )}
-
-            {/* Complete Transcription Trace if not already shown in legibility alert */}
-            {result.texte_transcrit_resume && !(
-              result.verification_humaine_recommandee ||
-              result.lisibilite === 'moyenne' ||
-              result.lisibilite === 'faible' ||
-              result.lisibilite === 'illisible' ||
-              result.avertissement_lisibilite
-            ) && (
-              <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 shadow-xs space-y-1.5">
-                <div className="flex items-center justify-between">
-                  <h3 className="text-[11px] font-bold uppercase tracking-wider text-slate-700 flex items-center gap-1.5">
-                    <FileText className="w-3.5 h-3.5 text-blue-600" />
-                    <span>Trace & transcription de la copie manuscrite</span>
-                  </h3>
-                  <span className="text-[10px] text-slate-400 font-semibold">Texte déchiffré par l'IA</span>
-                </div>
-                <div className="text-xs text-slate-800 bg-white p-2.5 rounded-lg border border-slate-200 font-mono whitespace-pre-wrap leading-relaxed max-h-36 overflow-y-auto">
-                  {result.texte_transcrit_resume}
-                </div>
-              </div>
-            )}
+              )}
+            </div>
 
             {/* Top Score Box & Appreciation: side-by-side in panoramic/zero-scroll mode */}
             <div className={`grid gap-3 ${compactNoScroll ? 'grid-cols-1 xl:grid-cols-12' : 'grid-cols-1'}`}>
@@ -1029,8 +1118,8 @@ export const StudentDetailModal: React.FC<StudentDetailModalProps> = ({
               <div className={`${compactNoScroll ? 'xl:col-span-5' : ''} bg-white rounded-xl border border-slate-200 ${compactNoScroll ? 'p-3.5' : 'p-5'} shadow-xs flex flex-col justify-between gap-2.5`}>
                 <div className="flex items-start justify-between gap-2">
                   <div>
-                    <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">
-                      Note de l'IA (modifiable)
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block">
+                      {statutValidation === 'valide_professeur' ? 'Note validée par le professeur' : 'Note proposée par l’IA (ajustable)'}
                     </span>
                     <div className="flex items-center gap-2 mt-1">
                       <input
@@ -1043,9 +1132,9 @@ export const StudentDetailModal: React.FC<StudentDetailModalProps> = ({
                         className="w-20 px-2.5 py-1 text-xl font-black text-slate-900 bg-slate-50 border border-slate-300 rounded-lg focus:bg-white focus:ring-2 focus:ring-blue-500 outline-hidden"
                       />
                       <span className="text-base font-bold text-slate-500">/ {gradeMax}</span>
-                      {result.manuallyAdjusted && (
+                      {Number(grade) !== initialAiGrade && (
                         <span className="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-amber-50 text-amber-700 border border-amber-200">
-                          Ajustée
+                          Ajustée (IA : {initialAiGrade})
                         </span>
                       )}
                     </div>
@@ -1195,11 +1284,28 @@ export const StudentDetailModal: React.FC<StudentDetailModalProps> = ({
                 {questions.map((q, idx) => (
                   <div
                     key={idx}
-                    className="p-3 bg-slate-50 border border-slate-200 rounded-xl space-y-2 text-xs hover:border-slate-300 transition-colors"
+                    className={`p-3 rounded-xl space-y-2 text-xs transition-colors border ${
+                      q.verification_recommandee || q.difficulte_lecture || q.confiance === 'faible'
+                        ? 'bg-amber-50/60 border-amber-300'
+                        : 'bg-slate-50 border-slate-200 hover:border-slate-300'
+                    }`}
                   >
                     <div className="flex items-center justify-between gap-2">
-                      <span className="font-bold text-slate-900 text-xs sm:text-sm">{q.numero_ou_titre}</span>
-                      <div className="flex items-center gap-1.5">
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <span className="font-bold text-slate-900 text-xs sm:text-sm">{q.numero_ou_titre}</span>
+                        {(q.verification_recommandee || q.difficulte_lecture || q.confiance === 'faible') && (
+                          <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-900 border border-amber-300">
+                            <AlertTriangle className="w-3 h-3 text-amber-600" />
+                            <span>Vérification suggérée</span>
+                          </span>
+                        )}
+                        {q.confiance && (
+                          <span className="text-[10px] text-slate-500 font-medium">
+                            ({q.confiance === 'elevee' ? 'Confiance 🟢' : q.confiance === 'moyenne' ? 'Confiance 🟡' : 'Confiance 🔴'})
+                          </span>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-1.5 shrink-0">
                         <span className="text-slate-500 text-[11px]">Note :</span>
                         <input
                           type="number"
@@ -1300,13 +1406,31 @@ export const StudentDetailModal: React.FC<StudentDetailModalProps> = ({
             >
               Fermer
             </button>
+            {statutValidation !== 'valide_professeur' && (
+              <button
+                type="button"
+                onClick={() => {
+                  const now = new Date().toISOString();
+                  const prof = teacherName || 'Professeur';
+                  setStatutValidation('valide_professeur');
+                  setValidePar(prof);
+                  setValideLe(now);
+                  handleSaveWithValidation('valide_professeur', prof, now);
+                }}
+                id="btn-modal-valider-footer"
+                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-black transition-colors cursor-pointer shadow-xs"
+              >
+                <ShieldCheck className="w-3.5 h-3.5" />
+                <span>✓ Valider la copie</span>
+              </button>
+            )}
             <button
               type="button"
               onClick={handleSaveChanges}
               className="inline-flex items-center gap-1.5 px-5 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold transition-colors cursor-pointer shadow-xs"
             >
               <Save className="w-3.5 h-3.5" />
-              <span>Enregistrer les modifications</span>
+              <span>Enregistrer</span>
             </button>
           </div>
         </div>

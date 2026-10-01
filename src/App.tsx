@@ -1,7 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { RotateCcw } from 'lucide-react';
-import { AssignmentConfig, StudentSubmission, ClassGroup, SavedEvaluation, MainView, LeadData } from './types';
+import { AssignmentConfig, StudentSubmission, ClassGroup, SavedEvaluation, MainView, LeadData, PaywallPlanId } from './types';
 import { Header } from './components/Header';
+import { Sidebar } from './components/Sidebar';
+import { TopHeader } from './components/TopHeader';
+import { TeacherDashboardView } from './components/TeacherDashboardView';
+import { ReferralsView } from './components/ReferralsView';
+import { SettingsView } from './components/SettingsView';
 import { TutorialBanner } from './components/TutorialBanner';
 import { LeadGateModal } from './components/LeadGateModal';
 import { ClassesView } from './components/ClassesView';
@@ -16,7 +21,12 @@ import { PrintCorrectionSheets } from './components/PrintCorrectionSheets';
 import { AdminDashboard } from './components/AdminDashboard';
 import { FaqView } from './components/FaqView';
 import { LandingPage } from './components/LandingPage';
+import { PricingPage } from './components/PricingPage';
 import { ContactModal } from './components/ContactModal';
+import { PaywallModal } from './components/PaywallModal';
+import { AuthView } from './components/AuthView';
+import { useSupabaseAuth } from './lib/useSupabaseAuth';
+
 const DEFAULT_CONFIG: AssignmentConfig = {
   discipline: 'Français',
   level: '5e',
@@ -41,58 +51,198 @@ export default function App() {
       const path = window.location.pathname;
       const search = window.location.search;
       const hash = window.location.hash;
-      if (path === '/dashboard' || path === '/admin' || search.includes('view=dashboard') || search.includes('admin=true')) {
-        return 'dashboard';
-      }
-      if (path === '/faq' || hash === '#faq' || search.includes('view=faq')) {
-        return 'faq';
-      }
-      if (path === '/correction' || search.includes('view=corr')) {
-        return 'corr';
-      }
-      if (path === '/classes' || search.includes('view=classes')) {
-        return 'classes';
-      }
-      if (path === '/suivi' || search.includes('view=suivi')) {
-        return 'suivi';
-      }
-      if (path === '/historique' || search.includes('view=hist')) {
-        return 'hist';
-      }
+      if (path === '/login' || search.includes('view=login')) return 'login';
+      if (path === '/register' || search.includes('view=register')) return 'register';
+      if (path === '/forgot-password' || search.includes('view=forgot-password')) return 'forgot-password';
+      if (path === '/admin' || search.includes('admin=true')) return 'admin';
+      if (path === '/dashboard' || search.includes('view=dashboard')) return 'dashboard';
+      if (path === '/series/new' || path === '/correction' || search.includes('view=corr')) return 'corr';
+      if (path === '/series' || path === '/historique' || search.includes('view=hist')) return 'hist';
+      if (path === '/classes' || search.includes('view=classes')) return 'classes';
+      if (path === '/results' || path === '/suivi' || search.includes('view=suivi')) return 'suivi';
+      if (path === '/billing' || path === '/tarifs' || path === '/pricing' || search.includes('view=pricing')) return 'pricing';
+      if (path === '/referrals' || path === '/parrainage' || search.includes('view=referrals')) return 'referrals';
+      if (path === '/settings' || path === '/parametres' || search.includes('view=settings')) return 'settings';
+      if (path === '/help' || path === '/faq' || hash === '#faq' || search.includes('view=faq')) return 'faq';
     } catch {}
     return 'landing';
   });
 
-  const handleViewChange = (view: MainView) => {
-    setActiveView(view);
+  const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
+
+  // Supabase Auth Integration (Official SDK Session & Profile)
+  const {
+    user,
+    session,
+    profile,
+    balance,
+    subscription,
+    currentLead: supabaseLead,
+    loading: authLoading,
+    signOut,
+    refreshProfile,
+  } = useSupabaseAuth();
+
+  // Local state fallback for non-migrated demo leads
+  const [localLead, setLocalLead] = useState<LeadData | null>(() => {
     try {
-      if (view === 'dashboard') {
-        if (window.location.pathname !== '/dashboard') {
-          window.history.pushState(null, '', '/dashboard');
-        }
-      } else if (view === 'faq') {
-        if (window.location.pathname !== '/faq') {
-          window.history.pushState(null, '', '/faq');
-        }
-      } else if (view === 'landing') {
-        if (window.location.pathname !== '/') {
-          window.history.pushState(null, '', '/');
-        }
-      } else {
-        if (window.location.pathname === '/dashboard' || window.location.pathname === '/admin' || window.location.pathname === '/faq') {
-          window.history.pushState(null, '', '/');
-        }
+      const saved = localStorage.getItem('praxis_lead') || localStorage.getItem('cpro_lead');
+      return saved ? JSON.parse(saved) : null;
+    } catch {
+      return null;
+    }
+  });
+
+  // Effective authenticated lead (Supabase Auth takes absolute precedence)
+  const currentLead: LeadData | null = supabaseLead || localLead;
+
+  const PATH_MAP: Record<MainView, string> = {
+    landing: '/',
+    login: '/login',
+    register: '/register',
+    'forgot-password': '/forgot-password',
+    dashboard: '/dashboard',
+    corr: '/series/new',
+    hist: '/series',
+    classes: '/classes',
+    suivi: '/results',
+    pricing: '/billing',
+    referrals: '/referrals',
+    settings: '/settings',
+    faq: '/help',
+    admin: '/admin',
+  };
+
+  interface NavigationEntry {
+    view: MainView;
+    step?: number;
+  }
+
+  const [currentStep, setCurrentStep] = useState<number>(() => {
+    try {
+      const search = new URLSearchParams(window.location.search);
+      const s = parseInt(search.get('step') || '1', 10);
+      return s >= 1 && s <= 5 ? s : 1;
+    } catch {
+      return 1;
+    }
+  });
+
+  const [viewHistory, setViewHistory] = useState<NavigationEntry[]>([
+    { view: activeView, step: activeView === 'corr' ? currentStep : undefined },
+  ]);
+
+  const goToStep = (step: number) => {
+    setCurrentStep(step);
+    setActiveView('corr');
+    setViewHistory((prev) => {
+      const last = prev[prev.length - 1];
+      if (last && last.view === 'corr' && last.step === step) return prev;
+      return [...prev, { view: 'corr', step }];
+    });
+    try {
+      const targetPath = step > 1 ? `/series/new?step=${step}` : '/series/new';
+      window.history.pushState({ view: 'corr', step }, '', targetPath);
+    } catch {}
+  };
+
+  const handleViewChange = (view: MainView, step: number = 1) => {
+    setActiveView(view);
+    if (view === 'corr') {
+      setCurrentStep(step);
+    }
+    setViewHistory((prev) => {
+      const last = prev[prev.length - 1];
+      if (last && last.view === view && (view !== 'corr' || last.step === step)) return prev;
+      return [...prev, { view, step: view === 'corr' ? step : undefined }];
+    });
+    try {
+      const basePath = PATH_MAP[view] || '/';
+      const targetPath = view === 'corr' && step > 1 ? `${basePath}?step=${step}` : basePath;
+      if (window.location.pathname + window.location.search !== targetPath) {
+        window.history.pushState({ view, step: view === 'corr' ? step : undefined }, '', targetPath);
       }
     } catch {}
   };
 
+  const handleBack = () => {
+    // Cas 1 : Si l'utilisateur est sur la page de soumission des copies (Étape 2 de correction)
+    // Le bouton retour le ramène DIRECTEMENT à l'étape 1 (Sujet, corrigé, barème, matière)
+    if (activeView === 'corr' && currentStep === 2) {
+      goToStep(1);
+      return;
+    }
+
+    // Cas 2 : Si l'utilisateur est à une étape ultérieure de correction (Étape 3 ou 4)
+    if (activeView === 'corr' && currentStep > 2) {
+      goToStep(currentStep - 1);
+      return;
+    }
+
+    // Cas 3 : Navigation d'historique générale entre les pages (ou depuis l'étape 1 de correction)
+    if (viewHistory.length > 1) {
+      const nextHistory = [...viewHistory];
+      nextHistory.pop(); // Retire la page actuelle
+      const prevEntry = nextHistory[nextHistory.length - 1] || { view: 'dashboard' };
+      setViewHistory(nextHistory);
+      setActiveView(prevEntry.view);
+      if (prevEntry.view === 'corr') {
+        setCurrentStep(prevEntry.step || 1);
+      }
+      try {
+        const basePath = PATH_MAP[prevEntry.view] || '/';
+        const targetPath = prevEntry.view === 'corr' && prevEntry.step && prevEntry.step > 1
+          ? `${basePath}?step=${prevEntry.step}`
+          : basePath;
+        window.history.pushState(prevEntry, '', targetPath);
+      } catch {}
+    } else {
+      handleViewChange('dashboard');
+    }
+  };
+
   useEffect(() => {
-    const handlePopState = () => {
+    const handlePopState = (event: PopStateEvent) => {
+      const state = event.state as { view?: MainView; step?: number } | null;
+      if (state && state.view) {
+        setActiveView(state.view);
+        if (state.view === 'corr') {
+          setCurrentStep(state.step || 1);
+        }
+        return;
+      }
+
       const path = window.location.pathname;
+      const search = new URLSearchParams(window.location.search);
+      const stepParam = parseInt(search.get('step') || '1', 10);
       const hash = window.location.hash;
-      if (path === '/dashboard' || path === '/admin') {
+
+      if (path === '/login') {
+        setActiveView('login');
+      } else if (path === '/register') {
+        setActiveView('register');
+      } else if (path === '/forgot-password') {
+        setActiveView('forgot-password');
+      } else if (path === '/admin') {
+        setActiveView('admin');
+      } else if (path === '/dashboard') {
         setActiveView('dashboard');
-      } else if (path === '/faq' || hash === '#faq') {
+      } else if (path === '/series/new' || path === '/correction') {
+        setActiveView('corr');
+        setCurrentStep(stepParam >= 1 && stepParam <= 5 ? stepParam : 1);
+      } else if (path === '/series' || path === '/historique') {
+        setActiveView('hist');
+      } else if (path === '/classes') {
+        setActiveView('classes');
+      } else if (path === '/results' || path === '/suivi') {
+        setActiveView('suivi');
+      } else if (path === '/billing' || path === '/tarifs' || path === '/pricing') {
+        setActiveView('pricing');
+      } else if (path === '/referrals' || path === '/parrainage') {
+        setActiveView('referrals');
+      } else if (path === '/settings' || path === '/parametres') {
+        setActiveView('settings');
+      } else if (path === '/help' || path === '/faq' || hash === '#faq') {
         setActiveView('faq');
       } else {
         setActiveView('landing');
@@ -102,16 +252,56 @@ export default function App() {
     return () => window.removeEventListener('popstate', handlePopState);
   }, []);
 
-  const [currentStep, setCurrentStep] = useState<number>(1);
-  const [isLeadGateOpen, setIsLeadGateOpen] = useState<boolean>(false);
+  // ROUTE GUARDS & PROTECTION (ÉTAPE 9)
+  // Routes privées nécessitant une session active
+  const PRIVATE_VIEWS: MainView[] = [
+    'dashboard',
+    'corr',
+    'hist',
+    'classes',
+    'suivi',
+    'pricing',
+    'referrals',
+    'settings',
+    'admin',
+  ];
 
-  // Teacher connection / account state (from PRAXIS storage)
-  const [currentLead, setCurrentLead] = useState<LeadData | null>(() => {
+  useEffect(() => {
+    if (authLoading) return;
+
+    const isUserAuthenticated = Boolean(user || localLead);
+
+    // 1. Utilisateur non authentifié tentant d'accéder à une route privée -> redirection vers /login
+    if (!isUserAuthenticated && PRIVATE_VIEWS.includes(activeView)) {
+      handleViewChange('login');
+    }
+
+    // 2. Utilisateur déjà connecté visitant /login ou /register -> redirection vers /dashboard
+    if (
+      isUserAuthenticated &&
+      (activeView === 'login' || activeView === 'register' || activeView === 'forgot-password')
+    ) {
+      handleViewChange('dashboard');
+    }
+  }, [user, localLead, activeView, authLoading]);
+
+  const [isLeadGateOpen, setIsLeadGateOpen] = useState<boolean>(false);
+  const [isPaywallOpen, setIsPaywallOpen] = useState<boolean>(false);
+  const [selectedPlanForPaywall, setSelectedPlanForPaywall] = useState<PaywallPlanId>('quarterly');
+
+  // Partner / Affiliate Referral code detection (?ref=PROFJEAN or ?promo=PROFJEAN)
+  const [partnerRefCode, setPartnerRefCode] = useState<string>(() => {
     try {
-      const saved = localStorage.getItem('praxis_lead') || localStorage.getItem('cpro_lead');
-      return saved ? JSON.parse(saved) : null;
+      const search = new URLSearchParams(window.location.search);
+      const ref = search.get('ref') || search.get('promo') || search.get('code');
+      if (ref && ref.trim()) {
+        const cleanRef = ref.trim().toUpperCase();
+        localStorage.setItem('praxis_partner_ref', cleanRef);
+        return cleanRef;
+      }
+      return localStorage.getItem('praxis_partner_ref') || '';
     } catch {
-      return null;
+      return '';
     }
   });
 
@@ -523,20 +713,21 @@ export default function App() {
 
   // Action when teacher triggers the correction process (Step 2 button or direct step navigation)
   const handleRequestStartCorrection = () => {
-    const isRegistered = Boolean(localStorage.getItem('praxis_lead') || localStorage.getItem('cpro_lead') || currentLead);
+    const isRegistered = Boolean(user || currentLead);
     if (isRegistered) {
-      setCurrentStep(3);
+      goToStep(3);
     } else {
-      // Registration is strictly required before launching correction in this demo version
-      setIsLeadGateOpen(true);
+      // Registration is strictly required before launching correction
+      handleViewChange('register');
     }
   };
 
   const handleLeadSubmitSuccess = (lead: LeadData) => {
-    setCurrentLead(lead);
+    setLocalLead(lead);
     setIsLeadGateOpen(false);
+    refreshProfile();
     // Registration completed: immediately launch correction
-    setCurrentStep(3);
+    goToStep(3);
   };
 
   const handleCloseLeadGate = () => {
@@ -544,51 +735,39 @@ export default function App() {
     setIsLeadGateOpen(false);
   };
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    await signOut();
     localStorage.removeItem('praxis_lead');
     localStorage.removeItem('cpro_lead');
-    setCurrentLead(null);
+    setLocalLead(null);
+    handleViewChange('login');
+  };
+
+  const handleOpenPaywall = (planId: PaywallPlanId = 'school_year') => {
+    setSelectedPlanForPaywall(planId);
+    handleViewChange('pricing');
+    setIsPaywallOpen(false);
+  };
+
+  const handlePaymentSuccess = (updatedTeacher: LeadData) => {
+    setLocalLead(updatedTeacher);
+    refreshProfile();
   };
 
   const completedCount = submissions.filter((s) => s.status === 'completed').length;
 
-  if (activeView === 'dashboard') {
-    return <AdminDashboard onBackToApp={() => handleViewChange('corr')} />;
-  }
-
   return (
-    <div className="min-h-screen flex flex-col bg-slate-50 text-slate-900 font-sans">
-      <Header
-        currentStep={currentStep}
-        onStepClick={(step) => {
-          if (step >= 3) {
-            const isRegistered = Boolean(localStorage.getItem('praxis_lead') || localStorage.getItem('cpro_lead') || currentLead);
-            if (!isRegistered) {
-              setIsLeadGateOpen(true);
-              return;
-            }
-          }
-          handleViewChange('corr');
-          setCurrentStep(step);
-        }}
-        onReset={handleReset}
-        completedCount={completedCount}
-        totalCount={submissions.length}
-        activeView={activeView}
-        onViewChange={handleViewChange}
-        savedEvalsCount={savedEvaluations.length}
-        currentLead={currentLead}
-        onOpenLoginModal={() => setIsLeadGateOpen(true)}
-        onLogout={handleLogout}
-        onOpenContactModal={() => setIsContactModalOpen(true)}
-      />
-
-      {/* VIEW 0: NOTIE AI INSPIRED LANDING PAGE */}
+    <div className="min-h-screen bg-slate-50 text-slate-900 font-sans">
+      {/* PUBLIC VIEW: NOTIE AI INSPIRED LANDING PAGE */}
       {activeView === 'landing' && (
         <LandingPage
           onStartCorrection={() => {
-            handleViewChange('corr');
-            setCurrentStep(1);
+            if (user || currentLead) {
+              handleViewChange('corr');
+              setCurrentStep(1);
+            } else {
+              handleViewChange('register');
+            }
             window.scrollTo({ top: 0, behavior: 'smooth' });
           }}
           onNavigateToView={(view) => {
@@ -596,110 +775,233 @@ export default function App() {
             window.scrollTo({ top: 0, behavior: 'smooth' });
           }}
           onOpenContact={() => setIsContactModalOpen(true)}
+          onOpenPaywall={(plan) => handleOpenPaywall(plan || 'quarterly')}
         />
       )}
 
-      {activeView !== 'landing' && (
-        <main className="flex-1 max-w-7xl w-full mx-auto px-3 sm:px-6 lg:px-8 py-4 sm:py-8">
-          {/* VIEW 1: CORRECTION WORKFLOW */}
-          {activeView === 'corr' && (
-            <div className="space-y-6">
-              {/* Collapsible pedagogical tutorial guide */}
-              <TutorialBanner />
+      {/* AUTH VIEWS: /login, /register, /forgot-password */}
+      {(activeView === 'login' || activeView === 'register' || activeView === 'forgot-password') && (
+        <AuthView
+          initialMode={activeView}
+          onNavigate={(view) => handleViewChange(view)}
+          onAuthSuccess={() => {
+            refreshProfile();
+            handleViewChange('dashboard');
+          }}
+        />
+      )}
 
-              {currentStep === 1 && (
-                <Step1Config
-                  config={config}
-                  onChange={setConfig}
-                  onNext={() => setCurrentStep(2)}
-                />
-              )}
+      {/* AUTHENTICATED APP WORKSPACE (PERSISTENT SIDEBAR + TOP HEADER) */}
+      {activeView !== 'landing' &&
+        activeView !== 'login' &&
+        activeView !== 'register' &&
+        activeView !== 'forgot-password' && (
+        <div className="min-h-screen flex flex-col">
+          {/* Persistent Sidebar Navigation (8-9 entries + Credits Widget) */}
+          <Sidebar
+            activeView={activeView}
+            onViewChange={handleViewChange}
+            currentLead={currentLead}
+            savedEvalsCount={savedEvaluations.length}
+            classesCount={classes.length}
+            isOpenMobile={isMobileSidebarOpen}
+            onCloseMobile={() => setIsMobileSidebarOpen(false)}
+            onOpenBilling={() => handleOpenPaywall('quarterly')}
+          />
 
-              {currentStep === 2 && (
-                <Step2Upload
-                  submissions={submissions}
-                  onSubmissionsChange={setSubmissions}
-                  onNext={handleRequestStartCorrection}
-                  onBack={() => setCurrentStep(1)}
-                  isRegistered={Boolean(currentLead || localStorage.getItem('praxis_lead') || localStorage.getItem('cpro_lead'))}
-                  config={config}
-                  onConfigChange={setConfig}
-                  classes={classes}
-                  onSwapSubmissions={handleSwapSubmissions}
-                />
-              )}
+          {/* Main Content Area */}
+          <div className="lg:pl-64 flex flex-col min-h-screen">
+            <TopHeader
+              activeView={activeView}
+              currentStep={currentStep}
+              onViewChange={handleViewChange}
+              currentLead={currentLead}
+              onOpenMobileSidebar={() => setIsMobileSidebarOpen(true)}
+              onLogout={handleLogout}
+              onOpenLoginModal={() => handleViewChange('login')}
+              onOpenContactModal={() => setIsContactModalOpen(true)}
+              onOpenBilling={() => handleOpenPaywall('quarterly')}
+              onBack={handleBack}
+            />
 
-              {currentStep === 3 && (
-                <Step3Progress
-                  config={config}
-                  submissions={submissions}
-                  onSubmissionsChange={setSubmissions}
-                  onFinish={() => setCurrentStep(4)}
-                  onViewDashboard={() => setCurrentStep(4)}
+            <main className="flex-1 w-full max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-5 sm:py-8">
+              {/* VIEW 0: TEACHER DASHBOARD (ACCUEIL) */}
+              {activeView === 'dashboard' && (
+                <TeacherDashboardView
                   currentLead={currentLead}
-                  onRequireRegistration={() => setIsLeadGateOpen(true)}
+                  savedEvaluations={savedEvaluations}
+                  classes={classes}
+                  onStartNewCorrection={() => {
+                    handleViewChange('corr');
+                    goToStep(1);
+                  }}
+                  onViewSeries={() => handleViewChange('hist')}
+                  onViewClasses={() => handleViewChange('classes')}
+                  onViewResults={() => handleViewChange('suivi')}
+                  onOpenBilling={() => handleOpenPaywall('quarterly')}
+                  onOpenReferrals={() => handleViewChange('referrals')}
+                  onOpenEvaluation={handleLoadEvaluation}
                 />
               )}
 
-              {currentStep === 4 && (
-                <Step4Dashboard
-                  config={config}
-                  submissions={submissions}
-                  onSubmissionsChange={setSubmissions}
-                  onSelectStudent={(sub) => setSelectedStudentForModal(sub)}
-                  onOpenPrint={() => setIsPrintModalOpen(true)}
-                  onBackToCopies={() => setCurrentStep(2)}
-                  onSaveToHistory={handleSaveToHistory}
-                  initialTeacherNotes={activeTeacherNotes}
-                  onSwapSubmissions={handleSwapSubmissions}
-                  isValidated={isCurrentEvalValidated}
-                  onValidateClassCorrection={() => setIsCurrentEvalValidated(true)}
+              {/* VIEW 1: CORRECTION WORKFLOW (5 STEPS) */}
+              {activeView === 'corr' && (
+                <div className="space-y-6">
+                  {/* Collapsible pedagogical tutorial guide */}
+                  <TutorialBanner />
+
+                  {currentStep === 1 && (
+                    <Step1Config
+                      config={config}
+                      onChange={setConfig}
+                      onNext={() => goToStep(2)}
+                    />
+                  )}
+
+                  {currentStep === 2 && (
+                    <Step2Upload
+                      submissions={submissions}
+                      onSubmissionsChange={setSubmissions}
+                      onNext={handleRequestStartCorrection}
+                      onBack={handleBack}
+                      isRegistered={Boolean(currentLead || localStorage.getItem('praxis_lead') || localStorage.getItem('cpro_lead'))}
+                      config={config}
+                      onConfigChange={setConfig}
+                      classes={classes}
+                      onSwapSubmissions={handleSwapSubmissions}
+                      currentLead={currentLead}
+                    />
+                  )}
+
+                  {currentStep === 3 && (
+                    <Step3Progress
+                      config={config}
+                      submissions={submissions}
+                      onSubmissionsChange={setSubmissions}
+                      onFinish={() => goToStep(4)}
+                      onViewDashboard={() => goToStep(4)}
+                      onBack={handleBack}
+                      currentLead={currentLead}
+                      onRequireRegistration={() => setIsLeadGateOpen(true)}
+                      onOpenPaywall={() => handleOpenPaywall('quarterly')}
+                      onLeadChange={(updatedLead) => {
+                        setLocalLead(updatedLead);
+                        refreshProfile();
+                      }}
+                    />
+                  )}
+
+                  {currentStep === 4 && (
+                    <Step4Dashboard
+                      config={config}
+                      submissions={submissions}
+                      onSubmissionsChange={setSubmissions}
+                      onSelectStudent={(sub) => setSelectedStudentForModal(sub)}
+                      onOpenPrint={() => setIsPrintModalOpen(true)}
+                      onBackToCopies={handleBack}
+                      onSaveToHistory={handleSaveToHistory}
+                      initialTeacherNotes={activeTeacherNotes}
+                      onSwapSubmissions={handleSwapSubmissions}
+                      isValidated={isCurrentEvalValidated}
+                      onValidateClassCorrection={() => setIsCurrentEvalValidated(true)}
+                    />
+                  )}
+                </div>
+              )}
+
+              {/* VIEW 2: CLASSES & ROSTERS */}
+              {activeView === 'classes' && (
+                <ClassesView
+                  classes={classes}
+                  onClassesChange={setClasses}
+                  onUseClassForCorrection={handleUseClassForCorrection}
+                  evaluations={savedEvaluations}
+                  currentSubmissions={submissions}
+                  onOpenEvaluation={handleLoadEvaluation}
                 />
               )}
-            </div>
-          )}
 
-          {/* VIEW 2: CLASSES & ROSTERS */}
-          {activeView === 'classes' && (
-            <ClassesView
-              classes={classes}
-              onClassesChange={setClasses}
-              onUseClassForCorrection={handleUseClassForCorrection}
-              evaluations={savedEvaluations}
-              currentSubmissions={submissions}
-              onOpenEvaluation={handleLoadEvaluation}
-            />
-          )}
+              {/* VIEW 3: SUIVI INDIVIDUEL ET STATISTIQUES */}
+              {activeView === 'suivi' && (
+                <SuiviView
+                  evaluations={savedEvaluations}
+                  currentSubmissions={submissions}
+                  onOpenEvaluation={handleLoadEvaluation}
+                />
+              )}
 
-          {/* VIEW 3: SUIVI INDIVIDUEL */}
-          {activeView === 'suivi' && (
-            <SuiviView
-              evaluations={savedEvaluations}
-              currentSubmissions={submissions}
-              onOpenEvaluation={handleLoadEvaluation}
-            />
-          )}
+              {/* VIEW 4: MES SÉRIES (HISTORIQUE) */}
+              {activeView === 'hist' && (
+                <HistoriqueView
+                  evaluations={savedEvaluations}
+                  onDeleteEvaluation={handleDeleteEvaluation}
+                  onLoadEvaluation={handleLoadEvaluation}
+                />
+              )}
 
-          {/* VIEW 4: HISTORIQUE DES ÉVALUATIONS */}
-          {activeView === 'hist' && (
-            <HistoriqueView
-              evaluations={savedEvaluations}
-              onDeleteEvaluation={handleDeleteEvaluation}
-              onLoadEvaluation={handleLoadEvaluation}
-            />
-          )}
+              {/* VIEW 5: ABONNEMENT & CRÉDITS */}
+              {activeView === 'pricing' && (
+                <PricingPage
+                  currentLead={currentLead}
+                  initialPlanId={selectedPlanForPaywall}
+                  partnerRefCode={partnerRefCode}
+                  onPaymentSuccess={handlePaymentSuccess}
+                  onStartCorrection={() => {
+                    handleViewChange('corr', 1);
+                    window.scrollTo({ top: 0, behavior: 'smooth' });
+                  }}
+                  onBackToApp={() => {
+                    handleBack();
+                    window.scrollTo({ top: 0, behavior: 'smooth' });
+                  }}
+                  onOpenContact={() => setIsContactModalOpen(true)}
+                />
+              )}
 
-          {/* VIEW 5: FAQ & GUIDE PÉDAGOGIQUE */}
-          {activeView === 'faq' && (
-            <FaqView
-              onStartCorrection={() => {
-                handleViewChange('corr');
-                setCurrentStep(1);
-              }}
-              onOpenContact={() => setIsContactModalOpen(true)}
-            />
-          )}
-        </main>
+              {/* VIEW 6: PROGRAMME DE PARRAINAGE */}
+              {activeView === 'referrals' && (
+                <ReferralsView
+                  currentLead={currentLead}
+                  onOpenBilling={() => handleOpenPaywall('quarterly')}
+                  onStartCorrection={() => {
+                    handleViewChange('corr', 1);
+                  }}
+                  onBack={handleBack}
+                />
+              )}
+
+              {/* VIEW 7: PARAMÈTRES DU COMPTE */}
+              {activeView === 'settings' && (
+                <SettingsView
+                  currentLead={currentLead}
+                  onUpdateLead={(updated) => {
+                    setLocalLead(updated);
+                    refreshProfile();
+                  }}
+                  onOpenBilling={() => handleOpenPaywall('quarterly')}
+                />
+              )}
+
+              {/* VIEW 8: FAQ & AIDE PÉDAGOGIQUE */}
+              {activeView === 'faq' && (
+                <FaqView
+                  onStartCorrection={() => {
+                    handleViewChange('corr');
+                    setCurrentStep(1);
+                  }}
+                  onOpenContact={() => setIsContactModalOpen(true)}
+                />
+              )}
+
+              {/* VIEW 9: DASHBOARD ADMIN */}
+              {activeView === 'admin' && (
+                <AdminDashboard
+                  onBackToApp={() => handleViewChange('dashboard')}
+                />
+              )}
+            </main>
+          </div>
+        </div>
       )}
 
       {/* Side-by-side Student Inspection and Adjustment Modal */}
@@ -712,6 +1014,7 @@ export default function App() {
           onSave={handleSaveStudentEdit}
           onSwapSubmissions={handleSwapSubmissions}
           isValidated={isCurrentEvalValidated}
+          teacherName={currentLead?.name || 'Professeur'}
         />
       )}
 
@@ -735,6 +1038,16 @@ export default function App() {
       <ContactModal
         isOpen={isContactModalOpen}
         onClose={() => setIsContactModalOpen(false)}
+      />
+
+      {/* Wave Mobile Money & Carte Bancaire Paywall Modal */}
+      <PaywallModal
+        isOpen={isPaywallOpen}
+        onClose={() => setIsPaywallOpen(false)}
+        currentLead={currentLead}
+        onPaymentSuccess={handlePaymentSuccess}
+        initialPlanId={selectedPlanForPaywall}
+        partnerRefCode={partnerRefCode}
       />
 
       {/* In-app Reset Confirmation Modal */}

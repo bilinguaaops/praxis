@@ -24,13 +24,17 @@ import {
   Phone,
   Mail,
   MessageCircle,
+  CreditCard,
+  Smartphone,
 } from 'lucide-react';
 import { FaqView } from './FaqView';
+import { PaywallPlanId, MainView } from '../types';
 
 interface LandingPageProps {
   onStartCorrection: () => void;
-  onNavigateToView: (view: 'corr' | 'classes' | 'suivi' | 'hist' | 'faq') => void;
+  onNavigateToView: (view: MainView) => void;
   onOpenContact?: () => void;
+  onOpenPaywall?: (planId?: PaywallPlanId) => void;
 }
 
 type DemoDiscipline = 'philo' | 'francais' | 'maths';
@@ -39,8 +43,10 @@ export const LandingPage: React.FC<LandingPageProps> = ({
   onStartCorrection,
   onNavigateToView,
   onOpenContact,
+  onOpenPaywall,
 }) => {
   const [activeDemo, setActiveDemo] = useState<DemoDiscipline>('philo');
+  const [landingCurrency, setLandingCurrency] = useState<'XOF' | 'EUR'>('XOF');
 
   const demoCases = {
     philo: {
@@ -111,6 +117,63 @@ Donc BD = (OB * AC) / OA = (4.5 * 6) / 3 = 9 cm."`,
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 selection:bg-blue-100 selection:text-blue-900">
+      {/* 0. PUBLIC HEADER / NAVBAR */}
+      <header className="sticky top-0 z-40 bg-white/90 backdrop-blur-md border-b border-slate-200/80 px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between shadow-xs">
+        <div className="flex items-center gap-6">
+          <button
+            type="button"
+            onClick={() => onNavigateToView('landing')}
+            className="flex items-center gap-2 cursor-pointer"
+          >
+            <div className="w-8 h-8 rounded-xl bg-blue-600 text-white flex items-center justify-center font-black text-base shadow-xs">
+              P
+            </div>
+            <span className="font-extrabold text-lg tracking-tight text-slate-900">Praxis</span>
+            <span className="text-[11px] font-bold text-blue-700 bg-blue-50 px-2 py-0.5 rounded-full border border-blue-200">
+              Éducation
+            </span>
+          </button>
+
+          <nav className="hidden md:flex items-center gap-5 text-xs font-semibold text-slate-600">
+            <a href="#demo-interactive" className="hover:text-blue-600 transition-colors">
+              Démonstration
+            </a>
+            <button
+              type="button"
+              onClick={() => onNavigateToView('pricing')}
+              className="hover:text-blue-600 transition-colors cursor-pointer"
+            >
+              Tarifs
+            </button>
+            <button
+              type="button"
+              onClick={() => onNavigateToView('faq')}
+              className="hover:text-blue-600 transition-colors cursor-pointer"
+            >
+              Guide & FAQ
+            </button>
+          </nav>
+        </div>
+
+        <div className="flex items-center gap-2 sm:gap-3">
+          <button
+            type="button"
+            onClick={() => onNavigateToView('login')}
+            className="px-3.5 py-1.5 text-xs font-bold text-slate-700 hover:text-slate-900 hover:bg-slate-100 rounded-xl transition-colors cursor-pointer"
+          >
+            Connexion
+          </button>
+          <button
+            type="button"
+            onClick={() => onNavigateToView('register')}
+            className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs shadow-xs transition-colors cursor-pointer"
+          >
+            <span>Créer un compte</span>
+            <ArrowRight className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      </header>
+
       {/* 1. HERO SECTION */}
       <section className="relative overflow-hidden pt-8 pb-16 lg:pt-14 lg:pb-24 border-b border-slate-200/80 bg-gradient-to-b from-white via-slate-50/70 to-slate-100/50">
         {/* Subtle background ambient mesh */}
@@ -633,6 +696,358 @@ Donc BD = (OB * AC) / OA = (4.5 * 6) / 3 = 9 cm."`,
       {/* 7. FAQ SECTION AT THE BOTTOM OF THE HOME PAGE (As requested by user) */}
       <section className="py-16 sm:py-24 max-w-5xl mx-auto px-4 sm:px-6">
         <FaqView onStartCorrection={onStartCorrection} onOpenContact={onOpenContact} />
+      </section>
+
+      {/* 7.5 PRICING & PAYMENT METHODS SECTION (WAVE & CARTE BANCAIRE) */}
+      {/* 7. TARIFS & PACKS SECTION (POPCORN PRICING PREMIUM) */}
+      <section id="section-tarifs" className="py-16 sm:py-24 bg-white border-t border-slate-200">
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 space-y-12">
+          {/* Header & Subtitle */}
+          <div className="text-center max-w-3xl mx-auto space-y-4">
+            <span className="text-xs font-black tracking-widest uppercase text-blue-700 bg-blue-100/80 px-3.5 py-1 rounded-full border border-blue-200 inline-block">
+              PRAXIS — TARIFS
+            </span>
+
+            <h2 className="text-3xl sm:text-5xl font-black text-slate-900 tracking-tight leading-tight">
+              Corrigez plus. <br />
+              <span className="text-blue-600">Passez moins de temps à corriger.</span>
+            </h2>
+
+            <p className="text-sm sm:text-base text-slate-600 leading-relaxed max-w-2xl mx-auto">
+              Commencez gratuitement, puis choisissez la formule qui correspond à votre rythme de correction.
+            </p>
+
+            {/* Free trial guarantee badge */}
+            <div className="inline-flex items-center gap-2 px-4 py-2 rounded-2xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs sm:text-sm font-bold shadow-xs">
+              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+              <span>30 corrections offertes · Aucune carte bancaire requise</span>
+            </div>
+
+            {/* Direct Link to PricingPage */}
+            <div className="pt-1">
+              <button
+                type="button"
+                onClick={() => onNavigateToView('pricing')}
+                className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-gradient-to-r from-blue-50 to-indigo-50 text-blue-800 hover:from-blue-100 hover:to-indigo-100 text-xs font-bold border border-blue-200/80 transition-all cursor-pointer shadow-xs"
+              >
+                <Calculator className="w-3.5 h-3.5 text-blue-600" />
+                <span>Simulateur selon vos classes & Page détaillée des Tarifs</span>
+                <span className="px-1.5 py-0.5 rounded bg-amber-400 text-slate-950 font-black text-[10px]">-30%</span>
+                <ArrowRight className="w-3.5 h-3.5 text-blue-600" />
+              </button>
+            </div>
+          </div>
+
+          {/* Popcorn Pricing 3 Columns */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 lg:gap-8 items-stretch">
+            {/* PLAN 1: MENSUEL */}
+            <div className="bg-white rounded-3xl border border-slate-200 p-6 sm:p-7 flex flex-col justify-between hover:shadow-md transition-all shadow-xs relative">
+              <div className="space-y-4">
+                <div>
+                  <span className="text-xs font-bold text-slate-500 uppercase tracking-wider block">
+                    Mensuel
+                  </span>
+                  <h3 className="text-xl font-extrabold text-slate-900 mt-0.5">Mensuel Pro</h3>
+                </div>
+
+                {/* Price in EUR first, then FCFA below */}
+                <div className="py-3 border-y border-slate-100 space-y-1">
+                  <div className="flex items-baseline gap-1.5">
+                    <span className="text-3xl sm:text-4xl font-black text-slate-900 font-mono">
+                      7,60 €
+                    </span>
+                    <span className="text-xs font-semibold text-slate-500">/ mois</span>
+                  </div>
+                  <div className="text-xs font-semibold text-slate-600">
+                    Soit <strong className="text-slate-900 font-mono">5 000 FCFA</strong> par mois
+                  </div>
+                </div>
+
+                {/* Highlighted Corrections count underneath price */}
+                <div className="bg-blue-50/70 border border-blue-200/80 rounded-2xl p-3 text-center">
+                  <span className="text-2xl font-black text-blue-900 font-mono block">500</span>
+                  <span className="text-xs font-bold text-blue-700">corrections / mois</span>
+                  <span className="text-[10px] text-blue-600 block mt-0.5">Cumulable jusqu'à 1 500*</span>
+                </div>
+
+                <ul className="text-xs text-slate-600 space-y-2.5 pt-1">
+                  <li className="flex items-start gap-2">
+                    <Check className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+                    <span>Correction par lots</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <Check className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+                    <span>Barème personnalisé</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <Check className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+                    <span>Commentaires et annotations</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <Check className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+                    <span>Statistiques de classe</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <Check className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+                    <span>Export des résultats</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <Check className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+                    <span><strong>Corrections cumulables*</strong></span>
+                  </li>
+                </ul>
+              </div>
+
+              <div className="pt-6">
+                <button
+                  type="button"
+                  onClick={() => onOpenPaywall && onOpenPaywall('monthly')}
+                  className="w-full py-3 px-4 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs sm:text-sm transition-all shadow-xs flex items-center justify-center gap-2 cursor-pointer"
+                >
+                  <span>Choisir cette formule</span>
+                  <ArrowRight className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+
+            {/* PLAN 2: TRIMESTRIEL (3 MOIS) - MEILLEUR ÉQUILIBRE */}
+            <div className="bg-white rounded-3xl border border-slate-200 p-6 sm:p-7 flex flex-col justify-between hover:shadow-md transition-all shadow-sm relative">
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <span className="text-xs font-bold text-blue-700 uppercase tracking-wider block">
+                      Trimestriel
+                    </span>
+                    <h3 className="text-xl font-extrabold text-slate-900 mt-0.5">3 mois</h3>
+                  </div>
+                  <span className="px-2.5 py-1 rounded-full text-[10px] font-black bg-blue-100 text-blue-800">
+                    ⭐ Meilleur équilibre
+                  </span>
+                </div>
+
+                {/* Price in EUR first, then FCFA below */}
+                <div className="py-3 border-y border-slate-100 space-y-1">
+                  <div className="flex items-baseline gap-1.5">
+                    <span className="text-3xl sm:text-4xl font-black text-slate-900 font-mono">
+                      18,30 €
+                    </span>
+                    <span className="text-xs font-semibold text-slate-500">pour 3 mois</span>
+                  </div>
+                  <div className="text-xs font-semibold text-slate-600 flex items-center gap-1.5">
+                    <span>Soit</span>
+                    <strong className="text-slate-900 font-mono">12 000 FCFA</strong>
+                    <span className="text-slate-400 line-through">15 000 FCFA</span>
+                  </div>
+                  <div className="text-[11px] font-bold text-emerald-700 pt-0.5">
+                    Économisez 3 000 FCFA (4,50 €)
+                  </div>
+                </div>
+
+                {/* Highlighted Corrections count underneath price */}
+                <div className="bg-blue-50/70 border border-blue-200/80 rounded-2xl p-3 text-center">
+                  <span className="text-2xl font-black text-blue-900 font-mono block">1 500</span>
+                  <span className="text-xs font-bold text-blue-700">corrections</span>
+                  <span className="text-[10px] text-blue-600 block mt-0.5">500 corrections × 3 mois</span>
+                </div>
+
+                <ul className="text-xs text-slate-600 space-y-2.5 pt-1">
+                  <li className="flex items-start gap-2 font-semibold text-slate-900">
+                    <Check className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+                    <span>Tout le contenu du mensuel</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <Check className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+                    <span>500 corrections × 3 mois</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <Check className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+                    <span><strong>Corrections restantes conservées*</strong></span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <Check className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+                    <span>Aucun paiement mensuel pendant 3 mois</span>
+                  </li>
+                </ul>
+              </div>
+
+              <div className="pt-6">
+                <button
+                  type="button"
+                  onClick={() => onOpenPaywall && onOpenPaywall('quarterly')}
+                  className="w-full py-3 px-4 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs sm:text-sm transition-all shadow-xs flex items-center justify-center gap-2 cursor-pointer"
+                >
+                  <span>Choisir 3 mois</span>
+                  <ArrowRight className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+
+            {/* PLAN 3: PASS ANNÉE SCOLAIRE (9 MOIS) - CARTE VISUELLEMENT DOMINANTE */}
+            <div className="bg-gradient-to-b from-blue-900 via-indigo-950 to-slate-950 text-white rounded-3xl p-6 sm:p-7 flex flex-col justify-between shadow-2xl relative scale-100 md:scale-105 z-10 border-2 border-amber-400">
+              <div className="absolute -top-3.5 left-1/2 -translate-x-1/2 px-3.5 py-1 rounded-full text-[11px] font-black uppercase tracking-wider bg-amber-400 text-slate-950 shadow-md whitespace-nowrap">
+                🎓 Pour toute l'année scolaire
+              </div>
+
+              <div className="space-y-4 pt-2">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <span className="text-xs font-bold text-amber-300 uppercase tracking-wider block">
+                      Formule Recommandée
+                    </span>
+                    <h3 className="text-xl font-black text-white mt-0.5">Année scolaire</h3>
+                  </div>
+                  <span className="text-[10px] font-extrabold text-amber-300 bg-amber-400/20 px-2 py-0.5 rounded-full border border-amber-300/30">
+                    Top Valeur
+                  </span>
+                </div>
+
+                {/* Price in EUR first, then FCFA below */}
+                <div className="py-3 border-y border-white/15 space-y-1">
+                  <div className="flex items-baseline gap-1.5">
+                    <span className="text-3xl sm:text-4xl font-black text-white font-mono">
+                      45,75 €
+                    </span>
+                    <span className="text-xs font-semibold text-slate-300">pour 9 mois</span>
+                  </div>
+                  <div className="text-xs font-semibold text-blue-200 flex items-center gap-1.5">
+                    <span>Soit</span>
+                    <strong className="text-white font-mono">30 000 FCFA</strong>
+                    <span className="text-slate-400 line-through">45 000 FCFA</span>
+                  </div>
+                  <div className="text-[11px] font-black text-amber-300 pt-0.5">
+                    Économisez 15 000 FCFA (22,85 €)
+                  </div>
+                </div>
+
+                {/* Highlighted Corrections count underneath price */}
+                <div className="bg-white/10 border border-white/20 rounded-2xl p-3.5 text-center backdrop-blur-xs">
+                  <span className="text-3xl font-black text-amber-300 font-mono block">4 500</span>
+                  <span className="text-xs font-bold text-white">corrections</span>
+                  <span className="text-[10px] text-blue-200 block mt-0.5">500 corrections × 9 mois</span>
+                </div>
+
+                <ul className="text-xs text-slate-200 space-y-2.5 pt-1">
+                  <li className="flex items-start gap-2 font-semibold text-white">
+                    <CheckCircle2 className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+                    <span>Tout le contenu du mensuel</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <Check className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+                    <span>500 corrections × 9 mois</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <Check className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+                    <span><strong>Pensé pour toute l'année scolaire</strong></span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <Check className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+                    <span>Corrections restantes conservées*</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <Check className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+                    <span>Paiement unique, tranquillité totale</span>
+                  </li>
+                </ul>
+              </div>
+
+              <div className="pt-6">
+                <button
+                  type="button"
+                  onClick={() => onOpenPaywall && onOpenPaywall('school_year')}
+                  className="w-full py-3.5 px-4 rounded-xl bg-amber-400 hover:bg-amber-300 text-slate-950 font-black text-xs sm:text-sm transition-all shadow-lg flex items-center justify-center gap-2 cursor-pointer"
+                >
+                  <span>Choisir l'année scolaire</span>
+                  <ArrowRight className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* Séries Supplémentaires (EXTRA) - Pas d'expiration */}
+          <div className="bg-slate-50 border border-slate-200 rounded-3xl p-6 sm:p-8 space-y-4">
+            <div className="space-y-1">
+              <h3 className="text-xl font-black text-slate-900">
+                Besoin de plus de corrections ?
+              </h3>
+              <p className="text-xs sm:text-sm text-slate-600">
+                Pas besoin de changer de formule. <strong>Ajoutez simplement des corrections quand vous en avez besoin.</strong>
+              </p>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-1">
+              <div className="bg-white p-4 rounded-2xl border border-slate-200 flex items-center justify-between gap-3">
+                <div>
+                  <span className="font-extrabold text-slate-900 text-sm block">+100 corrections</span>
+                  <span className="text-xs font-mono font-bold text-slate-700">1,50 € <span className="text-slate-500 font-normal">(1 000 FCFA)</span></span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => onOpenPaywall && onOpenPaywall('extra_100')}
+                  className="px-3 py-1.5 rounded-xl bg-slate-900 text-white font-bold text-xs hover:bg-slate-800 transition-colors"
+                >
+                  Ajouter
+                </button>
+              </div>
+
+              <div className="bg-white p-4 rounded-2xl border border-slate-200 flex items-center justify-between gap-3">
+                <div>
+                  <span className="font-extrabold text-blue-900 text-sm block">+500 corrections</span>
+                  <span className="text-xs font-mono font-bold text-blue-700">7,60 € <span className="text-slate-500 font-normal">(5 000 FCFA)</span></span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => onOpenPaywall && onOpenPaywall('extra_500')}
+                  className="px-3 py-1.5 rounded-xl bg-blue-600 text-white font-bold text-xs hover:bg-blue-700 transition-colors"
+                >
+                  Ajouter
+                </button>
+              </div>
+            </div>
+
+            <p className="text-xs text-slate-500 italic">
+              Les corrections supplémentaires achetées sont conservées sur votre compte.
+            </p>
+          </div>
+
+          {/* Une règle simple (Cumul & Report) */}
+          <div className="p-6 rounded-3xl bg-blue-50/70 border border-blue-200 space-y-3">
+            <h4 className="text-base font-black text-slate-900">
+              Une règle simple : vos corrections ne disparaissent pas à la fin du mois
+            </h4>
+            <p className="text-xs text-slate-600">
+              Si vous avez 70 corrections restantes et que votre abonnement se renouvelle :
+            </p>
+            <div className="p-3 rounded-xl bg-white border border-blue-100 font-mono text-xs sm:text-sm font-bold text-blue-950 text-center">
+              70 restantes + 500 nouvelles = <span className="text-emerald-600">570 corrections disponibles.</span>
+            </div>
+            <p className="text-[11px] text-slate-500">
+              *Les corrections incluses dans l'abonnement sont cumulables dans la limite définie par Praxis (1 500 corrections max). Les corrections supplémentaires achetées séparément sont conservées selon les conditions du service.
+            </p>
+          </div>
+
+          {/* Payment Badges & Reassurance Ribbon */}
+          <div className="p-5 sm:p-6 rounded-2xl bg-slate-100/80 border border-slate-200 flex flex-col md:flex-row items-center justify-between gap-4 text-xs">
+            <div className="flex flex-wrap items-center gap-4 sm:gap-6 justify-center md:justify-start">
+              <div className="flex items-center gap-2 font-bold text-slate-800">
+                <span className="w-8 h-8 rounded-lg bg-[#00D2FF] text-white flex items-center justify-center font-black text-xs shadow-xs">
+                  🌊
+                </span>
+                <span>Wave Mobile Money CI & Sénégal (0% frais)</span>
+              </div>
+              <div className="flex items-center gap-2 font-bold text-slate-800">
+                <div className="w-8 h-8 rounded-lg bg-slate-900 text-white flex items-center justify-center shadow-xs">
+                  <CreditCard className="w-4 h-4" />
+                </div>
+                <span>Carte Bancaire (Visa / Mastercard / Ecobank / UBA...)</span>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-3 text-slate-500 font-medium">
+              <ShieldCheck className="w-4 h-4 text-emerald-600 shrink-0" />
+              <span>Facture émise · Activation immédiate des copies</span>
+            </div>
+          </div>
+        </div>
       </section>
 
       {/* 8. CONTACT & ASSISTANCE SECTION */}
