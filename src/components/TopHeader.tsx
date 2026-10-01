@@ -254,7 +254,7 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
                   </div>
                   <div>
                     <span className="font-bold text-slate-900 block">
-                      Attention : il vous reste 50 corrections.
+                      Attention : il vous reste 30 corrections.
                     </span>
                     <span className="text-[11px] text-slate-500">Hier · Rechargez par Wave ou Carte</span>
                   </div>

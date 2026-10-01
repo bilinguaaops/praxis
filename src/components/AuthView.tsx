@@ -17,6 +17,7 @@ import {
   RefreshCw,
   X,
   HelpCircle,
+  ArrowLeft,
 } from 'lucide-react';
 import { supabase, isSupabaseConfigured } from '../lib/supabase';
 import { LeadData, MainView } from '../types';
@@ -27,6 +28,7 @@ interface AuthViewProps {
   onClose?: () => void;
   onAuthSuccess?: (user: any, profile?: any) => void;
   onNavigate?: (view: MainView) => void;
+  onBack?: () => void;
 }
 
 export const AuthView: React.FC<AuthViewProps> = ({
@@ -35,6 +37,7 @@ export const AuthView: React.FC<AuthViewProps> = ({
   onClose,
   onAuthSuccess,
   onNavigate,
+  onBack,
 }) => {
   const [mode, setMode] = useState<'login' | 'register' | 'forgot-password'>(initialMode);
   const [email, setEmail] = useState('');
@@ -46,7 +49,6 @@ export const AuthView: React.FC<AuthViewProps> = ({
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
-  const [emailConfirmationRequired, setEmailConfirmationRequired] = useState(false);
 
   // Détection du code de parrainage (?ref=PRAXIS-XXXXXX)
   const [referralCode] = useState<string>(() => {
@@ -62,7 +64,6 @@ export const AuthView: React.FC<AuthViewProps> = ({
   const resetFormState = () => {
     setErrorMsg('');
     setSuccessMsg('');
-    setEmailConfirmationRequired(false);
   };
 
   const switchMode = (newMode: 'login' | 'register' | 'forgot-password') => {
@@ -106,7 +107,6 @@ export const AuthView: React.FC<AuthViewProps> = ({
             phone_whatsapp: phoneWhatsapp.trim() || '',
             referral_code: referralCode || undefined,
           },
-          emailRedirectTo: window.location.origin + '/dashboard',
         },
       });
 
@@ -121,27 +121,52 @@ export const AuthView: React.FC<AuthViewProps> = ({
         return;
       }
 
-      // Si la confirmation par email est activée dans Supabase (configuration requise)
-      if (data?.user && (!data.session || data.user.identities?.length === 0)) {
-        setEmailConfirmationRequired(true);
-        const refMessage = referralCode
-          ? " Votre récompense de parrainage sera activée après votre premier abonnement payé."
-          : "";
-        setSuccessMsg(
-          `Un email de confirmation vient d'être envoyé à ${email}. Veuillez cliquer sur le lien reçu pour activer vos 30 crédits gratuits.${refMessage}`
-        );
-      } else if (data?.session && data?.user) {
-        // Confirmation email désactivée ou déjà validée
-        if (referralCode) {
-          setSuccessMsg(
-            "Votre compte a bien été créé. Votre récompense de parrainage sera activée après votre premier abonnement payé."
-          );
-        }
+      // Inscription immédiate : quand la confirmation email est désactivée dans Supabase,
+      // la session est retournée directement.
+      if (data?.session && data?.user) {
         if (onAuthSuccess) {
           onAuthSuccess(data.user);
         }
+        if (onClose) {
+          onClose();
+        }
         if (onNavigate) {
           onNavigate('dashboard');
+        }
+        return;
+      }
+
+      // Si le compte a été créé mais que data.session n'a pas été renvoyée directement,
+      // connexion automatique immédiate avec l'email et le mot de passe
+      if (data?.user) {
+        const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
+          email: email.trim().toLowerCase(),
+          password,
+        });
+
+        if (!signInError && signInData?.session && signInData?.user) {
+          if (onAuthSuccess) {
+            onAuthSuccess(signInData.user);
+          }
+          if (onClose) {
+            onClose();
+          }
+          if (onNavigate) {
+            onNavigate('dashboard');
+          }
+          return;
+        }
+
+        if (signInError) {
+          if (signInError.message.toLowerCase().includes('email not confirmed')) {
+            setErrorMsg(
+              "Compte créé. L'option 'Confirm email' est encore activée dans votre tableau de bord Supabase (Authentication > Providers > Email). Désactivez-la pour un accès 100% instantané sans confirmation."
+            );
+            return;
+          }
+          setErrorMsg(signInError.message || 'Compte créé. Veuillez vous connecter.');
+          setMode('login');
+          return;
         }
       }
     } catch (err: any) {
@@ -336,54 +361,21 @@ export const AuthView: React.FC<AuthViewProps> = ({
         </div>
       )}
 
-      {/* Écran spécial : Email de confirmation envoyé */}
-      {emailConfirmationRequired ? (
-        <div className="p-6 text-center space-y-4">
-          <div className="w-14 h-14 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center mx-auto border border-blue-200">
-            <Mail className="w-7 h-7" />
+      {/* Formulaires d'authentification */}
+      <div className="p-6 space-y-4">
+        {errorMsg && (
+          <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl text-xs text-rose-700 font-medium flex items-start gap-2">
+            <AlertCircle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
+            <span>{errorMsg}</span>
           </div>
-          <div>
-            <h3 className="text-base font-bold text-slate-900">Vérifiez votre boîte email</h3>
-            <p className="text-xs text-slate-600 mt-1.5 leading-relaxed">
-              Un email de confirmation a été envoyé à <strong className="text-slate-900">{email}</strong>.
-              <br />
-              Veuillez cliquer sur le lien contenu dans cet email pour confirmer votre compte. Dès validation, vos
-              <strong className="text-emerald-700"> 30 corrections gratuites</strong> seront prêtes.
-            </p>
-          </div>
-          <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl text-[11px] text-slate-500 text-left space-y-1">
-            <p className="font-semibold text-slate-700">💡 Vous ne voyez pas l'email ?</p>
-            <ul className="list-disc pl-4 space-y-0.5">
-              <li>Vérifiez votre dossier <em>Spams / Courrier indésirable</em>.</li>
-              <li>Patientez quelques instants (l'envoi prend généralement moins d'une minute).</li>
-            </ul>
-          </div>
-          <div className="pt-2 flex flex-col gap-2">
-            <button
-              type="button"
-              onClick={() => switchMode('login')}
-              className="w-full py-2.5 px-4 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs shadow-xs transition-colors cursor-pointer"
-            >
-              Aller à la page de connexion
-            </button>
-          </div>
-        </div>
-      ) : (
-        /* Formulaires d'authentification */
-        <div className="p-6 space-y-4">
-          {errorMsg && (
-            <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl text-xs text-rose-700 font-medium flex items-start gap-2">
-              <AlertCircle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
-              <span>{errorMsg}</span>
-            </div>
-          )}
+        )}
 
-          {successMsg && (
-            <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-xs text-emerald-800 font-medium flex items-start gap-2">
-              <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
-              <span>{successMsg}</span>
-            </div>
-          )}
+        {successMsg && (
+          <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-xs text-emerald-800 font-medium flex items-start gap-2">
+            <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+            <span>{successMsg}</span>
+          </div>
+        )}
 
           {/* Formulaire Inscription */}
           {mode === 'register' && (
@@ -651,7 +643,6 @@ export const AuthView: React.FC<AuthViewProps> = ({
             </form>
           )}
         </div>
-      )}
 
       {/* Footer sécurité */}
       <div className="p-3 bg-slate-50 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-500 px-6">
@@ -675,6 +666,20 @@ export const AuthView: React.FC<AuthViewProps> = ({
   // Page complète (sur /login, /register, /forgot-password)
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col justify-center items-center p-4 sm:p-6">
+      {/* Bouton retour en arrière si navigation depuis l'application */}
+      {onBack && (
+        <div className="w-full max-w-md mb-4 flex items-center justify-between">
+          <button
+            type="button"
+            onClick={onBack}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-100 text-slate-700 text-xs font-bold shadow-2xs transition-colors cursor-pointer"
+          >
+            <ArrowLeft className="w-3.5 h-3.5 text-slate-600" />
+            <span>Retour</span>
+          </button>
+        </div>
+      )}
+
       {/* Brand logo link */}
       <div className="mb-6 flex items-center gap-2">
         <button

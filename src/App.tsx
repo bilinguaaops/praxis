@@ -128,9 +128,20 @@ export default function App() {
     }
   });
 
-  const [viewHistory, setViewHistory] = useState<NavigationEntry[]>([
-    { view: activeView, step: activeView === 'corr' ? currentStep : undefined },
-  ]);
+  const [viewHistory, setViewHistory] = useState<NavigationEntry[]>(() => {
+    try {
+      const search = new URLSearchParams(window.location.search);
+      const s = parseInt(search.get('step') || '1', 10);
+      if (activeView === 'corr' && s > 1) {
+        return [
+          { view: 'dashboard' },
+          { view: 'corr', step: 1 },
+          { view: 'corr', step: s },
+        ];
+      }
+    } catch {}
+    return [{ view: activeView, step: activeView === 'corr' ? currentStep : undefined }];
+  });
 
   const goToStep = (step: number) => {
     setCurrentStep(step);
@@ -144,6 +155,7 @@ export default function App() {
       const targetPath = step > 1 ? `/series/new?step=${step}` : '/series/new';
       window.history.pushState({ view: 'corr', step }, '', targetPath);
     } catch {}
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   const handleViewChange = (view: MainView, step: number = 1) => {
@@ -163,23 +175,56 @@ export default function App() {
         window.history.pushState({ view, step: view === 'corr' ? step : undefined }, '', targetPath);
       }
     } catch {}
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   const handleBack = () => {
-    // Cas 1 : Si l'utilisateur est sur la page de soumission des copies (Étape 2 de correction)
-    // Le bouton retour le ramène DIRECTEMENT à l'étape 1 (Sujet, corrigé, barème, matière)
-    if (activeView === 'corr' && currentStep === 2) {
-      goToStep(1);
-      return;
+    // 1. Si l'utilisateur est dans le tunnel de correction
+    if (activeView === 'corr') {
+      // Cas A : Sur la page de soumission des copies (Étape 2)
+      // Le bouton retour le ramène DIRECTEMENT à l'étape 1 (Sujet, corrigé, barème, matière)
+      if (currentStep === 2) {
+        setCurrentStep(1);
+        setViewHistory((prev) => {
+          const filtered = prev.filter((entry) => !(entry.view === 'corr' && entry.step === 2));
+          if (!filtered.some((e) => e.view === 'corr' && e.step === 1)) {
+            filtered.push({ view: 'corr', step: 1 });
+          }
+          return filtered;
+        });
+        try {
+          window.history.pushState({ view: 'corr', step: 1 }, '', '/series/new');
+        } catch {}
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+        return;
+      }
+
+      // Cas B : En cours de correction (Étape 3) -> Retour vers le dépôt des copies (Étape 2)
+      if (currentStep === 3) {
+        setCurrentStep(2);
+        setViewHistory((prev) => prev.filter((entry) => !(entry.view === 'corr' && entry.step === 3)));
+        try {
+          window.history.pushState({ view: 'corr', step: 2 }, '', '/series/new?step=2');
+        } catch {}
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+        return;
+      }
+
+      // Cas C : Consultation des résultats (Étape 4) -> Retour vers le tableau des copies (Étape 2)
+      if (currentStep === 4) {
+        setCurrentStep(2);
+        setViewHistory((prev) => prev.filter((entry) => !(entry.view === 'corr' && entry.step === 4)));
+        try {
+          window.history.pushState({ view: 'corr', step: 2 }, '', '/series/new?step=2');
+        } catch {}
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+        return;
+      }
+
+      // Cas D : À l'Étape 1 de correction -> Retour vers la vue précédente (Dashboard, etc.)
     }
 
-    // Cas 2 : Si l'utilisateur est à une étape ultérieure de correction (Étape 3 ou 4)
-    if (activeView === 'corr' && currentStep > 2) {
-      goToStep(currentStep - 1);
-      return;
-    }
-
-    // Cas 3 : Navigation d'historique générale entre les pages (ou depuis l'étape 1 de correction)
+    // 2. Navigation d'historique générale entre les pages
     if (viewHistory.length > 1) {
       const nextHistory = [...viewHistory];
       nextHistory.pop(); // Retire la page actuelle
@@ -199,6 +244,7 @@ export default function App() {
     } else {
       handleViewChange('dashboard');
     }
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   useEffect(() => {
@@ -784,9 +830,15 @@ export default function App() {
         <AuthView
           initialMode={activeView}
           onNavigate={(view) => handleViewChange(view)}
+          onBack={handleBack}
           onAuthSuccess={() => {
             refreshProfile();
-            handleViewChange('dashboard');
+            // Si des copies sont déjà prêtes dans la session, on poursuit directement vers l'évaluation (étape 3)
+            if (submissions.length > 0) {
+              handleViewChange('corr', 3);
+            } else {
+              handleViewChange('dashboard');
+            }
           }}
         />
       )}

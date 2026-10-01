@@ -883,7 +883,7 @@ BEGIN
     ) ON CONFLICT (id) DO UPDATE SET
         referral_code = COALESCE(public.profiles.referral_code, EXCLUDED.referral_code);
 
-    -- 2. Créer le compte de solde avec les 30 corrections gratuites offertes
+    -- 2. Créer le compte de solde avec les 50 corrections gratuites offertes
     INSERT INTO public.credit_balances (
         teacher_id,
         free_credits,
@@ -892,13 +892,13 @@ BEGIN
         frozen_subscription_credits
     ) VALUES (
         NEW.id,
-        30,
+        50,
         0,
         0,
         0
     ) ON CONFLICT (teacher_id) DO NOTHING;
 
-    -- 3. Inscription de bienvenue dans le grand livre (30 crédits gratuits)
+    -- 3. Inscription de bienvenue dans le grand livre (50 crédits gratuits)
     INSERT INTO public.credit_ledger (
         teacher_id,
         delta,
@@ -907,10 +907,10 @@ BEGIN
         metadata
     ) VALUES (
         NEW.id,
-        30,
+        50,
         'free',
         'initial_grant',
-        jsonb_build_object('description', '30 corrections gratuites offertes à l''inscription')
+        jsonb_build_object('description', '50 corrections gratuites offertes à l''inscription')
     );
 
     -- 4. Abonnement gratuit initial
@@ -1390,7 +1390,7 @@ CREATE POLICY "storage_exports_owner" ON storage.objects
 -- A. Grille tarifaire officielle des forfaits
 INSERT INTO public.plans (id, name, duration_days, price_fcfa, included_credits, is_active)
 VALUES
-    ('free', 'Compte Découverte', 0, 0, 30, true),
+    ('free', 'Compte Découverte', 0, 0, 50, true),
     ('monthly', 'Abonnement Mensuel (1 mois)', 30, 5000, 500, true),
     ('3_months', 'Trimestriel (3 mois)', 90, 12000, 1500, true),
     ('9_months', 'Année Scolaire (9 mois)', 270, 30000, 4500, true)

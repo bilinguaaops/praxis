@@ -121,7 +121,7 @@ export const Step3Progress: React.FC<Step3ProgressProps> = ({
           onRequireRegistration();
         }
         if (errorJson.quotaReached) {
-          setQuotaError(errorJson.error || "Limite d'essai atteinte (30 copies gratuites).");
+          setQuotaError(errorJson.error || "Limite d'essai atteinte (50 crédits offerts).");
           isCancelledRef.current = true;
           setIsRunning(false);
         }
@@ -401,14 +401,24 @@ export const Step3Progress: React.FC<Step3ProgressProps> = ({
         </div>
         <div>
           <span className="inline-block px-3 py-1 rounded-full bg-emerald-100 text-emerald-800 text-xs font-bold border border-emerald-200 mb-2">
-            🎁 30 copies d'essai gratuites par professeur
+            🎁 50 crédits d'essai offerts par professeur
           </span>
           <h2 className="text-xl font-extrabold text-slate-900 tracking-tight">Inscription requise pour lancer la correction</h2>
           <p className="text-xs text-slate-600 mt-2 max-w-md mx-auto leading-relaxed">
-            Pour lancer la correction automatique et débloquer vos 30 évaluations offertes, veuillez renseigner vos coordonnées d’enseignant.
+            Pour lancer la correction automatique et débloquer vos 50 crédits offerts, veuillez renseigner vos coordonnées d’enseignant.
           </p>
         </div>
-        <div className="pt-2">
+        <div className="pt-2 flex flex-col sm:flex-row items-center justify-center gap-3">
+          {onBack && (
+            <button
+              type="button"
+              onClick={onBack}
+              className="w-full sm:w-auto px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl transition-all inline-flex items-center justify-center gap-1.5 cursor-pointer border border-slate-200"
+            >
+              <ArrowLeft className="w-3.5 h-3.5" />
+              <span>Retour aux copies</span>
+            </button>
+          )}
           <button
             type="button"
             onClick={() => onRequireRegistration && onRequireRegistration()}

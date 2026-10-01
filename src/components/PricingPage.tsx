@@ -389,7 +389,7 @@ export const PricingPage: React.FC<PricingPageProps> = ({
         whatsapp: teacherPhone,
         school: teacherSchool,
         plan: currentPlan.id === 'extra_100' || currentPlan.id === 'extra_500' ? 'monthly' : (currentPlan.id as any),
-        quota: (currentLead?.quota || 50) + currentPlan.corrections,
+        quota: (currentLead?.quota || 30) + currentPlan.corrections,
         copiesCorrected: currentLead?.copiesCorrected || 0,
         subscriptionCredits: (currentLead?.subscriptionCredits || 0) + (currentPlan.category === 'subscription' ? currentPlan.corrections : 0),
         extraCredits: (currentLead?.extraCredits || 0) + (currentPlan.category === 'pack' ? currentPlan.corrections : 0),

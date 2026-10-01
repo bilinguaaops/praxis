@@ -85,7 +85,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 
     // 1. Update lead profile
     const updatedLead: LeadData = {
-      ...(currentLead || { plan: 'trial', quota: 50, copiesCorrected: 0 }),
+      ...(currentLead || { plan: 'trial', quota: 30, copiesCorrected: 0 }),
       name: name.trim() || currentLead?.name || 'Kevine',
       email: email.trim() || currentLead?.email || '',
       whatsapp: whatsapp.trim() || currentLead?.whatsapp || '',

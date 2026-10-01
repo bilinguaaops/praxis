@@ -701,7 +701,7 @@ app.post('/api/correct', async (req, res) => {
 
     // Check Quota Limit: Evaluate subscriptionCredits + extraCredits, with fallback to quota - copiesCorrected
     const currentCopies = lead.copiesCorrected || 0;
-    const defaultTrialQuota = Number(process.env.FREE_TRIAL_QUOTA) || 50;
+    const defaultTrialQuota = Number(process.env.FREE_TRIAL_QUOTA) || 30;
 
     const hasExplicitCredits = typeof lead.subscriptionCredits === 'number' || typeof lead.extraCredits === 'number';
     const subCredits = typeof lead.subscriptionCredits === 'number' ? lead.subscriptionCredits : 0;
@@ -1592,8 +1592,8 @@ app.post('/api/leads', async (req, res) => {
     plan: 'trial',
     status: 'trial',
     trialDaysLeft: 7,
-    quota: Number(process.env.FREE_TRIAL_QUOTA) || 50,
-    subscriptionCredits: Number(process.env.FREE_TRIAL_QUOTA) || 50,
+    quota: Number(process.env.FREE_TRIAL_QUOTA) || 30,
+    subscriptionCredits: Number(process.env.FREE_TRIAL_QUOTA) || 30,
     extraCredits: 0,
     copiesCorrected: 0,
     totalSpent: 0,
@@ -1773,7 +1773,7 @@ app.get('/api/teacher/me', (req, res) => {
     return res.status(404).json({ error: 'Compte enseignant non trouvé.' });
   }
 
-  const defaultTrialQuota = Number(process.env.FREE_TRIAL_QUOTA) || 50;
+  const defaultTrialQuota = Number(process.env.FREE_TRIAL_QUOTA) || 30;
   const currentQuota = typeof teacher.quota === 'number' ? teacher.quota : defaultTrialQuota;
   const copiesUsed = teacher.copiesCorrected || 0;
   const remaining = Math.max(0, currentQuota - copiesUsed);
@@ -1921,9 +1921,9 @@ app.post('/api/paywall/checkout', async (req, res) => {
       plan: 'trial',
       status: 'active',
       copiesCorrected: 0,
-      subscriptionCredits: 50,
+      subscriptionCredits: 30,
       extraCredits: 0,
-      quota: 50,
+      quota: 30,
       totalSpent: 0,
       createdAt: new Date().toISOString(),
       lastActiveAt: new Date().toISOString(),

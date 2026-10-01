@@ -433,7 +433,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToApp }) =
     const labels =
       totalAccounts === 0
         ? ['En attente d’inscriptions réelles']
-        : ['Essai 7j', 'Pro Mensuel (9.99€)', 'Pro Annuel (99.99€)', 'Établissement (299€)', 'Gratuit (30 copies)'];
+        : ['Essai 7j', 'Pro Mensuel (9.99€)', 'Pro Annuel (99.99€)', 'Établissement (299€)', 'Gratuit (50 crédits offerts)'];
 
     const chartData =
       totalAccounts === 0
@@ -795,7 +795,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToApp }) =
       default:
         return (
           <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-medium bg-slate-800 text-slate-300 border border-slate-700">
-            Gratuit (30 copies)
+            Gratuit (50 crédits offerts)
           </span>
         );
     }
@@ -2019,7 +2019,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToApp }) =
                 <span className="font-bold text-white text-sm">
                   {selectedTeacherForDetail.copiesCorrected || 0} copies analysées
                 </span>
-                <span className="text-[11px] text-slate-400 block">Quota actuel : {selectedTeacherForDetail.quota || 50} copies</span>
+                <span className="text-[11px] text-slate-400 block">Quota actuel : {selectedTeacherForDetail.quota || 30} copies</span>
               </div>
               <div className="bg-[#0B0F17] p-3 rounded-xl border border-slate-800">
                 <span className="text-slate-500 block mb-0.5">Total Dépensé (LTV)</span>
@@ -2071,7 +2071,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToApp }) =
                   }
                   className="w-full bg-[#0B0F17] border border-slate-700 rounded-xl p-2.5 text-white"
                 >
-                  <option value="free">Gratuit (30 copies)</option>
+                  <option value="free">Gratuit (50 crédits offerts)</option>
                   <option value="trial">Essai Pro 7 jours</option>
                   <option value="monthly">Pro Mensuel (9.99 €/mois)</option>
                   <option value="annual">Pro Annuel (99.99 €/an)</option>
