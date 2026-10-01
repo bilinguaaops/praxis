@@ -299,7 +299,7 @@ export default function App() {
   }, []);
 
   // ROUTE GUARDS & PROTECTION (ÉTAPE 9)
-  // Routes privées nécessitant une session active
+  // Routes privées enseignant nécessitant une session active
   const PRIVATE_VIEWS: MainView[] = [
     'dashboard',
     'corr',
@@ -309,7 +309,6 @@ export default function App() {
     'pricing',
     'referrals',
     'settings',
-    'admin',
   ];
 
   useEffect(() => {
@@ -396,12 +395,12 @@ export default function App() {
     }
   });
 
-  // Purge any residual demo submissions from local storage on mount
+  // Purge any residual demo submissions, classes, and evaluations from local storage on mount
   useEffect(() => {
     try {
-      const saved = localStorage.getItem('praxis_submissions');
-      if (saved) {
-        const parsed: StudentSubmission[] = JSON.parse(saved);
+      const savedSubmissions = localStorage.getItem('praxis_submissions');
+      if (savedSubmissions) {
+        const parsed: StudentSubmission[] = JSON.parse(savedSubmissions);
         const demoNames = ['lucas martin', 'sarah benali', 'thomas dubois', 'awa', 'maxime', 'camille rousseau'];
         const filtered = parsed.filter(
           (s) =>
@@ -415,6 +414,30 @@ export default function App() {
         if (filtered.length !== parsed.length) {
           setSubmissions(filtered);
           localStorage.setItem('praxis_submissions', JSON.stringify(filtered));
+        }
+      }
+
+      const savedClasses = localStorage.getItem('cpro_classes');
+      if (savedClasses) {
+        const parsedClasses: ClassGroup[] = JSON.parse(savedClasses);
+        const filteredClasses = parsedClasses.filter(
+          (c) => c.id !== 'class_demo_3b' && !c.id.startsWith('class_demo') && !c.name.toLowerCase().includes('demo')
+        );
+        if (filteredClasses.length !== parsedClasses.length) {
+          setClasses(filteredClasses);
+          localStorage.setItem('cpro_classes', JSON.stringify(filteredClasses));
+        }
+      }
+
+      const savedEvals = localStorage.getItem('cpro_evaluations');
+      if (savedEvals) {
+        const parsedEvals: SavedEvaluation[] = JSON.parse(savedEvals);
+        const filteredEvals = parsedEvals.filter(
+          (e) => e.classId !== 'class_demo_3b' && !e.id.startsWith('eval_demo') && !e.title.toLowerCase().includes('demo')
+        );
+        if (filteredEvals.length !== parsedEvals.length) {
+          setSavedEvaluations(filteredEvals);
+          localStorage.setItem('cpro_evaluations', JSON.stringify(filteredEvals));
         }
       }
     } catch {}

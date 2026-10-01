@@ -45,21 +45,21 @@ export const TeacherDashboardView: React.FC<TeacherDashboardViewProps> = ({
   onOpenEvaluation,
 }) => {
   // Determine teacher name
-  const teacherName = currentLead?.name ? currentLead.name.split(' ')[0] : 'Kevine';
+  const teacherName = currentLead?.name ? currentLead.name.split(' ')[0] : 'Professeur';
 
   // Calculate credits
-  const subscriptionCredits = currentLead?.subscriptionCredits ?? 460;
+  const subscriptionCredits = currentLead?.subscriptionCredits ?? 30;
   const extraCredits = currentLead?.extraCredits ?? 0;
   const totalCredits = subscriptionCredits + extraCredits;
   const maxMonthlyCredits = 500;
   const creditPercentage = Math.min(100, Math.round((totalCredits / maxMonthlyCredits) * 100));
 
   // Calculate series count
-  const seriesCount = Math.max(savedEvaluations.length, 12);
+  const seriesCount = savedEvaluations.length;
 
   // Calculate global average
   const globalAverage = React.useMemo(() => {
-    if (savedEvaluations.length === 0) return 14.2;
+    if (savedEvaluations.length === 0) return null;
     let sum = 0;
     let count = 0;
     savedEvaluations.forEach((ev) => {
@@ -68,7 +68,7 @@ export const TeacherDashboardView: React.FC<TeacherDashboardViewProps> = ({
         count++;
       }
     });
-    return count > 0 ? Number((sum / count).toFixed(1)) : 14.2;
+    return count > 0 ? Number((sum / count).toFixed(1)) : null;
   }, [savedEvaluations]);
 
   // Last active evaluation (for "Continuer une correction")
@@ -147,11 +147,19 @@ export const TeacherDashboardView: React.FC<TeacherDashboardViewProps> = ({
             <span className="text-3xl sm:text-4xl font-black text-slate-900 font-mono tracking-tight">
               {seriesCount}
             </span>
-            <span className="text-sm font-bold text-slate-500">séries corrigées</span>
+            <span className="text-sm font-bold text-slate-500">
+              {seriesCount > 1 ? 'séries corrigées' : 'série corrigée'}
+            </span>
           </div>
-          <p className="text-xs text-emerald-600 font-semibold mt-1 flex items-center gap-1">
-            <CheckCircle2 className="w-3.5 h-3.5" />
-            <span>Toutes archivées avec notes</span>
+          <p className="text-xs text-slate-500 mt-1 flex items-center gap-1">
+            {seriesCount > 0 ? (
+              <>
+                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                <span className="text-emerald-600 font-semibold">Toutes archivées avec notes</span>
+              </>
+            ) : (
+              <span>Aucune série enregistrée</span>
+            )}
           </p>
         </div>
 
@@ -170,12 +178,14 @@ export const TeacherDashboardView: React.FC<TeacherDashboardViewProps> = ({
           </div>
           <div className="mt-4 flex items-baseline gap-2">
             <span className="text-3xl sm:text-4xl font-black text-slate-900 font-mono tracking-tight">
-              {globalAverage}
+              {globalAverage !== null ? globalAverage : '—'}
             </span>
-            <span className="text-sm font-bold text-slate-500">/ 20</span>
+            {globalAverage !== null && (
+              <span className="text-sm font-bold text-slate-500">/ 20</span>
+            )}
           </div>
           <p className="text-xs text-slate-500 mt-1">
-            Sur l'ensemble de vos classes
+            {globalAverage !== null ? "Sur l'ensemble de vos devoirs" : 'Pas encore de note calculée'}
           </p>
         </div>
       </div>
@@ -189,9 +199,11 @@ export const TeacherDashboardView: React.FC<TeacherDashboardViewProps> = ({
               <Clock className="w-4 h-4 text-blue-600" />
               <span>Dernière série de correction</span>
             </h2>
-            <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200/60">
-              Correction terminée
-            </span>
+            {lastEvaluation && (
+              <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200/60">
+                Correction terminée
+              </span>
+            )}
           </div>
 
           {lastEvaluation ? (
@@ -222,30 +234,23 @@ export const TeacherDashboardView: React.FC<TeacherDashboardViewProps> = ({
               </button>
             </div>
           ) : (
-            <div className="p-5 rounded-2xl bg-gradient-to-r from-blue-50 to-indigo-50/50 border border-blue-100 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-              <div className="space-y-1">
-                <span className="text-xs font-bold text-blue-700 uppercase tracking-wider">
-                  Mathématiques — Équations
-                </span>
-                <h3 className="text-lg font-black text-slate-900">
-                  Contrôle N°2 · Équations du premier degré
-                </h3>
-                <p className="text-xs text-slate-600 flex items-center gap-2">
-                  <span>3e B</span>
-                  <span>•</span>
-                  <span>42 copies</span>
-                  <span>•</span>
-                  <span>Moyenne : 14,2 / 20</span>
+            <div className="p-6 rounded-2xl bg-slate-50 border border-slate-200/70 text-center space-y-3">
+              <div className="w-10 h-10 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center mx-auto">
+                <BookOpen className="w-5 h-5" />
+              </div>
+              <div>
+                <h3 className="text-sm font-bold text-slate-900">Aucune série de devoirs enregistrée</h3>
+                <p className="text-xs text-slate-500 mt-0.5 max-w-sm mx-auto">
+                  Démarrez votre première correction pour bénéficier de l'analyse automatique des copies et du carnet de notes.
                 </p>
               </div>
-
               <button
                 type="button"
-                onClick={onViewSeries}
-                className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs shadow-xs transition-colors cursor-pointer self-start sm:self-center"
+                onClick={onStartNewCorrection}
+                className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs shadow-xs transition-colors cursor-pointer"
               >
-                <span>Voir les résultats</span>
-                <ArrowRight className="w-3.5 h-3.5" />
+                <Plus className="w-3.5 h-3.5" />
+                <span>Lancer ma première correction</span>
               </button>
             </div>
           )}
@@ -378,77 +383,15 @@ export const TeacherDashboardView: React.FC<TeacherDashboardViewProps> = ({
               </div>
             ))
           ) : (
-            <>
-              {/* Default Mock Activity according to prompt */}
-              <div
-                onClick={onViewSeries}
-                className="p-4 rounded-2xl bg-slate-50 hover:bg-slate-100/80 border border-slate-200/60 flex items-center justify-between gap-4 transition-colors cursor-pointer group"
-              >
-                <div className="flex items-center gap-3.5">
-                  <div className="w-9 h-9 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center shrink-0">
-                    <CheckCircle2 className="w-5 h-5" />
-                  </div>
-                  <div>
-                    <h4 className="text-sm font-bold text-slate-900 group-hover:text-blue-600 transition-colors">
-                      Série "Fractions et proportions" corrigée
-                    </h4>
-                    <p className="text-xs text-slate-500">
-                      4e A • 32 copies corrigées avec succès
-                    </p>
-                  </div>
-                </div>
-                <div className="text-right shrink-0">
-                  <span className="text-xs font-bold text-slate-700 block">Aujourd'hui</span>
-                  <span className="text-[11px] text-emerald-600 font-semibold">Moy. 13,8/20</span>
-                </div>
+            <div className="p-8 text-center bg-slate-50 rounded-2xl border border-slate-200/60 space-y-2">
+              <div className="w-10 h-10 rounded-xl bg-slate-100 text-slate-400 flex items-center justify-center mx-auto">
+                <Clock className="w-5 h-5" />
               </div>
-
-              <div
-                onClick={onViewSeries}
-                className="p-4 rounded-2xl bg-slate-50 hover:bg-slate-100/80 border border-slate-200/60 flex items-center justify-between gap-4 transition-colors cursor-pointer group"
-              >
-                <div className="flex items-center gap-3.5">
-                  <div className="w-9 h-9 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center shrink-0">
-                    <CheckCircle2 className="w-5 h-5" />
-                  </div>
-                  <div>
-                    <h4 className="text-sm font-bold text-slate-900 group-hover:text-blue-600 transition-colors">
-                      Série "Équations du premier degré" corrigée
-                    </h4>
-                    <p className="text-xs text-slate-500">
-                      3e B • 28 copies corrigées avec succès
-                    </p>
-                  </div>
-                </div>
-                <div className="text-right shrink-0">
-                  <span className="text-xs font-bold text-slate-700 block">Hier</span>
-                  <span className="text-[11px] text-emerald-600 font-semibold">Moy. 14,2/20</span>
-                </div>
-              </div>
-
-              <div
-                onClick={onViewSeries}
-                className="p-4 rounded-2xl bg-slate-50 hover:bg-slate-100/80 border border-slate-200/60 flex items-center justify-between gap-4 transition-colors cursor-pointer group"
-              >
-                <div className="flex items-center gap-3.5">
-                  <div className="w-9 h-9 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center shrink-0">
-                    <CheckCircle2 className="w-5 h-5" />
-                  </div>
-                  <div>
-                    <h4 className="text-sm font-bold text-slate-900 group-hover:text-blue-600 transition-colors">
-                      Série "Fonctions affines et linéaires" corrigée
-                    </h4>
-                    <p className="text-xs text-slate-500">
-                      2nde C • 41 copies corrigées avec succès
-                    </p>
-                  </div>
-                </div>
-                <div className="text-right shrink-0">
-                  <span className="text-xs font-bold text-slate-700 block">12 sept.</span>
-                  <span className="text-[11px] text-emerald-600 font-semibold">Moy. 14,8/20</span>
-                </div>
-              </div>
-            </>
+              <h4 className="text-sm font-bold text-slate-800">Aucune activité récente</h4>
+              <p className="text-xs text-slate-500 max-w-sm mx-auto">
+                L'historique de vos corrections de devoirs et évaluations s'affichera ici en temps réel dès votre première série analysée.
+              </p>
+            </div>
           )}
         </div>
       </div>

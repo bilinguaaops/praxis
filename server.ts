@@ -137,7 +137,7 @@ export const PROMO_CODES_REGISTRY: Record<string, PromoCodeConfig> = {
 };
 
 // Master Admin Password & In-Memory Session Tokens
-const ADMIN_PASSWORD = process.env.ADMIN_MASTER_PASSWORD || 'PraxisAdmin2026!';
+const ADMIN_PASSWORD = process.env.ADMIN_MASTER_PASSWORD || '2341';
 const activeAdminTokens = new Map<string, number>(); // token -> expiresAt (timestamp)
 
 // Admin Authentication Middleware
@@ -157,7 +157,7 @@ function requireAdminAuth(req: express.Request, res: express.Response, next: exp
   }
 
   // Allow direct master password verification as fallback
-  if (token === ADMIN_PASSWORD || token === 'PraxisAdmin2026!') {
+  if (token === ADMIN_PASSWORD || token === '2341') {
     return next();
   }
 
@@ -2149,7 +2149,7 @@ app.post('/api/admin/login', (req, res) => {
 
   const cleanEntered = password.trim();
   const configuredPassword = (process.env.ADMIN_MASTER_PASSWORD || '').trim();
-  const defaultPassword = 'PraxisAdmin2026!';
+  const defaultPassword = '2341';
 
   const isValid =
     cleanEntered === defaultPassword ||
@@ -2157,7 +2157,7 @@ app.post('/api/admin/login', (req, res) => {
 
   if (!isValid) {
     return res.status(401).json({
-      error: 'Mot de passe maître incorrect. Le mot de passe par défaut est : PraxisAdmin2026!',
+      error: 'Mot de passe maître incorrect. Le mot de passe par défaut est : 2341',
     });
   }
 
@@ -2633,11 +2633,6 @@ app.get('/api/admin/settings', requireAdminAuth, (req, res) => {
 app.post('/api/admin/clear-leads', requireAdminAuth, (req, res) => {
   saveLeads([]);
   res.json({ success: true, count: 0, message: 'La base a été remise à zéro. Le tableau de bord affiche désormais uniquement les données réelles en direct.' });
-});
-
-// Redirect /admin to /dashboard SPA
-app.get('/admin', (req, res) => {
-  res.redirect('/dashboard');
 });
 
 // Vite middleware in dev or static serving in prod

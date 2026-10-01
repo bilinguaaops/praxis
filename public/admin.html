@@ -3,7 +3,10 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Admin Dashboard · PRAXIS</title>
+  <title>PRAXIS PRO · Console Administrateur (praxis-pro.pro/admin)</title>
+  <link rel="icon" type="image/png" href="/favicon.png" />
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Playfair+Display:wght@600;700&display=swap" rel="stylesheet">
@@ -231,15 +234,16 @@
   <div id="authLock">
     <div class="lock-box">
       <div class="lock-icon">🔐</div>
-      <h2 style="font-family:'Playfair Display',serif;font-size:1.4rem;margin-bottom:8px">Accès Propriétaire</h2>
+      <div style="display:inline-block;padding:3px 10px;background:rgba(59,130,246,0.15);border:1px solid rgba(59,130,246,0.3);border-radius:20px;font-size:11px;font-family:monospace;color:#60a5fa;margin-bottom:8px">praxis-pro.pro/admin</div>
+      <h2 style="font-family:'Playfair Display',serif;font-size:1.4rem;margin-bottom:8px">PRAXIS PRO · Admin</h2>
       <p style="color:var(--text-muted);font-size:13px;margin-bottom:20px">
-        Entrez votre code secret administrateur pour accéder à la gestion des utilisateurs et abonnements.
+        Entrez le code secret administrateur pour superviser les abonnements et le CRM de praxis-pro.pro.
       </p>
-      <input type="password" id="adminPassInput" placeholder="Code secret (ex: admin123)" style="width:100%;padding:12px;border-radius:10px;background:var(--bg);border:1px solid var(--border);color:#fff;font-size:15px;text-align:center;margin-bottom:12px;outline:none" onkeydown="if(event.key==='Enter')checkAuth()">
+      <input type="password" id="adminPassInput" placeholder="Code secret (ex: 2341)" style="width:100%;padding:12px;border-radius:10px;background:var(--bg);border:1px solid var(--border);color:#fff;font-size:15px;text-align:center;margin-bottom:12px;outline:none" onkeydown="if(event.key==='Enter')checkAuth()">
       <div id="authErr" style="color:var(--red);font-size:12px;display:none;margin-bottom:10px">❌ Code secret incorrect</div>
-      <button class="btn btn-blue" style="width:100%;justify-content:center;padding:12px" onclick="checkAuth()">🔓 Déverrouiller le Dashboard</button>
+      <button class="btn btn-blue" style="width:100%;justify-content:center;padding:12px" onclick="checkAuth()">🔓 Déverrouiller la Console Admin</button>
       <div style="margin-top:14px;font-size:11px;color:var(--text-muted)">
-        💡 Code par défaut : <code>admin123</code> (modifiable dans les réglages)
+        💡 Code par défaut : <code>2341</code>
       </div>
     </div>
   </div>
@@ -248,9 +252,9 @@
   <div class="wrap">
     <header>
       <div>
-        <h1>👑 Dashboard SaaS Propriétaire <span class="badge-admin">Admin Privé</span></h1>
+        <h1>👑 PRAXIS PRO · Console SaaS <span class="badge-admin">praxis-pro.pro/admin</span></h1>
         <p style="color:var(--text-muted);font-size:13px;margin-top:4px">
-          Gestion des abonnements, plans tarifaires et contacts enseignants
+          Supervision générale des licences, abonnements et alertes de praxis-pro.pro
         </p>
       </div>
       <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">

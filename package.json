@@ -37,6 +37,9 @@
     "vite": "^6.2.3"
   },
   "devDependencies": {
-    "@types/html2canvas": "^1.0.0"
+    "@resvg/resvg-js": "^2.6.2",
+    "@types/html2canvas": "^1.0.0",
+    "@types/pngjs": "^6.0.5",
+    "pngjs": "^7.0.0"
   }
 }

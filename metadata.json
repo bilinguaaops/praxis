@@ -1,6 +1,6 @@
 {
-  "name": "PRAXIS",
-  "description": "Plateforme pédagogique PRAXIS : correction intelligente des copies par IA Vision, analyse de classe et suivi des compétences.",
+  "name": "PRAXIS PRO",
+  "description": "Plateforme pédagogique PRAXIS PRO (praxis-pro.pro) : correction intelligente des copies par IA Vision, carnet de notes et suivi des compétences.",
   "requestFramePermissions": ["camera"],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

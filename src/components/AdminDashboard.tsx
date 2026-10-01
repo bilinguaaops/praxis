@@ -163,6 +163,15 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToApp }) =
     setTimeout(() => setToastMessage(null), 4000);
   };
 
+  // Sync document title to praxis-pro.pro/admin while on the admin portal
+  useEffect(() => {
+    const originalTitle = document.title;
+    document.title = 'Praxis Pro · Console Administrateur (praxis-pro.pro/admin)';
+    return () => {
+      document.title = originalTitle || 'PRAXIS PRO · Correction Pédagogique Intelligente';
+    };
+  }, []);
+
   // Get Active Admin Token
   const getAdminToken = () => {
     return sessionStorage.getItem('praxis_admin_token') || localStorage.getItem('praxis_admin_token') || '';
@@ -864,21 +873,28 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToApp }) =
               <Shield className="w-5 h-5" />
             </div>
             <div>
-              <span className="font-extrabold tracking-tight text-lg text-white">PRAXIS</span>
-              <span className="ml-2 text-xs font-semibold px-2 py-0.5 rounded bg-blue-900/40 text-blue-300 border border-blue-700/40">
-                SaaS Admin
-              </span>
+              <div className="flex items-center gap-2">
+                <span className="font-extrabold tracking-tight text-lg text-white">PRAXIS PRO</span>
+                <span className="text-[11px] font-mono font-semibold px-2 py-0.5 rounded bg-blue-900/40 text-blue-300 border border-blue-700/40">
+                  praxis-pro.pro/admin
+                </span>
+              </div>
+              <p className="text-[11px] text-slate-400">
+                Portail de Gestion & Direction Générale
+              </p>
             </div>
           </div>
 
-          <button
-            type="button"
-            onClick={onBackToApp}
-            className="flex items-center gap-2 px-3.5 py-1.5 text-xs font-medium text-slate-400 hover:text-white bg-slate-900/80 hover:bg-slate-800 border border-slate-800 rounded-lg transition-colors cursor-pointer"
-          >
-            <ArrowLeft className="w-3.5 h-3.5" />
-            <span>Retour à l'application</span>
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={onBackToApp}
+              className="flex items-center gap-2 px-3.5 py-1.5 text-xs font-medium text-slate-400 hover:text-white bg-slate-900/80 hover:bg-slate-800 border border-slate-800 rounded-lg transition-colors cursor-pointer"
+            >
+              <ArrowLeft className="w-3.5 h-3.5" />
+              <span>Retour au site</span>
+            </button>
+          </div>
         </div>
 
         {/* Center Card */}
@@ -892,9 +908,12 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToApp }) =
               <div className="w-14 h-14 rounded-2xl bg-gradient-to-b from-blue-500/20 to-indigo-600/10 border border-blue-500/40 flex items-center justify-center text-blue-400 mb-4 shadow-inner">
                 <Lock className="w-7 h-7" />
               </div>
-              <h1 className="text-xl font-bold text-white tracking-tight">Console d'Administration</h1>
-              <p className="text-xs text-slate-400 mt-1.5 leading-relaxed max-w-[280px]">
-                Espace sécurisé réservé à l'équipe dirigeante. Saisissez le mot de passe maître pour déverrouiller le CRM et les métriques financières.
+              <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-blue-950/80 border border-blue-800/60 text-[11px] font-mono text-blue-300 mb-2">
+                <span>praxis-pro.pro/admin</span>
+              </div>
+              <h1 className="text-xl font-bold text-white tracking-tight">Console Administrateur Praxis Pro</h1>
+              <p className="text-xs text-slate-400 mt-1.5 leading-relaxed max-w-[290px]">
+                Espace sécurisé de supervision. Saisissez le mot de passe maître pour déverrouiller la gestion des abonnements, CRM et métriques financières.
               </p>
             </div>
 
@@ -930,7 +949,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToApp }) =
                 </div>
                 <div className="flex items-center justify-between mt-2">
                   <p className="text-[11px] text-slate-500">
-                    Mot de passe par défaut : <span className="font-mono text-slate-400 select-all">PraxisAdmin2026!</span>
+                    Mot de passe par défaut : <span className="font-mono text-slate-400 select-all">2341</span>
                   </p>
                 </div>
               </div>
@@ -1019,13 +1038,13 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToApp }) =
 
               <div>
                 <div className="flex items-center gap-2">
-                  <span className="font-extrabold text-base tracking-tight text-white">PRAXIS</span>
-                  <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-blue-900/60 text-blue-300 border border-blue-700/50">
-                    Console SaaS Pro
+                  <span className="font-extrabold text-base tracking-tight text-white">PRAXIS PRO</span>
+                  <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-blue-900/60 text-blue-300 border border-blue-700/50">
+                    praxis-pro.pro/admin
                   </span>
                 </div>
                 <p className="text-[11px] text-slate-400 hidden sm:block">
-                  Administration des licences, revenus & alertes Telegram
+                  Console d'Administration & Gestion SaaS
                 </p>
               </div>
             </div>

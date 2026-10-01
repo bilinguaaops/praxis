@@ -167,21 +167,6 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
           <span>Support 7j/7</span>
         </button>
 
-        {/* Admin Switcher (Discrete toggle as requested in #19) */}
-        <button
-          type="button"
-          onClick={() => onViewChange(activeView === 'admin' ? 'dashboard' : 'admin')}
-          className={`inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl text-xs font-bold transition-colors cursor-pointer border ${
-            activeView === 'admin'
-              ? 'bg-purple-100 text-purple-900 border-purple-300'
-              : 'bg-slate-100 hover:bg-slate-200 text-slate-700 border-slate-200'
-          }`}
-          title="Basculer vers l'espace administrateur / professeur"
-        >
-          <Shield className="w-3.5 h-3.5 text-purple-600" />
-          <span className="hidden md:inline">{activeView === 'admin' ? 'Vue Professeur' : 'Admin'}</span>
-        </button>
-
         {/* 🔔 Notifications Popover (#15) */}
         <div className="relative" ref={notifRef}>
           <button

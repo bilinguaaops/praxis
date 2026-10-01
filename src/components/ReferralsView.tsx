@@ -42,7 +42,9 @@ export const ReferralsView: React.FC<ReferralsViewProps> = ({
     return `PRAXIS-${prefix}${suffix}`;
   })();
 
-  const appOrigin = typeof window !== 'undefined' ? window.location.origin : 'https://praxis.app';
+  const appOrigin = typeof window !== 'undefined' && !window.location.origin.includes('localhost') && !window.location.origin.includes('run.app')
+    ? window.location.origin
+    : (typeof window !== 'undefined' && window.location.origin ? window.location.origin : 'https://praxis-pro.pro');
   const referralLink = `${appOrigin}/register?ref=${teacherReferralCode}`;
 
   // Récupération des parrainages réels depuis Supabase si connecté
@@ -51,35 +53,7 @@ export const ReferralsView: React.FC<ReferralsViewProps> = ({
 
     async function loadReferrals() {
       if (!isSupabaseConfigured || !currentLead?.userId) {
-        // Liste de démonstration pédagogique par défaut
-        setReferrals([
-          {
-            id: 'ref-demo-1',
-            referrerUserId: currentLead?.userId || 'demo',
-            referredUserId: 'user-kouassi',
-            referredName: 'Marie Kouassi',
-            referredSchool: 'Lycée Classique d’Abidjan',
-            referralCode: teacherReferralCode,
-            status: 'rewarded',
-            rewardGranted: true,
-            rewardAmount: 50,
-            rewardedAt: '2026-09-15T14:30:00Z',
-            createdAt: '2026-09-10T10:15:00Z',
-          },
-          {
-            id: 'ref-demo-2',
-            referrerUserId: currentLead?.userId || 'demo',
-            referredUserId: 'user-dupont',
-            referredName: 'Jean Dupont',
-            referredSchool: 'Collège Moderne de Cocody',
-            referralCode: teacherReferralCode,
-            status: 'pending',
-            rewardGranted: false,
-            rewardAmount: 50,
-            rewardedAt: null,
-            createdAt: '2026-09-12T09:20:00Z',
-          },
-        ]);
+        setReferrals([]);
         return;
       }
 
