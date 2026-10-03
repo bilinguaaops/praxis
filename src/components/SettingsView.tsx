@@ -138,48 +138,48 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   };
 
   return (
-    <div className="max-w-4xl mx-auto space-y-8 animate-in fade-in duration-300">
+    <div className="max-w-4xl mx-auto space-y-6 animate-in fade-in duration-150">
       {/* Header */}
-      <div className="bg-white p-6 sm:p-8 rounded-3xl border border-slate-200/80 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <div className="pb-6 border-b border-slate-200 dark:border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight">
+          <h1 className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-white tracking-tight">
             Paramètres du compte
           </h1>
-          <p className="text-xs sm:text-sm text-slate-600 mt-1">
-            Gérez vos informations personnelles, vos préférences de correction et vos notifications.
+          <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-400 mt-1">
+            Gérez vos informations personnelles, vos préférences pédagogiques et vos notifications.
           </p>
         </div>
 
         {savedSuccess && (
-          <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-emerald-50 text-emerald-700 border border-emerald-200 text-xs font-bold animate-in fade-in">
-            <Check className="w-4 h-4" />
-            <span>Modifications enregistrées !</span>
+          <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 text-xs font-medium animate-in fade-in">
+            <Check className="w-3.5 h-3.5 stroke-[2.5]" />
+            <span>Modifications enregistrées</span>
           </div>
         )}
       </div>
 
       {/* Tabs navigation */}
-      <div className="flex items-center gap-2 overflow-x-auto pb-2 scrollbar-none">
+      <div className="flex items-center gap-1 border-b border-slate-200 dark:border-slate-800 overflow-x-auto pb-px">
         <button
           type="button"
           onClick={() => setActiveTab('profile')}
-          className={`flex items-center gap-2 px-4 py-2.5 rounded-2xl text-xs font-bold transition-all shrink-0 cursor-pointer ${
+          className={`flex items-center gap-2 px-3 py-2 text-xs transition-colors shrink-0 cursor-pointer border-b-2 ${
             activeTab === 'profile'
-              ? 'bg-blue-600 text-white shadow-sm'
-              : 'bg-white text-slate-600 hover:text-slate-900 border border-slate-200/80'
+              ? 'border-blue-600 text-blue-600 dark:text-blue-400 font-semibold'
+              : 'border-transparent text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white font-medium'
           }`}
         >
           <User className="w-3.5 h-3.5" />
-          <span>Profil enseignant</span>
+          <span>Profil</span>
         </button>
 
         <button
           type="button"
           onClick={() => setActiveTab('correction')}
-          className={`flex items-center gap-2 px-4 py-2.5 rounded-2xl text-xs font-bold transition-all shrink-0 cursor-pointer ${
+          className={`flex items-center gap-2 px-3 py-2 text-xs transition-colors shrink-0 cursor-pointer border-b-2 ${
             activeTab === 'correction'
-              ? 'bg-blue-600 text-white shadow-sm'
-              : 'bg-white text-slate-600 hover:text-slate-900 border border-slate-200/80'
+              ? 'border-blue-600 text-blue-600 dark:text-blue-400 font-semibold'
+              : 'border-transparent text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white font-medium'
           }`}
         >
           <Sliders className="w-3.5 h-3.5" />
@@ -189,10 +189,10 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
         <button
           type="button"
           onClick={() => setActiveTab('notifications')}
-          className={`flex items-center gap-2 px-4 py-2.5 rounded-2xl text-xs font-bold transition-all shrink-0 cursor-pointer ${
+          className={`flex items-center gap-2 px-3 py-2 text-xs transition-colors shrink-0 cursor-pointer border-b-2 ${
             activeTab === 'notifications'
-              ? 'bg-blue-600 text-white shadow-sm'
-              : 'bg-white text-slate-600 hover:text-slate-900 border border-slate-200/80'
+              ? 'border-blue-600 text-blue-600 dark:text-blue-400 font-semibold'
+              : 'border-transparent text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white font-medium'
           }`}
         >
           <Bell className="w-3.5 h-3.5" />
@@ -202,10 +202,10 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
         <button
           type="button"
           onClick={() => setActiveTab('billing')}
-          className={`flex items-center gap-2 px-4 py-2.5 rounded-2xl text-xs font-bold transition-all shrink-0 cursor-pointer ${
+          className={`flex items-center gap-2 px-3 py-2 text-xs transition-colors shrink-0 cursor-pointer border-b-2 ${
             activeTab === 'billing'
-              ? 'bg-blue-600 text-white shadow-sm'
-              : 'bg-white text-slate-600 hover:text-slate-900 border border-slate-200/80'
+              ? 'border-blue-600 text-blue-600 dark:text-blue-400 font-semibold'
+              : 'border-transparent text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white font-medium'
           }`}
         >
           <CreditCard className="w-3.5 h-3.5" />
@@ -215,10 +215,10 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
         <button
           type="button"
           onClick={() => setActiveTab('security')}
-          className={`flex items-center gap-2 px-4 py-2.5 rounded-2xl text-xs font-bold transition-all shrink-0 cursor-pointer ${
+          className={`flex items-center gap-2 px-3 py-2 text-xs transition-colors shrink-0 cursor-pointer border-b-2 ${
             activeTab === 'security'
-              ? 'bg-blue-600 text-white shadow-sm'
-              : 'bg-white text-slate-600 hover:text-slate-900 border border-slate-200/80'
+              ? 'border-blue-600 text-blue-600 dark:text-blue-400 font-semibold'
+              : 'border-transparent text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white font-medium'
           }`}
         >
           <ShieldCheck className="w-3.5 h-3.5" />
@@ -227,7 +227,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
       </div>
 
       {/* TAB CONTENT */}
-      <form onSubmit={handleSaveSettings} className="bg-white p-6 sm:p-8 rounded-3xl border border-slate-200/80 shadow-xs space-y-6">
+      <form onSubmit={handleSaveSettings} className="bg-white dark:bg-slate-900 p-6 rounded-xl border border-slate-200 dark:border-slate-800 shadow-2xs space-y-6">
         {/* TAB 1: PROFIL */}
         {activeTab === 'profile' && (
           <div className="space-y-6 animate-in fade-in">

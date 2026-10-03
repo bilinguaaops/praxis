@@ -1,23 +1,17 @@
 import React from 'react';
 import {
-  Sparkles,
-  Zap,
   Plus,
   BookOpen,
-  Users,
-  TrendingUp,
   ArrowRight,
   Clock,
-  CheckCircle2,
-  Calendar,
-  Award,
   ChevronRight,
-  Gift,
-  ShieldCheck,
+  TrendingUp,
   CreditCard,
-  AlertCircle,
+  Users,
 } from 'lucide-react';
 import { LeadData, SavedEvaluation, ClassGroup } from '../types';
+import { Button } from './ui/Button';
+import { Badge } from './ui/Badge';
 
 interface TeacherDashboardViewProps {
   currentLead: LeadData | null;
@@ -44,20 +38,16 @@ export const TeacherDashboardView: React.FC<TeacherDashboardViewProps> = ({
   onOpenReferrals,
   onOpenEvaluation,
 }) => {
-  // Determine teacher name
   const teacherName = currentLead?.name ? currentLead.name.split(' ')[0] : 'Professeur';
 
-  // Calculate credits
-  const subscriptionCredits = currentLead?.subscriptionCredits ?? 30;
+  // Credits calculation
+  const subscriptionCredits = currentLead?.subscriptionCredits ?? 50;
   const extraCredits = currentLead?.extraCredits ?? 0;
   const totalCredits = subscriptionCredits + extraCredits;
-  const maxMonthlyCredits = 500;
-  const creditPercentage = Math.min(100, Math.round((totalCredits / maxMonthlyCredits) * 100));
 
-  // Calculate series count
   const seriesCount = savedEvaluations.length;
 
-  // Calculate global average
+  // Global average
   const globalAverage = React.useMemo(() => {
     if (savedEvaluations.length === 0) return null;
     let sum = 0;
@@ -71,328 +61,252 @@ export const TeacherDashboardView: React.FC<TeacherDashboardViewProps> = ({
     return count > 0 ? Number((sum / count).toFixed(1)) : null;
   }, [savedEvaluations]);
 
-  // Last active evaluation (for "Continuer une correction")
   const lastEvaluation = savedEvaluations.length > 0 ? savedEvaluations[0] : null;
+  const recentEvaluations = savedEvaluations.slice(0, 4);
 
   return (
-    <div className="space-y-8 animate-in fade-in duration-300">
-      {/* 1. WELCOME HEADER */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-6 sm:p-8 rounded-3xl border border-slate-200/80 shadow-xs">
-        <div className="space-y-1.5">
-          <div className="flex items-center gap-2.5">
-            <h1 className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight">
-              Bonjour {teacherName} 👋
-            </h1>
-            <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-blue-50 text-blue-700 border border-blue-200/80">
-              Professeur vérifié
-            </span>
-          </div>
-          <p className="text-sm text-slate-600">
-            Voici l'activité récente de vos corrections avec Praxis.
+    <div className="space-y-8 max-w-5xl mx-auto animate-in fade-in duration-150">
+      {/* 1. EDITORIAL HEADER */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-6 border-b border-slate-200 dark:border-slate-800">
+        <div>
+          <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-slate-900 dark:text-white">
+            Bonjour, {teacherName}
+          </h1>
+          <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-400 mt-1">
+            Espace de travail et suivi de vos corrections de devoirs.
           </p>
         </div>
 
-        <div className="flex items-center gap-3">
-          <button
-            type="button"
+        <div className="flex items-center gap-2.5">
+          <Button
+            variant="primary"
+            size="md"
             onClick={onStartNewCorrection}
-            className="inline-flex items-center gap-2 px-5 py-3 rounded-2xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-sm shadow-md shadow-blue-600/25 transition-all cursor-pointer hover:scale-[1.02]"
+            className="shadow-2xs"
           >
             <Plus className="w-4 h-4" />
             <span>Nouvelle correction</span>
-          </button>
+          </Button>
         </div>
       </div>
 
-      {/* 2. THREE STAT CARDS (460 crédits | 12 séries | 14,2 / 20 moyenne) */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
-        {/* Card 1: Crédits */}
+      {/* 2. STATISTIQUES UTILES (MINIMALIST ROW, NO GLOW) */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <div
           onClick={onOpenBilling}
-          className="bg-white p-6 rounded-3xl border border-slate-200/80 shadow-xs hover:border-blue-400 hover:shadow-md transition-all cursor-pointer group"
+          className="p-4 rounded-xl border border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900/60 hover:border-slate-300 dark:hover:border-slate-700 transition-colors cursor-pointer"
         >
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">
-              Solde disponible
-            </span>
-            <div className="w-9 h-9 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center group-hover:scale-110 transition-transform">
-              <Zap className="w-5 h-5 text-amber-500 fill-amber-500" />
-            </div>
+          <div className="text-[11px] font-medium text-slate-500 dark:text-slate-400">
+            Corrections disponibles
           </div>
-          <div className="mt-4 flex items-baseline gap-2">
-            <span className="text-3xl sm:text-4xl font-black text-slate-900 font-mono tracking-tight">
+          <div className="mt-1 flex items-baseline gap-2">
+            <span className="text-2xl font-bold text-slate-900 dark:text-white tabular-nums">
               {totalCredits}
             </span>
-            <span className="text-sm font-bold text-slate-500">crédits</span>
+            <span className="text-xs text-slate-500 dark:text-slate-400">restantes</span>
           </div>
-          <p className="text-xs text-slate-500 mt-1">
-            {extraCredits > 0 ? `${subscriptionCredits} inclus + ${extraCredits} recharge` : 'Corrections cumulables'}
-          </p>
+          <div className="text-[11px] text-blue-600 dark:text-blue-400 mt-1 flex items-center gap-1 font-medium">
+            <span>Gérer l'abonnement</span>
+            <span>→</span>
+          </div>
         </div>
 
-        {/* Card 2: Séries corrigées */}
         <div
           onClick={onViewSeries}
-          className="bg-white p-6 rounded-3xl border border-slate-200/80 shadow-xs hover:border-blue-400 hover:shadow-md transition-all cursor-pointer group"
+          className="p-4 rounded-xl border border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900/60 hover:border-slate-300 dark:hover:border-slate-700 transition-colors cursor-pointer"
         >
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">
-              Activité globale
-            </span>
-            <div className="w-9 h-9 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center group-hover:scale-110 transition-transform">
-              <BookOpen className="w-5 h-5" />
-            </div>
+          <div className="text-[11px] font-medium text-slate-500 dark:text-slate-400">
+            Séries corrigées
           </div>
-          <div className="mt-4 flex items-baseline gap-2">
-            <span className="text-3xl sm:text-4xl font-black text-slate-900 font-mono tracking-tight">
+          <div className="mt-1 flex items-baseline gap-2">
+            <span className="text-2xl font-bold text-slate-900 dark:text-white tabular-nums">
               {seriesCount}
             </span>
-            <span className="text-sm font-bold text-slate-500">
-              {seriesCount > 1 ? 'séries corrigées' : 'série corrigée'}
+            <span className="text-xs text-slate-500 dark:text-slate-400">
+              {seriesCount > 1 ? 'devoirs' : 'devoir'}
             </span>
           </div>
-          <p className="text-xs text-slate-500 mt-1 flex items-center gap-1">
-            {seriesCount > 0 ? (
-              <>
-                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-                <span className="text-emerald-600 font-semibold">Toutes archivées avec notes</span>
-              </>
-            ) : (
-              <span>Aucune série enregistrée</span>
-            )}
-          </p>
+          <div className="text-[11px] text-slate-500 dark:text-slate-400 mt-1">
+            Archivées dans l'historique
+          </div>
         </div>
 
-        {/* Card 3: Moyenne globale */}
         <div
           onClick={onViewResults}
-          className="bg-white p-6 rounded-3xl border border-slate-200/80 shadow-xs hover:border-blue-400 hover:shadow-md transition-all cursor-pointer group"
+          className="p-4 rounded-xl border border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900/60 hover:border-slate-300 dark:hover:border-slate-700 transition-colors cursor-pointer"
         >
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">
-              Moyenne générale
-            </span>
-            <div className="w-9 h-9 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center group-hover:scale-110 transition-transform">
-              <TrendingUp className="w-5 h-5" />
-            </div>
+          <div className="text-[11px] font-medium text-slate-500 dark:text-slate-400">
+            Moyenne générale calculée
           </div>
-          <div className="mt-4 flex items-baseline gap-2">
-            <span className="text-3xl sm:text-4xl font-black text-slate-900 font-mono tracking-tight">
-              {globalAverage !== null ? globalAverage : '—'}
+          <div className="mt-1 flex items-baseline gap-2">
+            <span className="text-2xl font-bold text-slate-900 dark:text-white tabular-nums">
+              {globalAverage !== null ? `${globalAverage}` : '—'}
             </span>
             {globalAverage !== null && (
-              <span className="text-sm font-bold text-slate-500">/ 20</span>
+              <span className="text-xs text-slate-500 dark:text-slate-400">/ 20</span>
             )}
           </div>
-          <p className="text-xs text-slate-500 mt-1">
-            {globalAverage !== null ? "Sur l'ensemble de vos devoirs" : 'Pas encore de note calculée'}
-          </p>
+          <div className="text-[11px] text-slate-500 dark:text-slate-400 mt-1">
+            {globalAverage !== null ? 'Sur l’ensemble des séries' : 'En attente de devoirs'}
+          </div>
         </div>
       </div>
 
-      {/* 3. CONTINUER UNE CORRECTION & ACTIONS RAPIDES */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Section Continuer une correction (2 cols) */}
-        <div className="lg:col-span-2 bg-white p-6 sm:p-7 rounded-3xl border border-slate-200/80 shadow-xs space-y-4">
-          <div className="flex items-center justify-between">
-            <h2 className="text-base font-extrabold text-slate-900 flex items-center gap-2">
-              <Clock className="w-4 h-4 text-blue-600" />
-              <span>Dernière série de correction</span>
-            </h2>
-            {lastEvaluation && (
-              <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200/60">
-                Correction terminée
-              </span>
-            )}
-          </div>
-
-          {lastEvaluation ? (
-            <div className="p-5 rounded-2xl bg-slate-50 border border-slate-200/70 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-              <div className="space-y-1">
-                <span className="text-xs font-bold text-blue-700 uppercase tracking-wider">
-                  {lastEvaluation.discipline || 'Matière'}
-                </span>
-                <h3 className="text-lg font-black text-slate-900">
-                  {lastEvaluation.title || 'Devoir surveillé'}
-                </h3>
-                <p className="text-xs text-slate-600 flex items-center gap-2">
-                  <span>{lastEvaluation.className || lastEvaluation.level || 'Classe'}</span>
-                  <span>•</span>
-                  <span>{lastEvaluation.submissions?.length || 0} copies</span>
-                  <span>•</span>
-                  <span>Moyenne : {lastEvaluation.metrics?.averageGrade ? `${lastEvaluation.metrics.averageGrade}/${lastEvaluation.maxGrade}` : 'Non calculée'}</span>
-                </p>
-              </div>
-
-              <button
-                type="button"
-                onClick={() => onOpenEvaluation(lastEvaluation)}
-                className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs shadow-xs transition-colors cursor-pointer self-start sm:self-center"
-              >
-                <span>Voir les résultats</span>
-                <ArrowRight className="w-3.5 h-3.5" />
-              </button>
-            </div>
-          ) : (
-            <div className="p-6 rounded-2xl bg-slate-50 border border-slate-200/70 text-center space-y-3">
-              <div className="w-10 h-10 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center mx-auto">
-                <BookOpen className="w-5 h-5" />
-              </div>
-              <div>
-                <h3 className="text-sm font-bold text-slate-900">Aucune série de devoirs enregistrée</h3>
-                <p className="text-xs text-slate-500 mt-0.5 max-w-sm mx-auto">
-                  Démarrez votre première correction pour bénéficier de l'analyse automatique des copies et du carnet de notes.
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={onStartNewCorrection}
-                className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs shadow-xs transition-colors cursor-pointer"
-              >
-                <Plus className="w-3.5 h-3.5" />
-                <span>Lancer ma première correction</span>
-              </button>
-            </div>
-          )}
-
-          {/* Quick link button bar */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2">
-            <button
-              type="button"
-              onClick={onStartNewCorrection}
-              className="p-3.5 rounded-2xl bg-blue-50 hover:bg-blue-100 border border-blue-200/80 text-blue-900 font-bold text-xs flex items-center gap-2 transition-colors cursor-pointer"
-            >
-              <Plus className="w-4 h-4 text-blue-600" />
-              <span>+ Nouvelle correction</span>
-            </button>
-
+      {/* 3. DERNIÈRE CORRECTION OU ÉTAT VIDE */}
+      <div className="space-y-4">
+        <div className="flex items-center justify-between">
+          <h2 className="text-sm font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300">
+            Dernière série de correction
+          </h2>
+          {seriesCount > 0 && (
             <button
               type="button"
               onClick={onViewSeries}
-              className="p-3.5 rounded-2xl bg-slate-50 hover:bg-slate-100 border border-slate-200 text-slate-800 font-bold text-xs flex items-center gap-2 transition-colors cursor-pointer"
+              className="text-xs font-medium text-blue-600 dark:text-blue-400 hover:underline cursor-pointer"
             >
-              <BookOpen className="w-4 h-4 text-slate-600" />
-              <span>📚 Voir mes séries</span>
+              Consulter l'historique complet →
             </button>
-
-            <button
-              type="button"
-              onClick={onViewClasses}
-              className="p-3.5 rounded-2xl bg-slate-50 hover:bg-slate-100 border border-slate-200 text-slate-800 font-bold text-xs flex items-center gap-2 transition-colors cursor-pointer"
-            >
-              <Users className="w-4 h-4 text-slate-600" />
-              <span>👥 Mes classes</span>
-            </button>
-          </div>
+          )}
         </div>
 
-        {/* Jauge Crédits & Parrainage (1 col) */}
-        <div className="bg-white p-6 sm:p-7 rounded-3xl border border-slate-200/80 shadow-xs flex flex-col justify-between space-y-6">
-          <div className="space-y-3">
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">
-                Utilisation des crédits
-              </span>
-              <span className="text-xs font-extrabold text-blue-700 font-mono">
-                {totalCredits} / {maxMonthlyCredits}
-              </span>
+        {lastEvaluation ? (
+          <div className="p-5 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900/80 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div className="space-y-1">
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-semibold text-blue-600 dark:text-blue-400">
+                  {lastEvaluation.discipline || 'Matière'}
+                </span>
+                <span className="text-slate-300 dark:text-slate-600">·</span>
+                <span className="text-xs text-slate-500 dark:text-slate-400">
+                  {lastEvaluation.className || lastEvaluation.level || 'Classe non précisée'}
+                </span>
+              </div>
+              <h3 className="text-base font-bold text-slate-900 dark:text-white">
+                {lastEvaluation.title || 'Devoir surveillé'}
+              </h3>
+              <div className="text-xs text-slate-500 dark:text-slate-400 flex items-center gap-3 pt-1">
+                <span>{lastEvaluation.submissions?.length || 0} copies corrigées</span>
+                <span>·</span>
+                <span>
+                  Moyenne :{' '}
+                  <strong className="text-slate-800 dark:text-slate-200">
+                    {lastEvaluation.metrics?.averageGrade
+                      ? `${lastEvaluation.metrics.averageGrade} / ${lastEvaluation.maxGrade}`
+                      : 'Non calculée'}
+                  </strong>
+                </span>
+              </div>
             </div>
 
-            {/* Progress bar */}
-            <div className="w-full bg-slate-100 h-3.5 rounded-full overflow-hidden p-0.5 border border-slate-200">
-              <div
-                className="bg-gradient-to-r from-blue-600 to-indigo-600 h-full rounded-full transition-all duration-500"
-                style={{ width: `${Math.min(100, Math.max(5, creditPercentage))}%` }}
-              />
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => onOpenEvaluation(lastEvaluation)}
+              className="self-start sm:self-center"
+            >
+              <span>Accéder aux copies</span>
+              <ArrowRight className="w-3.5 h-3.5" />
+            </Button>
+          </div>
+        ) : (
+          <div className="p-8 rounded-xl border border-dashed border-slate-200 dark:border-slate-800 bg-white/50 dark:bg-slate-900/40 text-center space-y-3">
+            <div className="w-9 h-9 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 flex items-center justify-center mx-auto">
+              <BookOpen className="w-4 h-4" />
             </div>
-
-            <p className="text-xs text-slate-500 leading-relaxed">
-              Vos corrections incluses sont cumulables jusqu'à 1 500 crédits et ne disparaissent pas à la fin du mois.
-            </p>
-          </div>
-
-          <div className="space-y-2">
-            <button
-              type="button"
-              onClick={onOpenBilling}
-              className="w-full py-3 px-4 rounded-2xl bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs flex items-center justify-center gap-2 transition-colors cursor-pointer"
-            >
-              <CreditCard className="w-4 h-4 text-amber-400" />
-              <span>Acheter des corrections (Wave / CB)</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={onOpenReferrals}
-              className="w-full py-2.5 px-4 rounded-2xl bg-amber-50 hover:bg-amber-100 border border-amber-200/70 text-amber-900 font-bold text-xs flex items-center justify-center gap-2 transition-colors cursor-pointer"
-            >
-              <Gift className="w-4 h-4 text-amber-600" />
-              <span>Parrainer un collègue (+50 copies)</span>
-            </button>
-          </div>
-        </div>
-      </div>
-
-      {/* 4. RECENT ACTIVITY TIMELINE */}
-      <div className="bg-white p-6 sm:p-8 rounded-3xl border border-slate-200/80 shadow-xs space-y-5">
-        <div className="flex items-center justify-between border-b border-slate-100 pb-4">
-          <div>
-            <h2 className="text-base font-extrabold text-slate-900">Activité récente</h2>
-            <p className="text-xs text-slate-500">Historique des dernières corrections traitées</p>
-          </div>
-          <button
-            type="button"
-            onClick={onViewSeries}
-            className="text-xs font-bold text-blue-600 hover:text-blue-800 flex items-center gap-1 cursor-pointer"
-          >
-            <span>Voir tout</span>
-            <ChevronRight className="w-3.5 h-3.5" />
-          </button>
-        </div>
-
-        <div className="space-y-4">
-          {savedEvaluations.length > 0 ? (
-            savedEvaluations.slice(0, 4).map((evalItem, idx) => (
-              <div
-                key={evalItem.id || idx}
-                onClick={() => onOpenEvaluation(evalItem)}
-                className="p-4 rounded-2xl bg-slate-50 hover:bg-slate-100/80 border border-slate-200/60 flex items-center justify-between gap-4 transition-colors cursor-pointer group"
-              >
-                <div className="flex items-center gap-3.5">
-                  <div className="w-9 h-9 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center shrink-0">
-                    <CheckCircle2 className="w-5 h-5" />
-                  </div>
-                  <div>
-                    <h4 className="text-sm font-bold text-slate-900 group-hover:text-blue-600 transition-colors">
-                      Série "{evalItem.title || 'Contrôle'}" corrigée
-                    </h4>
-                    <p className="text-xs text-slate-500">
-                      {evalItem.className || evalItem.level || 'Classe'} • {evalItem.submissions?.length || 0} copies • {evalItem.discipline || 'Matière'}
-                    </p>
-                  </div>
-                </div>
-
-                <div className="text-right shrink-0">
-                  <span className="text-xs font-bold text-slate-700 block">
-                    {evalItem.date ? new Date(evalItem.date).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' }) : 'Récemment'}
-                  </span>
-                  <span className="text-[11px] text-emerald-600 font-semibold">
-                    Moy. {evalItem.metrics?.averageGrade ? `${evalItem.metrics.averageGrade}/${evalItem.maxGrade}` : '14/20'}
-                  </span>
-                </div>
-              </div>
-            ))
-          ) : (
-            <div className="p-8 text-center bg-slate-50 rounded-2xl border border-slate-200/60 space-y-2">
-              <div className="w-10 h-10 rounded-xl bg-slate-100 text-slate-400 flex items-center justify-center mx-auto">
-                <Clock className="w-5 h-5" />
-              </div>
-              <h4 className="text-sm font-bold text-slate-800">Aucune activité récente</h4>
-              <p className="text-xs text-slate-500 max-w-sm mx-auto">
-                L'historique de vos corrections de devoirs et évaluations s'affichera ici en temps réel dès votre première série analysée.
+            <div>
+              <h3 className="text-sm font-semibold text-slate-900 dark:text-white">
+                Aucune série de devoirs pour le moment
+              </h3>
+              <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 max-w-sm mx-auto">
+                Importez vos copies manuscrites et définissez votre barème pour lancer une première correction assistée.
               </p>
             </div>
-          )}
+            <Button variant="primary" size="sm" onClick={onStartNewCorrection}>
+              <Plus className="w-3.5 h-3.5" />
+              <span>Démarrer une correction</span>
+            </Button>
+          </div>
+        )}
+      </div>
+
+      {/* 4. LISTE DES SÉRIES RÉCENTES (TABLE FORMAT) */}
+      {recentEvaluations.length > 1 && (
+        <div className="space-y-3 pt-2">
+          <div className="flex items-center justify-between">
+            <h2 className="text-sm font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300">
+              Séries récentes
+            </h2>
+            <button
+              type="button"
+              onClick={onViewSeries}
+              className="text-xs font-medium text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
+            >
+              Voir tout ({seriesCount})
+            </button>
+          </div>
+
+          <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 overflow-hidden divide-y divide-slate-100 dark:divide-slate-800">
+            {recentEvaluations.map((evalItem) => (
+              <div
+                key={evalItem.id}
+                onClick={() => onOpenEvaluation(evalItem)}
+                className="p-3.5 sm:px-4 flex items-center justify-between hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors cursor-pointer text-xs"
+              >
+                <div className="space-y-0.5 min-w-0 pr-4">
+                  <div className="font-semibold text-slate-900 dark:text-white truncate">
+                    {evalItem.title || 'Devoir'}
+                  </div>
+                  <div className="text-[11px] text-slate-500 dark:text-slate-400 flex items-center gap-2">
+                    <span>{evalItem.discipline || 'Matière'}</span>
+                    <span>·</span>
+                    <span>{evalItem.className || evalItem.level || 'Classe'}</span>
+                    <span>·</span>
+                    <span>{evalItem.submissions?.length || 0} copies</span>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-3 shrink-0">
+                  {evalItem.metrics?.averageGrade && (
+                    <span className="font-semibold text-slate-700 dark:text-slate-300 tabular-nums">
+                      {evalItem.metrics.averageGrade} / {evalItem.maxGrade}
+                    </span>
+                  )}
+                  <ChevronRight className="w-4 h-4 text-slate-400" />
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* 5. ACCÈS RAPIDES UTILES */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
+        <div
+          onClick={onViewClasses}
+          className="p-3.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900/60 hover:border-slate-300 dark:hover:border-slate-700 transition-colors cursor-pointer flex items-center justify-between text-xs"
+        >
+          <div className="flex items-center gap-2.5">
+            <Users className="w-4 h-4 text-slate-500" />
+            <div>
+              <span className="font-semibold text-slate-900 dark:text-white block">Mes classes et élèves</span>
+              <span className="text-[11px] text-slate-500 dark:text-slate-400">{classes.length} classes configurées</span>
+            </div>
+          </div>
+          <ChevronRight className="w-4 h-4 text-slate-400" />
+        </div>
+
+        <div
+          onClick={onOpenReferrals}
+          className="p-3.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900/60 hover:border-slate-300 dark:hover:border-slate-700 transition-colors cursor-pointer flex items-center justify-between text-xs"
+        >
+          <div className="flex items-center gap-2.5">
+            <CreditCard className="w-4 h-4 text-slate-500" />
+            <div>
+              <span className="font-semibold text-slate-900 dark:text-white block">Programme de parrainage</span>
+              <span className="text-[11px] text-slate-500 dark:text-slate-400">+50 corrections par collègue abonné</span>
+            </div>
+          </div>
+          <ChevronRight className="w-4 h-4 text-slate-400" />
         </div>
       </div>
     </div>

@@ -6,16 +6,9 @@ import {
   Settings,
   CreditCard,
   Gift,
-  Shield,
   Menu,
   ChevronDown,
-  CheckCircle2,
-  AlertTriangle,
-  Receipt,
-  Sparkles,
   Phone,
-  Moon,
-  Sun,
   ArrowLeft,
 } from 'lucide-react';
 import { MainView, LeadData } from '../types';
@@ -47,7 +40,7 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
 }) => {
   const [isNotifOpen, setIsNotifOpen] = useState(false);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
-  const [unreadNotifsCount, setUnreadNotifsCount] = useState(3);
+  const [unreadNotifsCount, setUnreadNotifsCount] = useState(1);
 
   const notifRef = useRef<HTMLDivElement>(null);
   const profileRef = useRef<HTMLDivElement>(null);
@@ -66,7 +59,7 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  const teacherName = currentLead?.name || 'Kevine';
+  const teacherName = currentLead?.name || 'Professeur';
 
   // Section title mapping
   const getSectionTitle = () => {
@@ -74,11 +67,11 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
       case 'dashboard':
         return 'Accueil';
       case 'corr':
-        if (currentStep === 1) return 'Correction · 1. Sujet, Corrigé & Barème';
-        if (currentStep === 2) return 'Correction · 2. Dépôt des copies d\'élèves';
-        if (currentStep === 3) return 'Correction · 3. Analyse & Notation IA';
-        if (currentStep === 4) return 'Correction · 4. Révision des notes & commentaires';
-        return 'Nouvelle correction de copies';
+        if (currentStep === 1) return 'Nouvelle correction · Sujet & Barème';
+        if (currentStep === 2) return 'Nouvelle correction · Dépôt des copies';
+        if (currentStep === 3) return 'Nouvelle correction · Traitement';
+        if (currentStep === 4) return 'Nouvelle correction · Révision des notes';
+        return 'Nouvelle correction';
       case 'hist':
         return 'Mes séries de devoirs';
       case 'classes':
@@ -88,41 +81,27 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
       case 'pricing':
         return 'Abonnement & Crédits';
       case 'referrals':
-        return 'Parrainage collègues';
+        return 'Programme de parrainage';
       case 'settings':
-        return 'Paramètres';
+        return 'Paramètres du compte';
       case 'faq':
-        return 'Aide & Guide pédagogique';
+        return 'Aide & Support';
       case 'admin':
-        return 'Administration plateforme';
+        return 'Administration';
       default:
         return 'Espace Enseignant';
     }
   };
 
-  const getBackTooltip = () => {
-    if (activeView === 'corr') {
-      if (currentStep === 2) return 'Retour à l\'étape 1 : Sujet, corrigé & barème';
-      if (currentStep === 3) return 'Retour à l\'étape 2 : Dépôt des copies';
-      if (currentStep === 4) return 'Retour à l\'étape 2 : Sélection des copies';
-      return 'Retour au tableau de bord';
-    }
-    return 'Revenir en arrière';
-  };
-
-  const handleMarkAllRead = () => {
-    setUnreadNotifsCount(0);
-  };
-
   return (
-    <header className="sticky top-0 z-30 bg-white/90 backdrop-blur-md border-b border-slate-200/80 px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between shadow-xs">
-      {/* Left: Mobile Hamburger, Back button & Page Context */}
+    <header className="sticky top-0 z-30 bg-[#FAFAF8]/95 dark:bg-[#0F141C]/95 backdrop-blur-md border-b border-slate-200/80 dark:border-slate-800/80 px-4 sm:px-6 lg:px-8 h-14 flex items-center justify-between transition-colors">
+      {/* Left: Mobile Hamburger, Back button & Page Breadcrumb */}
       <div className="flex items-center gap-2 sm:gap-3">
         <button
           type="button"
           onClick={onOpenMobileSidebar}
-          className="lg:hidden p-2 rounded-xl text-slate-600 hover:text-slate-900 hover:bg-slate-100 transition-colors cursor-pointer"
-          aria-label="Ouvrir le menu de navigation"
+          className="lg:hidden p-1.5 rounded-md text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+          aria-label="Ouvrir le menu"
         >
           <Menu className="w-5 h-5" />
         </button>
@@ -139,159 +118,96 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
                 onViewChange('dashboard');
               }
             }}
-            className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-bold text-slate-700 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 border border-slate-200/80 transition-colors cursor-pointer"
-            title={getBackTooltip()}
+            className="inline-flex items-center gap-1.5 px-2 py-1 rounded-md text-xs font-medium text-slate-700 dark:text-slate-200 hover:text-slate-900 dark:hover:text-white bg-white dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 transition-colors cursor-pointer"
+            title="Revenir en arrière"
           >
             <ArrowLeft className="w-3.5 h-3.5" />
             <span className="hidden sm:inline">Retour</span>
           </button>
         )}
 
-        <div className="flex items-center gap-2">
-          <span className="text-xs font-bold text-slate-400 hidden sm:inline">Praxis /</span>
-          <h1 className="text-sm sm:text-base font-extrabold text-slate-900 tracking-tight">
+        <div className="flex items-center gap-2 text-xs">
+          <span className="text-slate-400 dark:text-slate-500 hidden sm:inline">Praxis /</span>
+          <h1 className="font-semibold text-slate-900 dark:text-white tracking-tight">
             {getSectionTitle()}
           </h1>
         </div>
       </div>
 
-      {/* Right: Quick actions, Notifications & Profile */}
+      {/* Right: Support, Notifications & Profile */}
       <div className="flex items-center gap-2 sm:gap-3">
-        {/* Support WhatsApp quick button */}
+        {/* Support contact button */}
         <button
           type="button"
           onClick={onOpenContactModal}
-          className="hidden sm:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 border border-emerald-200/80 text-emerald-800 text-xs font-bold transition-colors cursor-pointer"
+          className="hidden sm:inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:text-slate-900 dark:hover:text-white text-xs font-medium transition-colors cursor-pointer"
         >
-          <Phone className="w-3.5 h-3.5 text-emerald-600" />
-          <span>Support 7j/7</span>
+          <Phone className="w-3.5 h-3.5 text-slate-500" />
+          <span>Support</span>
         </button>
 
-        {/* 🔔 Notifications Popover (#15) */}
+        {/* Notifications Popover */}
         <div className="relative" ref={notifRef}>
           <button
             type="button"
             onClick={() => setIsNotifOpen(!isNotifOpen)}
-            className="relative p-2 rounded-xl text-slate-600 hover:text-slate-900 hover:bg-slate-100 transition-colors cursor-pointer"
+            className="relative p-1.5 rounded-md text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
             aria-label="Voir les notifications"
           >
-            <Bell className="w-5 h-5" />
+            <Bell className="w-4 h-4" />
             {unreadNotifsCount > 0 && (
-              <span className="absolute top-1 right-1 w-4 h-4 bg-rose-600 text-white rounded-full text-[10px] font-black flex items-center justify-center ring-2 ring-white">
-                {unreadNotifsCount}
-              </span>
+              <span className="absolute top-1 right-1 w-1.5 h-1.5 bg-blue-600 rounded-full" />
             )}
           </button>
 
-          {/* Notifications Dropdown Panel */}
           {isNotifOpen && (
-            <div className="absolute right-0 mt-2 w-80 sm:w-96 bg-white rounded-2xl shadow-xl border border-slate-200 p-4 space-y-3 animate-in fade-in slide-in-from-top-2 duration-150 z-50">
-              <div className="flex items-center justify-between border-b border-slate-100 pb-2.5">
-                <div className="flex items-center gap-1.5">
-                  <span className="font-extrabold text-sm text-slate-900">Notifications</span>
-                  {unreadNotifsCount > 0 && (
-                    <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-rose-100 text-rose-700 font-bold">
-                      {unreadNotifsCount} nouvelles
-                    </span>
-                  )}
-                </div>
+            <div className="absolute right-0 mt-2 w-80 bg-white dark:bg-slate-900 rounded-xl shadow-lg border border-slate-200 dark:border-slate-800 p-3 space-y-2 z-50 text-xs">
+              <div className="flex items-center justify-between pb-2 border-b border-slate-100 dark:border-slate-800">
+                <span className="font-semibold text-slate-900 dark:text-white">Notifications</span>
                 {unreadNotifsCount > 0 && (
                   <button
                     type="button"
-                    onClick={handleMarkAllRead}
-                    className="text-[11px] font-bold text-blue-600 hover:text-blue-800 cursor-pointer"
+                    onClick={() => setUnreadNotifsCount(0)}
+                    className="text-[11px] text-blue-600 dark:text-blue-400 hover:underline"
                   >
-                    Tout marquer comme lu
+                    Marquer tout comme lu
                   </button>
                 )}
               </div>
 
-              <div className="space-y-2 text-xs">
-                {/* Notif 1 */}
-                <div
-                  onClick={() => {
-                    onViewChange('hist');
-                    setIsNotifOpen(false);
-                  }}
-                  className="p-3 rounded-xl bg-slate-50 hover:bg-blue-50/70 border border-slate-100 transition-colors cursor-pointer flex gap-3"
-                >
-                  <div className="w-7 h-7 rounded-lg bg-emerald-100 text-emerald-700 flex items-center justify-center shrink-0 mt-0.5">
-                    <CheckCircle2 className="w-4 h-4" />
-                  </div>
-                  <div>
-                    <span className="font-bold text-slate-900 block">
-                      Votre correction "Équations" est terminée.
-                    </span>
-                    <span className="text-[11px] text-slate-500">Il y a 12 min · 42 copies notées</span>
-                  </div>
-                </div>
-
-                {/* Notif 2 */}
-                <div
-                  onClick={() => {
-                    onViewChange('pricing');
-                    setIsNotifOpen(false);
-                  }}
-                  className="p-3 rounded-xl bg-amber-50/60 hover:bg-amber-100/60 border border-amber-200/60 transition-colors cursor-pointer flex gap-3"
-                >
-                  <div className="w-7 h-7 rounded-lg bg-amber-100 text-amber-700 flex items-center justify-center shrink-0 mt-0.5">
-                    <AlertTriangle className="w-4 h-4" />
-                  </div>
-                  <div>
-                    <span className="font-bold text-slate-900 block">
-                      Attention : il vous reste 30 corrections.
-                    </span>
-                    <span className="text-[11px] text-slate-500">Hier · Rechargez par Wave ou Carte</span>
-                  </div>
-                </div>
-
-                {/* Notif 3 */}
-                <div
-                  onClick={() => {
-                    onViewChange('pricing');
-                    setIsNotifOpen(false);
-                  }}
-                  className="p-3 rounded-xl bg-slate-50 hover:bg-blue-50/70 border border-slate-100 transition-colors cursor-pointer flex gap-3"
-                >
-                  <div className="w-7 h-7 rounded-lg bg-blue-100 text-blue-700 flex items-center justify-center shrink-0 mt-0.5">
-                    <Receipt className="w-4 h-4" />
-                  </div>
-                  <div>
-                    <span className="font-bold text-slate-900 block">
-                      Paiement de 5 000 FCFA confirmé.
-                    </span>
-                    <span className="text-[11px] text-slate-500">2 sept. · +500 corrections ajoutées</span>
-                  </div>
+              <div className="space-y-1.5 pt-1">
+                <div className="p-2 rounded-lg bg-slate-50 dark:bg-slate-800/60 text-slate-700 dark:text-slate-300">
+                  <p className="font-medium text-slate-900 dark:text-slate-100">Bienvenue sur Praxis</p>
+                  <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
+                    Vos 50 corrections d'essai sont prêtes. Vous pouvez lancer votre premier devoir.
+                  </p>
                 </div>
               </div>
             </div>
           )}
         </div>
 
-        {/* 👤 Teacher Profile Dropdown (#18) */}
+        {/* Profile Dropdown */}
         <div className="relative" ref={profileRef}>
           {currentLead ? (
             <button
               type="button"
               onClick={() => setIsProfileOpen(!isProfileOpen)}
-              className="flex items-center gap-2 p-1.5 sm:px-3 sm:py-1.5 rounded-2xl border border-slate-200 hover:border-slate-300 hover:bg-slate-50 transition-all cursor-pointer"
+              className="flex items-center gap-2 p-1 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
             >
-              <div className="w-7 h-7 rounded-xl bg-gradient-to-tr from-blue-600 to-indigo-600 text-white font-black text-xs flex items-center justify-center shadow-xs">
+              <div className="w-7 h-7 rounded-md bg-slate-800 text-white font-medium text-xs flex items-center justify-center">
                 {teacherName.charAt(0).toUpperCase()}
               </div>
-              <div className="text-left hidden sm:block">
-                <span className="text-xs font-bold text-slate-900 block leading-none">
-                  {teacherName}
-                </span>
-                <span className="text-[10px] text-slate-400 font-medium">Professeur</span>
-              </div>
+              <span className="text-xs font-medium text-slate-800 dark:text-slate-200 hidden sm:inline">
+                {teacherName}
+              </span>
               <ChevronDown className="w-3.5 h-3.5 text-slate-400 hidden sm:block" />
             </button>
           ) : (
             <button
               type="button"
               onClick={onOpenLoginModal}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-blue-600 text-white font-bold text-xs hover:bg-blue-500 shadow-xs cursor-pointer transition-colors"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-900 dark:bg-white text-white dark:text-slate-900 font-medium text-xs hover:bg-slate-800 dark:hover:bg-slate-100 cursor-pointer transition-colors"
             >
               <User className="w-3.5 h-3.5" />
               <span>Connexion</span>
@@ -300,12 +216,12 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
 
           {/* Profile Dropdown Menu */}
           {isProfileOpen && currentLead && (
-            <div className="absolute right-0 mt-2 w-56 bg-white rounded-2xl shadow-xl border border-slate-200 p-2 space-y-1 animate-in fade-in slide-in-from-top-2 duration-150 z-50">
-              <div className="px-3 py-2 border-b border-slate-100">
-                <p className="text-xs font-extrabold text-slate-900">{currentLead.name || 'Kevine'}</p>
-                <p className="text-[11px] text-slate-500 truncate">{currentLead.email || 'professeur@praxis.edu'}</p>
-                <div className="mt-1.5 inline-block px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-700 text-[10px] font-bold border border-emerald-200">
-                  {(currentLead.subscriptionCredits ?? 460) + (currentLead.extraCredits ?? 0)} crédits disponibles
+            <div className="absolute right-0 mt-2 w-60 bg-white dark:bg-slate-900 rounded-xl shadow-lg border border-slate-200 dark:border-slate-800 p-2 space-y-1 z-50 text-xs">
+              <div className="px-2.5 py-2 border-b border-slate-100 dark:border-slate-800">
+                <p className="font-semibold text-slate-900 dark:text-white truncate">{teacherName}</p>
+                <p className="text-[11px] text-slate-500 dark:text-slate-400 truncate mt-0.5">{currentLead.email}</p>
+                <div className="mt-1.5 text-[11px] font-medium text-slate-600 dark:text-slate-300">
+                  {(currentLead.subscriptionCredits ?? 50) + (currentLead.extraCredits ?? 0)} corrections disponibles
                 </div>
               </div>
 
@@ -315,9 +231,9 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
                   onViewChange('settings');
                   setIsProfileOpen(false);
                 }}
-                className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-bold text-slate-700 hover:text-slate-900 hover:bg-slate-100 transition-colors cursor-pointer text-left"
+                className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-md text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 text-left transition-colors cursor-pointer"
               >
-                <Settings className="w-4 h-4 text-slate-500" />
+                <Settings className="w-3.5 h-3.5 text-slate-400" />
                 <span>Paramètres</span>
               </button>
 
@@ -327,9 +243,9 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
                   onViewChange('pricing');
                   setIsProfileOpen(false);
                 }}
-                className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-bold text-slate-700 hover:text-slate-900 hover:bg-slate-100 transition-colors cursor-pointer text-left"
+                className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-md text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 text-left transition-colors cursor-pointer"
               >
-                <CreditCard className="w-4 h-4 text-slate-500" />
+                <CreditCard className="w-3.5 h-3.5 text-slate-400" />
                 <span>Abonnement & Crédits</span>
               </button>
 
@@ -339,13 +255,13 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
                   onViewChange('referrals');
                   setIsProfileOpen(false);
                 }}
-                className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-bold text-slate-700 hover:text-slate-900 hover:bg-slate-100 transition-colors cursor-pointer text-left"
+                className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-md text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 text-left transition-colors cursor-pointer"
               >
-                <Gift className="w-4 h-4 text-amber-500" />
-                <span>Parrainage (+50 copies)</span>
+                <Gift className="w-3.5 h-3.5 text-slate-400" />
+                <span>Parrainage (+50)</span>
               </button>
 
-              <div className="h-px bg-slate-100 my-1" />
+              <div className="h-px bg-slate-100 dark:bg-slate-800 my-1" />
 
               <button
                 type="button"
@@ -353,9 +269,9 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
                   setIsProfileOpen(false);
                   onLogout();
                 }}
-                className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-bold text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer text-left"
+                className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-md text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/40 text-left transition-colors cursor-pointer"
               >
-                <LogOut className="w-4 h-4" />
+                <LogOut className="w-3.5 h-3.5" />
                 <span>Se déconnecter</span>
               </button>
             </div>

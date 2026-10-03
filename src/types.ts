@@ -215,7 +215,7 @@ export type MainView =
   | 'admin';
 
 export type SaaSPlan = 'free' | 'trial' | 'monthly' | 'quarterly' | 'school_year' | 'annual' | 'institution' | 'pack';
-export type PaywallPlanId = 'monthly' | 'quarterly' | 'school_year' | 'extra_100' | 'extra_500';
+export type PaywallPlanId = 'monthly' | 'quarterly' | 'school_year' | 'extra_100' | 'extra_500' | 'extra_1000';
 export type AccountStatus = 'active' | 'trial' | 'paused' | 'inactive' | 'canceled';
 
 export interface TransactionRecord {

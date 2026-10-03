@@ -79,18 +79,17 @@ export const HistoriqueView: React.FC<HistoriqueViewProps> = ({
 
   return (
     <div className="max-w-6xl mx-auto space-y-6 pb-16">
-      {/* Top Banner */}
-      <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-xs flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+      {/* Top Header */}
+      <div className="pb-6 border-b border-slate-200 dark:border-slate-800 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
-          <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-blue-50 text-blue-700 text-xs font-semibold mb-2">
-            <History className="w-3.5 h-3.5" />
-            Archives & Historique
+          <div className="text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+            Archives & Séries
           </div>
-          <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">
-            Historique des Évaluations
+          <h1 className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-white tracking-tight mt-1">
+            Mes séries de devoirs
           </h1>
-          <p className="text-xs sm:text-sm text-slate-500 mt-1">
-            Consultez vos devoirs passés, réouvrez les tableaux de bord ou comparez les performances de deux sessions.
+          <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-400 mt-1">
+            Consultez vos devoirs passés, réouvrez les tableaux de bord ou comparez deux évaluations.
           </p>
         </div>
 
@@ -98,25 +97,25 @@ export const HistoriqueView: React.FC<HistoriqueViewProps> = ({
           <button
             type="button"
             onClick={() => setIsComparing(!isComparing)}
-            className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold transition-all shadow-xs cursor-pointer"
+            className="inline-flex items-center gap-2 px-3.5 py-2 rounded-lg bg-slate-900 hover:bg-slate-800 text-white text-xs font-semibold transition-colors cursor-pointer shadow-2xs"
           >
             <BarChart2 className="w-4 h-4" />
-            <span>{isComparing ? 'Masquer la comparaison' : '⚖️ Comparer les 2 devoirs sélectionnés'}</span>
+            <span>{isComparing ? 'Masquer la comparaison' : 'Comparer les 2 devoirs sélectionnés'}</span>
           </button>
         )}
       </div>
 
       {/* Comparison Drawer / Box */}
       {isComparing && evalA && evalB && (
-        <div className="bg-white rounded-2xl border-2 border-indigo-300 p-6 shadow-md space-y-4 animate-in fade-in duration-200">
-          <div className="flex items-center justify-between border-b border-slate-200 pb-3">
-            <h3 className="font-extrabold text-base text-slate-900 flex items-center gap-2">
-              <span>⚖️ Comparaison inter-évaluations</span>
+        <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-300 dark:border-slate-700 p-6 shadow-xs space-y-4 animate-in fade-in duration-150">
+          <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-3">
+            <h3 className="font-bold text-sm text-slate-900 dark:text-white flex items-center gap-2">
+              <span>Comparaison inter-évaluations</span>
             </h3>
             <button
               type="button"
               onClick={() => setIsComparing(false)}
-              className="text-xs font-semibold text-slate-400 hover:text-slate-700"
+              className="text-xs font-semibold text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"
             >
               Fermer
             </button>

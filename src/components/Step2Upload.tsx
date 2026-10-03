@@ -619,23 +619,22 @@ export const Step2Upload: React.FC<Step2UploadProps> = ({
         onChange={handleGuidedCameraCapture}
       />
 
-      {/* Title banner */}
-      <div className="bg-white rounded-xl border border-slate-200 shadow-xs p-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      {/* Editorial Header */}
+      <div className="pb-6 border-b border-slate-200 dark:border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-blue-50 text-blue-700 text-xs font-semibold mb-2">
-            <Users className="w-3.5 h-3.5" />
-            Étape 2 sur 4 : Dépôt des copies
+          <div className="text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+            Étape 2 sur 4 · Dépôt des copies
           </div>
-          <h1 className="text-2xl font-extrabold text-slate-900 tracking-tight flex items-center gap-3 flex-wrap">
+          <h1 className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-white tracking-tight flex items-center gap-3 flex-wrap mt-1">
             <span>Copies de la classe ({submissions.length})</span>
             {submissions.length > 0 && totalAllPagesCount > submissions.length && (
-              <span className="text-xs px-2.5 py-1 rounded-full bg-blue-100 text-blue-800 font-bold border border-blue-200">
+              <span className="text-xs px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-medium border border-slate-200 dark:border-slate-700">
                 {totalAllPagesCount} pages au total
               </span>
             )}
           </h1>
-          <p className="text-xs sm:text-sm text-slate-600 mt-1">
-            Déposez les photos des copies (1 ou plusieurs pages par élève) ou un document PDF multipages complet.
+          <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-400 mt-1">
+            Importez les photos ou scans de vos copies d’élèves (1 ou plusieurs pages par copie) ou un fichier PDF complet.
           </p>
         </div>
 
@@ -726,17 +725,17 @@ export const Step2Upload: React.FC<Step2UploadProps> = ({
       )}
 
       {/* SÉLECTEUR DE FORMAT DES COPIES & REGROUPEMENT MULTI-PAGES */}
-      <div className="bg-gradient-to-r from-blue-50/90 via-indigo-50/60 to-white border border-blue-200/80 rounded-2xl p-4 sm:p-5 shadow-2xs space-y-3">
+      <div className="bg-white dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 rounded-xl p-4 sm:p-5 shadow-2xs space-y-3">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-xl bg-blue-600 text-white flex items-center justify-center shrink-0 shadow-2xs">
+            <div className="w-8 h-8 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 flex items-center justify-center shrink-0">
               <Layers className="w-4 h-4" />
             </div>
             <div>
-              <span className="font-extrabold text-slate-900 text-xs sm:text-sm block">
+              <span className="font-bold text-slate-900 dark:text-white text-xs sm:text-sm block">
                 Nombre de pages par copie d'élève
               </span>
-              <p className="text-[11px] text-slate-500">
+              <p className="text-[11px] text-slate-500 dark:text-slate-400">
                 Définissez combien de pages comporte le devoir pour regrouper automatiquement vos photos
               </p>
             </div>
@@ -837,10 +836,10 @@ export const Step2Upload: React.FC<Step2UploadProps> = ({
         onDrop={handleDrop}
         onClick={() => fileInputRef.current?.click()}
         id="dropzone-copies"
-        className={`relative border-2 border-dashed rounded-2xl p-8 sm:p-12 text-center transition-all cursor-pointer ${
+        className={`relative border border-dashed rounded-xl p-6 sm:p-10 text-center transition-colors cursor-pointer ${
           isDragging
-            ? 'border-blue-500 bg-blue-50/70 scale-[1.005]'
-            : 'border-slate-300 hover:border-blue-400 bg-white hover:bg-slate-50/50'
+            ? 'border-blue-500 bg-blue-50/60 dark:bg-blue-950/30'
+            : 'border-slate-300 dark:border-slate-700 hover:border-slate-400 dark:hover:border-slate-600 bg-white dark:bg-slate-900/40'
         }`}
       >
         <input

@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { RotateCcw } from 'lucide-react';
+import { RotateCcw, Zap } from 'lucide-react';
+import confetti from 'canvas-confetti';
 import { AssignmentConfig, StudentSubmission, ClassGroup, SavedEvaluation, MainView, LeadData, PaywallPlanId } from './types';
 import { Header } from './components/Header';
 import { Sidebar } from './components/Sidebar';
@@ -95,6 +96,80 @@ export default function App() {
 
   // Effective authenticated lead (Supabase Auth takes absolute precedence)
   const currentLead: LeadData | null = supabaseLead || localLead;
+
+  // Paystack Return / Callback Handler
+  const [paystackNotice, setPaystackNotice] = useState<string | null>(null);
+
+  useEffect(() => {
+    try {
+      const searchParams = new URLSearchParams(window.location.search);
+      const paystackRef = searchParams.get('paystack_ref') || searchParams.get('reference') || searchParams.get('trxref');
+      const isDemo = searchParams.get('demo_pay') === '1' || searchParams.get('demo') === 'true';
+
+      if (paystackRef && paystackRef !== 'init') {
+        const verifyPayment = async () => {
+          try {
+            setPaystackNotice('Vérification de votre paiement Paystack en cours...');
+            const pending = localStorage.getItem('praxis_pending_paystack');
+            const pendingData = pending ? JSON.parse(pending) : {};
+
+            const queryParams = new URLSearchParams({
+              demo: isDemo ? '1' : '0',
+              email: pendingData.email || '',
+              name: pendingData.name || '',
+              planId: pendingData.plan || '',
+            });
+
+            const res = await fetch(`/api/paystack/verify/${encodeURIComponent(paystackRef)}?${queryParams.toString()}`);
+            const data = await res.json();
+
+            if (res.ok && data.success && data.teacher) {
+              const updatedLead: LeadData = {
+                name: data.teacher.name,
+                email: data.teacher.email,
+                whatsapp: data.teacher.whatsapp,
+                school: data.teacher.school,
+                plan: data.teacher.plan,
+                quota: data.teacher.quota,
+                subscriptionCredits: data.teacher.subscriptionCredits,
+                extraCredits: data.teacher.extraCredits,
+                copiesCorrected: data.teacher.copiesCorrected,
+                status: data.teacher.status,
+                firstPurchaseDiscountUsed: data.teacher.firstPurchaseDiscountUsed,
+              };
+              localStorage.setItem('praxis_lead', JSON.stringify(updatedLead));
+              localStorage.setItem('cpro_lead', JSON.stringify(updatedLead));
+              setLocalLead(updatedLead);
+              localStorage.removeItem('praxis_pending_paystack');
+
+              try {
+                confetti({ particleCount: 120, spread: 80, origin: { y: 0.6 } });
+              } catch {}
+
+              setPaystackNotice(data.message || 'Paiement Paystack validé avec succès ! Vos corrections sont disponibles.');
+              setTimeout(() => setPaystackNotice(null), 8000);
+            } else {
+              setPaystackNotice(data.error || 'Paiement non confirmé. Veuillez contacter le support.');
+              setTimeout(() => setPaystackNotice(null), 6000);
+            }
+          } catch (err: any) {
+            console.error('Paystack verification error:', err);
+            setPaystackNotice('Erreur lors de la vérification Paystack.');
+            setTimeout(() => setPaystackNotice(null), 6000);
+          } finally {
+            try {
+              const cleanUrl = window.location.pathname;
+              window.history.replaceState({}, document.title, cleanUrl);
+            } catch {}
+          }
+        };
+
+        verifyPayment();
+      }
+    } catch (e) {
+      console.warn('Paystack return check error:', e);
+    }
+  }, []);
 
   const PATH_MAP: Record<MainView, string> = {
     landing: '/',
@@ -871,8 +946,8 @@ export default function App() {
         activeView !== 'login' &&
         activeView !== 'register' &&
         activeView !== 'forgot-password' && (
-        <div className="min-h-screen flex flex-col">
-          {/* Persistent Sidebar Navigation (8-9 entries + Credits Widget) */}
+        <div className="min-h-screen flex flex-col bg-[#FAFAF8] dark:bg-[#0F141C] text-[#0F1419] dark:text-slate-100 font-sans transition-colors duration-150">
+          {/* Persistent Sidebar Navigation */}
           <Sidebar
             activeView={activeView}
             onViewChange={handleViewChange}
@@ -1124,6 +1199,26 @@ export default function App() {
         initialPlanId={selectedPlanForPaywall}
         partnerRefCode={partnerRefCode}
       />
+
+      {/* Paystack Payment Status Banner / Toast */}
+      {paystackNotice && (
+        <div className="fixed top-5 right-5 z-50 max-w-md p-4 rounded-2xl bg-slate-900/95 backdrop-blur-md text-white shadow-2xl border border-emerald-500/50 animate-in slide-in-from-top-4 flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center shrink-0">
+            <Zap className="w-5 h-5 text-emerald-400" />
+          </div>
+          <div className="text-xs flex-1">
+            <span className="font-extrabold block text-emerald-400">Paiement Paystack</span>
+            <p className="text-slate-200 mt-0.5 leading-snug">{paystackNotice}</p>
+          </div>
+          <button
+            type="button"
+            onClick={() => setPaystackNotice(null)}
+            className="text-slate-400 hover:text-white p-1 text-xs cursor-pointer"
+          >
+            ✕
+          </button>
+        </div>
+      )}
 
       {/* In-app Reset Confirmation Modal */}
       {isResetModalOpen && (

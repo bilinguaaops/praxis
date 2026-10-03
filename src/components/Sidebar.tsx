@@ -1,9 +1,8 @@
 import React from 'react';
 import {
   GraduationCap,
-  Sparkles,
   Home,
-  PlusCircle,
+  Plus,
   BookOpen,
   Users,
   BarChart3,
@@ -11,10 +10,9 @@ import {
   Gift,
   Settings,
   HelpCircle,
-  Zap,
-  ArrowRight,
-  Shield,
   X,
+  ChevronRight,
+  User,
 } from 'lucide-react';
 import { MainView, LeadData } from '../types';
 
@@ -29,6 +27,14 @@ interface SidebarProps {
   onOpenBilling: () => void;
 }
 
+interface NavItem {
+  id: MainView;
+  label: string;
+  icon: React.ComponentType<{ className?: string }>;
+  badge?: string | number | null;
+  highlight?: boolean;
+}
+
 export const Sidebar: React.FC<SidebarProps> = ({
   activeView,
   onViewChange,
@@ -40,70 +46,70 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onOpenBilling,
 }) => {
   // Credits calculation
-  const subscriptionCredits = currentLead?.subscriptionCredits ?? 460;
+  const subscriptionCredits = currentLead?.subscriptionCredits ?? 50;
   const extraCredits = currentLead?.extraCredits ?? 0;
   const totalCredits = subscriptionCredits + extraCredits;
   const maxMonthlyCredits = 500;
   const creditPercent = Math.min(100, Math.round((totalCredits / maxMonthlyCredits) * 100));
 
-  const navItems = [
+  const teacherName = currentLead?.name || 'Professeur';
+  const teacherEmail = currentLead?.email || '';
+
+  const mainSectionItems: NavItem[] = [
     {
-      id: 'dashboard' as MainView,
+      id: 'dashboard',
       label: 'Accueil',
       icon: Home,
-      badge: null,
-      path: '/dashboard',
     },
     {
-      id: 'corr' as MainView,
+      id: 'corr',
       label: 'Nouvelle correction',
-      icon: PlusCircle,
-      badge: null,
+      icon: Plus,
       highlight: true,
-      path: '/series/new',
     },
     {
-      id: 'hist' as MainView,
+      id: 'hist',
       label: 'Mes séries',
       icon: BookOpen,
       badge: savedEvalsCount > 0 ? savedEvalsCount : null,
-      path: '/series',
     },
     {
-      id: 'classes' as MainView,
+      id: 'classes',
       label: 'Mes classes',
       icon: Users,
       badge: classesCount > 0 ? classesCount : null,
-      path: '/classes',
     },
     {
-      id: 'suivi' as MainView,
+      id: 'suivi',
       label: 'Résultats',
       icon: BarChart3,
-      badge: null,
-      path: '/results',
     },
+  ];
+
+  const billingSectionItems: NavItem[] = [
     {
-      id: 'pricing' as MainView,
+      id: 'pricing',
       label: 'Abonnement & crédits',
       icon: CreditCard,
-      badge: null,
-      path: '/billing',
     },
     {
-      id: 'referrals' as MainView,
+      id: 'referrals',
       label: 'Parrainage',
       icon: Gift,
       badge: '+50',
-      badgeColor: 'bg-emerald-100 text-emerald-800 border-emerald-200',
-      path: '/referrals',
     },
+  ];
+
+  const systemSectionItems: NavItem[] = [
     {
-      id: 'settings' as MainView,
+      id: 'settings',
       label: 'Paramètres',
       icon: Settings,
-      badge: null,
-      path: '/settings',
+    },
+    {
+      id: 'faq',
+      label: 'Aide & Support',
+      icon: HelpCircle,
     },
   ];
 
@@ -112,150 +118,179 @@ export const Sidebar: React.FC<SidebarProps> = ({
     onCloseMobile();
   };
 
+  const renderNavGroup = (items: NavItem[]) => (
+    <div className="space-y-0.5">
+      {items.map((item) => {
+        const Icon = item.icon;
+        const isActive = activeView === item.id;
+
+        return (
+          <button
+            key={item.id}
+            type="button"
+            onClick={() => handleItemClick(item.id)}
+            className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-xs transition-colors duration-150 cursor-pointer select-none ${
+              isActive
+                ? 'bg-slate-800 text-white font-medium border-l-2 border-blue-500 pl-2.5'
+                : item.highlight
+                ? 'text-blue-300 hover:text-white hover:bg-slate-800/60 font-medium'
+                : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/40 font-normal'
+            }`}
+          >
+            <div className="flex items-center gap-2.5 min-w-0">
+              <Icon
+                className={`w-4 h-4 shrink-0 ${
+                  isActive
+                    ? 'text-blue-400'
+                    : item.highlight
+                    ? 'text-blue-400'
+                    : 'text-slate-500'
+                }`}
+              />
+              <span className="truncate">{item.label}</span>
+            </div>
+
+            {item.badge !== undefined && item.badge !== null && (
+              <span
+                className={`ml-2 px-1.5 py-0.5 rounded text-[10px] tabular-nums font-medium ${
+                  isActive
+                    ? 'bg-slate-700 text-slate-200'
+                    : item.badge === '+50'
+                    ? 'bg-emerald-950/80 text-emerald-300 border border-emerald-800/60'
+                    : 'bg-slate-800 text-slate-400 border border-slate-700/60'
+                }`}
+              >
+                {item.badge}
+              </span>
+            )}
+          </button>
+        );
+      })}
+    </div>
+  );
+
   return (
     <>
       {/* Mobile Backdrop */}
       {isOpenMobile && (
         <div
           onClick={onCloseMobile}
-          className="fixed inset-0 z-40 bg-slate-900/60 backdrop-blur-xs lg:hidden transition-opacity"
+          className="fixed inset-0 z-40 bg-slate-950/60 backdrop-blur-xs lg:hidden transition-opacity"
         />
       )}
 
-      {/* Main Persistent Sidebar */}
+      {/* Main Sidebar */}
       <aside
-        className={`fixed top-0 bottom-0 left-0 z-50 w-64 bg-slate-900 text-slate-100 flex flex-col justify-between border-r border-slate-800/90 shadow-2xl transition-transform duration-300 ease-in-out lg:translate-x-0 ${
+        className={`fixed top-0 bottom-0 left-0 z-50 w-64 bg-[#111722] text-slate-100 flex flex-col justify-between border-r border-slate-800/80 transition-transform duration-200 ease-in-out lg:translate-x-0 ${
           isOpenMobile ? 'translate-x-0' : '-translate-x-full'
         }`}
       >
-        {/* Top: Logo & Brand */}
-        <div className="p-5 border-b border-slate-800/80 flex items-center justify-between">
+        {/* Brand Header */}
+        <div className="h-16 px-4 border-b border-slate-800/80 flex items-center justify-between">
           <button
             type="button"
             onClick={() => handleItemClick('dashboard')}
-            className="flex items-center gap-3 text-left group cursor-pointer"
+            className="flex items-center gap-2.5 text-left group cursor-pointer"
           >
-            <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-blue-600 via-indigo-600 to-cyan-500 flex items-center justify-center text-white shadow-lg shadow-blue-900/40 ring-1 ring-white/20 group-hover:scale-105 transition-transform">
-              <GraduationCap className="w-6 h-6" />
+            <div className="w-8 h-8 rounded-lg bg-blue-600 flex items-center justify-center text-white shrink-0">
+              <GraduationCap className="w-4 h-4" />
             </div>
             <div>
-              <div className="flex items-center gap-1.5">
-                <span className="font-black text-lg tracking-wider text-white">
-                  PRAXIS
-                </span>
-                <span className="px-1.5 py-0.2 rounded-md bg-blue-500/20 text-blue-300 text-[10px] font-black border border-blue-500/30">
-                  AI
-                </span>
-              </div>
-              <p className="text-[10px] text-slate-400 font-medium">Correction de copies IA</p>
+              <span className="font-bold text-sm tracking-wide text-white block leading-none">
+                PRAXIS
+              </span>
+              <span className="text-[11px] text-slate-400 font-normal leading-tight">
+                Correction de copies
+              </span>
             </div>
           </button>
 
-          {/* Close button on mobile */}
           <button
             type="button"
             onClick={onCloseMobile}
-            className="lg:hidden p-1.5 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
+            className="lg:hidden p-1.5 rounded-md text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
           >
-            <X className="w-5 h-5" />
+            <X className="w-4 h-4" />
           </button>
         </div>
 
-        {/* Center: Navigation Menu items (8 entries) */}
-        <div className="flex-1 px-3 py-4 space-y-1 overflow-y-auto scrollbar-thin scrollbar-thumb-slate-800">
-          {navItems.map((item) => {
-            const Icon = item.icon;
-            const isActive = activeView === item.id;
-
-            return (
-              <button
-                key={item.id}
-                type="button"
-                onClick={() => handleItemClick(item.id)}
-                className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-2xl text-xs font-bold transition-all cursor-pointer group ${
-                  isActive
-                    ? 'bg-blue-600 text-white shadow-md shadow-blue-700/40'
-                    : item.highlight
-                    ? 'bg-blue-950/40 hover:bg-blue-900/50 text-blue-300 hover:text-white border border-blue-800/40'
-                    : 'text-slate-300 hover:text-white hover:bg-slate-800/70'
-                }`}
-              >
-                <div className="flex items-center gap-3">
-                  <Icon
-                    className={`w-4 h-4 transition-transform group-hover:scale-110 ${
-                      isActive ? 'text-white' : item.highlight ? 'text-blue-400' : 'text-slate-400 group-hover:text-slate-200'
-                    }`}
-                  />
-                  <span>{item.label}</span>
-                </div>
-
-                {item.badge && (
-                  <span
-                    className={`px-2 py-0.5 rounded-full text-[10px] font-black border ${
-                      item.badgeColor || (isActive ? 'bg-white/20 text-white border-white/30' : 'bg-slate-800 text-slate-300 border-slate-700')
-                    }`}
-                  >
-                    {item.badge}
-                  </span>
-                )}
-              </button>
-            );
-          })}
-
-          <div className="pt-2 pb-1">
-            <div className="h-px bg-slate-800" />
+        {/* Navigation Sections */}
+        <div className="flex-1 px-3 py-4 space-y-5 overflow-y-auto scrollbar-thin scrollbar-thumb-slate-800">
+          <div>
+            <div className="text-[10px] font-semibold uppercase tracking-wider text-slate-500 px-3 mb-1.5">
+              Espace de travail
+            </div>
+            {renderNavGroup(mainSectionItems)}
           </div>
 
-          {/* Help & Support entry */}
-          <button
-            type="button"
-            onClick={() => handleItemClick('faq')}
-            className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-2xl text-xs font-bold transition-all cursor-pointer ${
-              activeView === 'faq'
-                ? 'bg-blue-600 text-white shadow-md'
-                : 'text-slate-400 hover:text-white hover:bg-slate-800/70'
-            }`}
-          >
-            <HelpCircle className="w-4 h-4" />
-            <span>Aide & Support</span>
-          </button>
+          <div>
+            <div className="text-[10px] font-semibold uppercase tracking-wider text-slate-500 px-3 mb-1.5">
+              Formules & Accès
+            </div>
+            {renderNavGroup(billingSectionItems)}
+          </div>
+
+          <div>
+            <div className="text-[10px] font-semibold uppercase tracking-wider text-slate-500 px-3 mb-1.5">
+              Système
+            </div>
+            {renderNavGroup(systemSectionItems)}
+          </div>
         </div>
 
-        {/* Bottom: Credits Widget (460 crédits ████████░░) */}
-        <div className="p-3 m-3 bg-[#0A0F1D] border border-slate-800 rounded-2xl space-y-2.5 shadow-lg">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-1.5">
-              <Zap className="w-3.5 h-3.5 text-amber-400 fill-amber-400" />
-              <span className="text-xs font-extrabold text-white">
-                {totalCredits} crédits
+        {/* Footer: Solde & User Profile */}
+        <div className="p-3 border-t border-slate-800/80 space-y-3 bg-[#0D121B]">
+          {/* Solde de corrections */}
+          <div className="px-2.5 py-2 rounded-lg bg-slate-900/90 border border-slate-800 space-y-1.5">
+            <div className="flex items-center justify-between text-[11px]">
+              <span className="text-slate-400 font-medium">Corrections</span>
+              <span className="text-slate-200 font-semibold tabular-nums">
+                {totalCredits} disponibles
               </span>
             </div>
-            <span className="text-[10px] text-slate-400 font-mono">
-              {creditPercent}%
-            </span>
+
+            <div className="w-full bg-slate-800 h-1.5 rounded-full overflow-hidden">
+              <div
+                className="bg-blue-500 h-full rounded-full transition-all duration-300"
+                style={{ width: `${Math.min(100, Math.max(5, creditPercent))}%` }}
+              />
+            </div>
+
+            {activeView !== 'pricing' && (
+              <button
+                type="button"
+                onClick={() => {
+                  onOpenBilling();
+                  onCloseMobile();
+                }}
+                className="w-full pt-1 text-[11px] font-medium text-blue-400 hover:text-blue-300 flex items-center justify-between transition-colors cursor-pointer"
+              >
+                <span>Acheter des corrections</span>
+                <span>→</span>
+              </button>
+            )}
           </div>
 
-          {/* Progress bar */}
-          <div className="w-full bg-slate-800 h-2 rounded-full overflow-hidden p-0.5">
-            <div
-              className="bg-gradient-to-r from-blue-500 to-cyan-400 h-full rounded-full transition-all duration-300"
-              style={{ width: `${Math.min(100, Math.max(8, creditPercent))}%` }}
-            />
+          {/* User Preview */}
+          <div
+            onClick={() => handleItemClick('settings')}
+            className="flex items-center justify-between px-2 py-1.5 rounded-lg hover:bg-slate-800/60 transition-colors cursor-pointer"
+          >
+            <div className="flex items-center gap-2.5 min-w-0">
+              <div className="w-7 h-7 rounded-md bg-slate-800 border border-slate-700 flex items-center justify-center text-slate-300 shrink-0 text-xs font-semibold">
+                {teacherName.charAt(0).toUpperCase()}
+              </div>
+              <div className="min-w-0">
+                <div className="text-xs font-medium text-slate-200 truncate leading-none">
+                  {teacherName}
+                </div>
+                <div className="text-[10px] text-slate-400 truncate leading-tight mt-0.5">
+                  {teacherEmail || 'Enseignant'}
+                </div>
+              </div>
+            </div>
+            <ChevronRight className="w-3.5 h-3.5 text-slate-500 shrink-0" />
           </div>
-
-          {/* Don't show "Recharger" button if already on pricing view */}
-          {activeView !== 'pricing' && (
-            <button
-              type="button"
-              onClick={() => {
-                onOpenBilling();
-                onCloseMobile();
-              }}
-              className="w-full py-2 px-3 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-extrabold text-[11px] flex items-center justify-center gap-1.5 shadow-xs transition-all cursor-pointer"
-            >
-              <span>+ Recharger (Wave / CB)</span>
-            </button>
-          )}
         </div>
       </aside>
     </>

@@ -189,36 +189,31 @@ export const ReferralsView: React.FC<ReferralsViewProps> = ({
       )}
 
       {/* 1. EN-TÊTE : PARRAINEZ UN PROFESSEUR */}
-      <div className="bg-white rounded-3xl border border-slate-200/90 p-6 sm:p-10 shadow-xs relative overflow-hidden">
-        <div className="max-w-3xl space-y-3">
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-50 text-blue-700 text-xs font-bold border border-blue-200">
-            <Gift className="w-3.5 h-3.5 text-blue-600" />
-            <span>Programme de parrainage Professeur → Professeur</span>
-          </div>
+      <div className="pb-6 border-b border-slate-200 dark:border-slate-800">
+        <div className="text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+          Avantages collègues
+        </div>
+        <h1 className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-white tracking-tight mt-1">
+          Programme de parrainage
+        </h1>
+        <p className="text-slate-600 dark:text-slate-400 text-xs sm:text-sm leading-relaxed mt-1 max-w-2xl">
+          Partagez votre lien ou votre code personnel. Dès qu’un collègue souscrit son premier abonnement payant,{' '}
+          <strong className="text-slate-900 dark:text-white font-semibold">vous recevez +50 corrections</strong> et votre collègue{' '}
+          <strong className="text-slate-900 dark:text-white font-semibold">reçoit également +50 corrections offertes</strong>.
+        </p>
 
-          <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">
-            Parrainez un professeur
-          </h1>
-
-          <p className="text-slate-600 text-sm sm:text-base leading-relaxed">
-            Invitez vos collègues enseignants sur Praxis.
-            <br />
-            Lorsqu'un professeur que vous invitez souscrit son premier abonnement payant,{' '}
-            <strong className="text-slate-900 font-bold">vous recevez 50 crédits</strong> et il{' '}
-            <strong className="text-slate-900 font-bold">reçoit également 50 crédits en bonus de bienvenue</strong>.
-          </p>
-
-          {/* Règle claire */}
-          <div className="p-3 bg-slate-50 border border-slate-200 rounded-2xl text-xs text-slate-600 flex items-start gap-2.5 max-w-2xl mt-2">
-            <ShieldCheck className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
-            <div className="leading-relaxed">
-              <span className="font-bold text-slate-800">Règle stricte de validation :</span> L'inscription seule donne accès aux 30 corrections d'essai gratuites (aucun crédit de parrainage débloqué). La récompense de parrainage (+50 crédits pour vous, +50 crédits pour votre collègue) est automatiquement débloquée par le système après confirmation du tout premier abonnement payé de votre filleul (hors packs de recharge).
-            </div>
+        {/* Règle claire */}
+        <div className="p-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-xs text-slate-600 dark:text-slate-400 flex items-start gap-2.5 max-w-2xl mt-4">
+          <ShieldCheck className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+          <div className="leading-relaxed">
+            <span className="font-semibold text-slate-900 dark:text-white">Règle de validation :</span> L'inscription seule donne accès aux 50 corrections d'essai gratuites. Le bonus (+50 crédits chacun) est débloqué dès confirmation du tout premier abonnement payé de votre filleul.
           </div>
         </div>
+      </div>
 
+      <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-6 shadow-2xs">
         {/* 2. BLOCS PARTAGE : LIEN & CODE */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-6 mt-6 border-t border-slate-100">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {/* Bloc Votre Lien */}
           <div className="p-5 rounded-2xl bg-slate-50 border border-slate-200/80 space-y-3">
             <label className="text-xs font-bold text-slate-700 block">

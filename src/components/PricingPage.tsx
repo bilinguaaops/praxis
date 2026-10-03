@@ -1,34 +1,16 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
-  Sparkles,
   Check,
-  CheckCircle2,
-  Zap,
-  ArrowRight,
-  ShieldCheck,
-  CreditCard,
-  Smartphone,
-  HelpCircle,
-  Clock,
-  Layers,
-  Award,
-  TrendingDown,
-  Gift,
-  RefreshCw,
-  Phone,
-  MessageCircle,
   ChevronDown,
   ChevronUp,
-  CircleDot,
-  Hexagon,
-  Triangle,
-  QrCode,
-  ExternalLink,
-  ArrowLeft,
-  Copy,
+  X,
+  ShieldCheck,
   Lock,
-  Tag,
-  AlertCircle,
+  ArrowRight,
+  Sparkles,
+  CreditCard,
+  Smartphone,
+  Info,
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { PaywallPlanId, LeadData } from '../types';
@@ -43,117 +25,174 @@ interface PricingPageProps {
   onOpenContact?: () => void;
 }
 
-interface PlanDetails {
-  id: PaywallPlanId;
+export type PricingCardId = 'free' | 'monthly' | 'quarterly' | 'school_year';
+
+interface PlanDefinition {
+  id: PricingCardId | 'extra_100' | 'extra_500' | 'extra_1000';
   name: string;
-  tag: string;
-  category: 'subscription' | 'pack';
-  priceEur: number;
-  originalPriceEur?: number;
+  category: 'free' | 'subscription' | 'pack';
   priceFcfa: number;
-  originalPriceFcfa?: number;
+  priceEur: number;
   periodLabel: string;
   corrections: number;
-  correctionsSub: string;
-  equivalentEur?: number;
-  equivalentFcfa?: number;
-  savingsFcfa?: number;
-  badge: string;
-  isPopular?: boolean;
-  isHero?: boolean;
+  unitCostFcfa?: string;
+  monthlyEquivalentFcfa?: string;
+  monthlyEquivalentEur?: string;
+  savingsLabel?: string;
+  badge?: string;
+  featured?: boolean;
+  description: string;
   features: string[];
-  iconType: 'circle' | 'triangle' | 'hexagon';
+  ctaLabel: string;
 }
 
-const PLANS: PlanDetails[] = [
+// THE 4 MAIN OFFERS REQUESTED: Gratuit, Mensuel, 3 mois, Année scolaire
+const MAIN_OFFERS: PlanDefinition[] = [
   {
-    id: 'monthly',
-    name: 'Abonnement Mensuel',
-    tag: 'CORE',
-    category: 'subscription',
-    priceEur: 7.6,
-    priceFcfa: 5000,
-    periodLabel: '/ MOIS',
-    corrections: 500,
-    correctionsSub: '500 corrections / mois',
-    equivalentEur: 7.6,
-    equivalentFcfa: 5000,
-    badge: 'Flexibilité mensuelle',
+    id: 'free',
+    name: 'Gratuit',
+    category: 'free',
+    priceFcfa: 0,
+    priceEur: 0,
+    periodLabel: 'découverte',
+    corrections: 50,
+    unitCostFcfa: 'Offert',
+    description: 'Pour découvrir la correction intelligente sur vos propres copies d’élèves.',
     features: [
-      '500 corrections / mois incluses',
-      'Cumulable jusqu’à 1 500 corrections',
-      'Report automatique mois après mois',
-      'Copies manuscrites & imprimées',
-      'Corrigé & barème 100% sur-mesure',
-      'Export PDF des notes & bulletins',
+      '50 corrections d’essai offertes',
+      'Détection d’écriture manuscrite et barème',
+      'Annotations et appréciations détaillées',
+      'Multi-pages par copie sans frais',
+      'Aucune carte bancaire requise',
     ],
-    iconType: 'circle',
+    ctaLabel: 'Commencer gratuitement',
   },
   {
-    id: 'school_year',
-    name: 'Pass Année Scolaire (9 mois)',
-    tag: 'OVERDRIVE',
+    id: 'monthly',
+    name: 'Mensuel',
     category: 'subscription',
-    priceEur: 45.75,
-    originalPriceEur: 68.6,
-    priceFcfa: 30000,
-    originalPriceFcfa: 45000,
-    periodLabel: '/ 9 MOIS',
-    corrections: 4500,
-    correctionsSub: '4 500 corrections · 3 mois offerts',
-    equivalentEur: 5.08,
-    equivalentFcfa: 3333,
-    savingsFcfa: 15000,
-    badge: '🎓 Pour toute l’année scolaire',
-    isHero: true,
+    priceFcfa: 5000,
+    priceEur: 7.60,
+    periodLabel: '/ mois',
+    corrections: 500,
+    unitCostFcfa: '10 F / correction',
+    description: 'Idéal pour une utilisation régulière sans engagement de durée.',
     features: [
-      '4 500 corrections (500 × 9 mois)',
-      'Revient à seulement 3 333 FCFA / mois',
-      'Économisez 15 000 FCFA vs mensuel (3 mois offerts)',
-      'Corrections restantes conservées & reportées',
-      'Paiement unique Wave ou Carte en 1 clic',
-      'Priorité maximale de traitement des copies',
-      'Support WhatsApp dédié 7j/7',
+      '500 corrections incluses par mois',
+      'Report automatique des corrections non utilisées',
+      'Cumulable jusqu’à 1 500 corrections',
+      'Corrections multi-pages et devoirs illimités',
+      'Sans engagement, annulable à tout moment',
     ],
-    iconType: 'triangle',
+    ctaLabel: 'Choisir cette formule',
   },
   {
     id: 'quarterly',
-    name: 'Trimestriel (3 mois)',
-    tag: 'TEAM',
+    name: '3 mois',
     category: 'subscription',
-    priceEur: 18.3,
-    originalPriceEur: 22.8,
     priceFcfa: 12000,
-    originalPriceFcfa: 15000,
-    periodLabel: '/ 3 MOIS',
+    priceEur: 18.30,
+    periodLabel: 'pour 3 mois',
     corrections: 1500,
-    correctionsSub: '1 500 corrections · 4 000 FCFA/mois',
-    equivalentEur: 6.1,
-    equivalentFcfa: 4000,
-    savingsFcfa: 3000,
-    badge: '⭐ Meilleur équilibre',
-    isPopular: true,
+    unitCostFcfa: '8 F / correction',
+    monthlyEquivalentFcfa: '4 000 FCFA / mois',
+    monthlyEquivalentEur: '6,10 € / mois',
+    savingsLabel: 'Économisez 3 000 FCFA',
+    description: 'La formule équilibrée pour couvrir un trimestre d’enseignement complet.',
     features: [
-      '1 500 corrections au total (500 / mois)',
-      'Revient à 4 000 FCFA / mois',
-      'Économisez 3 000 FCFA immédiatement vs mensuel',
-      'Aucun paiement pendant 3 mois',
-      'Corrections non utilisées reportées',
-      'Statistiques pédagogiques et export Pronote',
+      '1 500 corrections pour tout le trimestre',
+      'Revient à seulement 4 000 FCFA / mois',
+      'Économisez 3 000 FCFA par rapport au mensuel',
+      'Corrections reportées d’un mois sur l’autre',
+      'Export des moyennes et bilans de classe',
     ],
-    iconType: 'hexagon',
+    ctaLabel: 'Choisir cette formule',
+  },
+  {
+    id: 'school_year',
+    name: 'Année scolaire',
+    category: 'subscription',
+    priceFcfa: 30000,
+    priceEur: 45.75,
+    periodLabel: 'pour 9 mois scolaires',
+    corrections: 4500,
+    unitCostFcfa: '6,6 F / correction',
+    monthlyEquivalentFcfa: '≈ 3 333 FCFA / mois',
+    monthlyEquivalentEur: '5,08 € / mois',
+    savingsLabel: 'Économisez 15 000 FCFA (soit 3 mois offerts)',
+    badge: 'Recommandé pour l’année scolaire',
+    featured: true,
+    description: 'La formule complète pour corriger sereinement de la rentrée aux examens de fin d’année.',
+    features: [
+      '4 500 corrections pour toute l’année scolaire',
+      'Tarif le plus avantageux : ≈ 3 333 FCFA / mois',
+      '3 mois complets offerts par rapport au mensuel',
+      'Vos corrections vous accompagnent toute l’année',
+      'Assistance prioritaire sur WhatsApp 7j/7',
+    ],
+    ctaLabel: 'Choisir cette formule',
   },
 ];
 
-interface AppliedPromoInfo {
-  code: string;
-  discountPercent: number;
-  firstMonthOnly: boolean;
-  partnerName?: string;
-  partnerId?: string;
-  message?: string;
-}
+// RECHARGE PACKS (CORRECTIONS SUPPLÉMENTAIRES)
+const EXTRA_PACKS: PlanDefinition[] = [
+  {
+    id: 'extra_100',
+    name: '+100 corrections',
+    category: 'pack',
+    priceFcfa: 1000,
+    priceEur: 1.50,
+    periodLabel: 'paiement unique',
+    corrections: 100,
+    unitCostFcfa: '10 F / correction',
+    description: 'Recharge ponctuelle pour terminer un devoir ou un contrôle imprévu.',
+    features: [
+      '+100 corrections ajoutées immédiatement',
+      'Sans date d’expiration (crédits permanents)',
+      'Utilisable avec ou sans abonnement actif',
+    ],
+    ctaLabel: 'Acheter +100',
+  },
+  {
+    id: 'extra_500',
+    name: '+500 corrections',
+    category: 'pack',
+    priceFcfa: 5000,
+    priceEur: 7.60,
+    periodLabel: 'paiement unique',
+    corrections: 500,
+    unitCostFcfa: '10 F / correction',
+    description: 'Idéal pour absorber une série d’examens blancs ou devoirs départementaux.',
+    features: [
+      '+500 corrections permanentes',
+      'Sans aucune date d’expiration',
+      'Idéal examens blancs et fins de semestre',
+    ],
+    ctaLabel: 'Acheter +500',
+  },
+  {
+    id: 'extra_1000',
+    name: '+1 000 corrections',
+    category: 'pack',
+    priceFcfa: 10000,
+    priceEur: 15.20,
+    periodLabel: 'paiement unique',
+    corrections: 1000,
+    unitCostFcfa: '10 F / correction',
+    description: 'Grand volume économique pour les enseignants ayant de nombreuses classes.',
+    features: [
+      '+1 000 corrections permanentes',
+      'Sans date d’expiration',
+      'Gestion sereine des gros effectifs',
+    ],
+    ctaLabel: 'Acheter +1 000',
+  },
+];
+
+const PURCHASABLE_PLANS: PlanDefinition[] = [
+  ...MAIN_OFFERS.filter((p) => p.category !== 'free'),
+  ...EXTRA_PACKS,
+];
 
 export const PricingPage: React.FC<PricingPageProps> = ({
   currentLead,
@@ -164,125 +203,106 @@ export const PricingPage: React.FC<PricingPageProps> = ({
   onBackToApp,
   onOpenContact,
 }) => {
-  const [selectedPlanId, setSelectedPlanId] = useState<PaywallPlanId>(initialPlanId);
-  const [currency, setCurrency] = useState<'EUR' | 'XOF'>('EUR');
-  const [paymentMethod, setPaymentMethod] = useState<'wave' | 'card'>('wave');
-  const [faqOpenIndex, setFaqOpenIndex] = useState<number | null>(null);
+  const [currency, setCurrency] = useState<'XOF' | 'EUR'>('XOF');
+  const [checkoutOpen, setCheckoutOpen] = useState<boolean>(false);
+  const [selectedPlanId, setSelectedPlanId] = useState<PaywallPlanId>(
+    initialPlanId === 'extra_100' || initialPlanId === 'extra_500' || initialPlanId === 'extra_1000'
+      ? initialPlanId
+      : (initialPlanId as PaywallPlanId) || 'school_year'
+  );
+  const [openFaqIndex, setOpenFaqIndex] = useState<number | null>(null);
 
-  // Form fields for inline checkout
-  const [teacherName, setTeacherName] = useState(currentLead?.name || '');
-  const [teacherEmail, setTeacherEmail] = useState(currentLead?.email || '');
-  const [teacherPhone, setTeacherPhone] = useState(currentLead?.whatsapp || '');
-  const [teacherSchool, setTeacherSchool] = useState(currentLead?.school || '');
-  const [transactionRef, setTransactionRef] = useState('');
-  const [isProcessing, setIsProcessing] = useState(false);
-  const [paymentDone, setPaymentDone] = useState(false);
-  const [copyFeedback, setCopyFeedback] = useState(false);
-  const [errorMsg, setErrorMsg] = useState('');
+  // Form fields
+  const [teacherEmail, setTeacherEmail] = useState<string>(currentLead?.email || '');
+  const [teacherName, setTeacherName] = useState<string>(currentLead?.name || '');
+  const [teacherPhone, setTeacherPhone] = useState<string>(currentLead?.whatsapp || '');
 
-  // Promo code state - NOT APPLIED BY DEFAULT
-  const [promoCodeInput, setPromoCodeInput] = useState<string>(() => {
-    try {
-      return (
-        partnerRefCode ||
-        localStorage.getItem('praxis_partner_ref') ||
-        localStorage.getItem('praxis_pending_promo') ||
-        ''
-      );
-    } catch {
-      return '';
-    }
-  });
-  const [appliedPromo, setAppliedPromo] = useState<AppliedPromoInfo | null>(null);
-  const [isValidatingPromo, setIsValidatingPromo] = useState(false);
-  const [promoError, setPromoError] = useState('');
+  // Promo code
+  const [promoExpanded, setPromoExpanded] = useState<boolean>(false);
+  const [promoCodeInput, setPromoCodeInput] = useState<string>('');
+  const [isValidatingPromo, setIsValidatingPromo] = useState<boolean>(false);
+  const [appliedPromo, setAppliedPromo] = useState<{
+    code: string;
+    discountPercent: number;
+    message?: string;
+  } | null>(null);
+  const [promoError, setPromoError] = useState<string>('');
 
-  const checkoutSectionRef = useRef<HTMLDivElement>(null);
+  // Processing state
+  const [isProcessing, setIsProcessing] = useState<boolean>(false);
+  const [errorMsg, setErrorMsg] = useState<string>('');
+  const [paymentSuccessData, setPaymentSuccessData] = useState<{
+    message: string;
+    remainingCopies: number;
+    planName: string;
+  } | null>(null);
 
-  // Keep selectedPlan in sync if initialPlanId changes
+  const selectedPlan =
+    PURCHASABLE_PLANS.find((p) => p.id === selectedPlanId) || MAIN_OFFERS[3];
+
+  // Auto-detect promo code from URL
   useEffect(() => {
-    if (initialPlanId) {
-      setSelectedPlanId(initialPlanId);
-    }
-  }, [initialPlanId]);
-
-  // Sync partner code from prop or storage if updated
-  useEffect(() => {
-    if (partnerRefCode && !promoCodeInput) {
-      setPromoCodeInput(partnerRefCode);
+    const urlParams = new URLSearchParams(window.location.search);
+    const codeFromUrl = urlParams.get('promo') || urlParams.get('ref') || partnerRefCode;
+    if (codeFromUrl && !appliedPromo) {
+      setPromoCodeInput(codeFromUrl.toUpperCase());
+      setPromoExpanded(true);
+      applyPromoCode(codeFromUrl.toUpperCase());
     }
   }, [partnerRefCode]);
 
-  const isEur = currency === 'EUR';
+  // Handle Paystack return redirect
+  useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const paystackRef = urlParams.get('paystack_ref') || urlParams.get('reference');
+    if (paystackRef) {
+      verifyPaystackPayment(paystackRef);
+    }
+  }, []);
 
-  // Selected plan calculation
-  const currentPlan =
-    PLANS.find((p) => p.id === selectedPlanId) ||
-    (selectedPlanId === 'extra_100'
-      ? {
-          id: 'extra_100' as PaywallPlanId,
-          name: 'Recharge Extra +100',
-          tag: 'EXTRA',
-          category: 'pack' as const,
-          priceEur: 1.5,
-          priceFcfa: 1000,
-          periodLabel: 'crédit permanent',
-          corrections: 100,
-          correctionsSub: '+100 corrections supplémentaires',
-          badge: 'Sans expiration',
-          features: ['100 corrections supplémentaires', 'N’expirent jamais', 'Consommables en réserve'],
-          iconType: 'circle' as const,
+  const verifyPaystackPayment = async (reference: string) => {
+    setIsProcessing(true);
+    try {
+      const res = await fetch(`/api/paystack/verify/${encodeURIComponent(reference)}`);
+      const data = await res.json();
+
+      if (res.ok && data.success) {
+        try {
+          confetti({ particleCount: 70, spread: 60, origin: { y: 0.6 } });
+        } catch {
+          // ignore
         }
-      : {
-          id: 'extra_500' as PaywallPlanId,
-          name: 'Recharge Extra +500',
-          tag: 'EXTRA',
-          category: 'pack' as const,
-          priceEur: 7.6,
-          priceFcfa: 5000,
-          periodLabel: 'crédit permanent',
-          corrections: 500,
-          correctionsSub: '+500 corrections supplémentaires',
-          badge: 'Sans expiration',
-          features: ['500 corrections supplémentaires', 'N’expirent jamais', 'Consommables en réserve'],
-          iconType: 'triangle' as const,
+
+        const planName = data.transaction?.plan
+          ? PURCHASABLE_PLANS.find((p) => p.id === data.transaction.plan)?.name || 'Forfait'
+          : 'Forfait';
+
+        setPaymentSuccessData({
+          message: data.message || 'Paiement confirmé avec succès.',
+          remainingCopies: data.remainingCopies || data.teacher?.quota || 0,
+          planName,
         });
 
-  // Calculate pricing strictly:
-  // Normal price by default.
-  // ONLY if appliedPromo is present: -30% discount applied to the first month.
-  const isSubscription = currentPlan.category === 'subscription';
-  const hasValidPromo = Boolean(appliedPromo && isSubscription);
+        if (onPaymentSuccess && data.teacher) {
+          onPaymentSuccess(data.teacher);
+        }
 
-  const basePriceFcfa = currentPlan.priceFcfa;
-  const basePriceEur = currentPlan.priceEur;
-
-  const discountRate = hasValidPromo ? (appliedPromo!.discountPercent / 100) : 0;
-  const discountFcfa = hasValidPromo ? Math.round(basePriceFcfa * discountRate) : 0;
-  const discountEur = hasValidPromo ? Number((basePriceEur * discountRate).toFixed(2)) : 0;
-
-  const finalPriceFcfa = Math.max(0, basePriceFcfa - discountFcfa);
-  const finalPriceEur = Number(Math.max(0, basePriceEur - discountEur).toFixed(2));
-
-  const handleSelectPlan = (planId: PaywallPlanId) => {
-    setSelectedPlanId(planId);
-    setErrorMsg('');
-    setTimeout(() => {
-      checkoutSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    }, 50);
+        const newUrl = window.location.pathname;
+        window.history.replaceState({}, document.title, newUrl);
+      } else {
+        setErrorMsg(data.error || 'Impossible de vérifier la transaction Paystack.');
+      }
+    } catch {
+      setErrorMsg('Erreur réseau lors de la confirmation du paiement.');
+    } finally {
+      setIsProcessing(false);
+    }
   };
 
-  const handleCopyWaveNumber = (num: string) => {
-    navigator.clipboard.writeText(num);
-    setCopyFeedback(true);
-    setTimeout(() => setCopyFeedback(false), 2000);
-  };
-
-  // Promo code validation against server endpoint
-  const handleApplyPromo = async (codeToTry?: string) => {
-    const code = (codeToTry || promoCodeInput).trim().toUpperCase();
+  const applyPromoCode = async (codeToValidate: string) => {
+    const code = codeToValidate.trim().toUpperCase();
     if (!code) {
-      setPromoError('Veuillez saisir un code promo.');
+      setPromoError('Veuillez renseigner un code promo.');
       return;
     }
     setPromoError('');
@@ -295,1043 +315,783 @@ export const PricingPage: React.FC<PricingPageProps> = ({
         body: JSON.stringify({
           code,
           email: teacherEmail.trim(),
-          whatsapp: teacherPhone.trim(),
-          planId: currentPlan.id,
+          planId: selectedPlan.id,
           currency,
         }),
       });
 
       const data = await res.json();
-      if (!res.ok || !data.valid) {
+      if (res.ok && data.valid) {
+        setAppliedPromo({
+          code: data.code,
+          discountPercent: data.discountPercent,
+          message: data.message,
+        });
+        setPromoError('');
+      } else {
         setAppliedPromo(null);
         setPromoError(data.error || 'Code promo invalide ou expiré.');
-        return;
       }
-
-      setAppliedPromo({
-        code: data.code,
-        discountPercent: data.discountPercent,
-        firstMonthOnly: data.firstMonthOnly,
-        partnerName: data.partnerName,
-        partnerId: data.partnerId,
-        message: data.message,
-      });
-      setPromoError('');
-      localStorage.setItem('praxis_applied_promo', data.code);
     } catch {
       setAppliedPromo(null);
-      setPromoError('Impossible de valider le code promo. Vérifiez votre connexion.');
+      setPromoError('Impossible de valider le code promo.');
     } finally {
       setIsValidatingPromo(false);
     }
   };
 
-  const handleRemovePromo = () => {
-    setAppliedPromo(null);
-    setPromoError('');
-    localStorage.removeItem('praxis_applied_promo');
+  const handleOpenCheckout = (planId: PaywallPlanId) => {
+    setSelectedPlanId(planId);
+    setErrorMsg('');
+    setCheckoutOpen(true);
   };
 
-  const handleProcessPayment = async (e: React.FormEvent) => {
+  const handleCloseCheckout = () => {
+    setCheckoutOpen(false);
+    setErrorMsg('');
+  };
+
+  // Price calculations
+  const basePriceFcfa = selectedPlan.priceFcfa;
+  const basePriceEur = selectedPlan.priceEur;
+
+  const isSubscription = selectedPlan.category === 'subscription';
+  const discountPercent = appliedPromo && isSubscription ? appliedPromo.discountPercent : 0;
+  const discountFcfa = Math.round(basePriceFcfa * (discountPercent / 100));
+  const discountEur = Number((basePriceEur * (discountPercent / 100)).toFixed(2));
+
+  const finalPriceFcfa = Math.max(0, basePriceFcfa - discountFcfa);
+  const finalPriceEur = Number(Math.max(0, basePriceEur - discountEur).toFixed(2));
+
+  const handleStartPaystackPayment = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMsg('');
 
-    if (!teacherName.trim()) {
-      setErrorMsg('Veuillez renseigner votre nom complet.');
-      return;
-    }
-    if (!teacherPhone.trim()) {
-      setErrorMsg('Veuillez renseigner votre numéro WhatsApp / Téléphone.');
+    if (!teacherEmail.trim()) {
+      setErrorMsg('Veuillez saisir votre adresse email pour recevoir votre reçu et vos crédits.');
       return;
     }
 
     setIsProcessing(true);
 
     try {
-      const response = await fetch('/api/paywall/checkout', {
+      const res = await fetch('/api/paystack/initialize', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          planId: currentPlan.id,
-          name: teacherName.trim(),
-          email: teacherEmail.trim(),
+          planId: selectedPlan.id,
+          email: teacherEmail.trim().toLowerCase(),
+          name: teacherName.trim() || 'Enseignant',
           whatsapp: teacherPhone.trim(),
-          paymentMethod,
-          currency,
-          waveTxId: transactionRef.trim() || undefined,
-          promoCode: appliedPromo ? appliedPromo.code : undefined,
+          currency: 'XOF',
+          promoCode: appliedPromo?.code || undefined,
+          callbackUrl: window.location.origin + window.location.pathname,
         }),
       });
 
-      const data = await response.json();
+      const data = await res.json();
 
-      if (!response.ok || !data.success) {
-        throw new Error(data.error || 'Erreur lors de la validation du paiement.');
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || 'Erreur lors de l’initialisation du paiement Paystack.');
       }
 
-      setPaymentDone(true);
-      try {
-        confetti({
-          particleCount: 120,
-          spread: 80,
-          origin: { y: 0.6 },
-        });
-      } catch {}
-
-      if (data.teacher && onPaymentSuccess) {
-        onPaymentSuccess(data.teacher);
+      if (data.authorizationUrl) {
+        window.location.href = data.authorizationUrl;
+      } else {
+        throw new Error('URL de paiement non reçue.');
       }
     } catch (err: any) {
-      // Local fallback with accurate credit addition
-      const existing = currentLead || {
-        name: teacherName,
-        email: teacherEmail || `${teacherPhone.replace(/\D/g, '')}@praxis.edu`,
-        whatsapp: teacherPhone,
-        school: teacherSchool,
-        plan: currentPlan.id === 'extra_100' || currentPlan.id === 'extra_500' ? 'monthly' : (currentPlan.id as any),
-        quota: (currentLead?.quota || 30) + currentPlan.corrections,
-        copiesCorrected: currentLead?.copiesCorrected || 0,
-        subscriptionCredits: (currentLead?.subscriptionCredits || 0) + (currentPlan.category === 'subscription' ? currentPlan.corrections : 0),
-        extraCredits: (currentLead?.extraCredits || 0) + (currentPlan.category === 'pack' ? currentPlan.corrections : 0),
-        firstPurchaseDiscountUsed: Boolean(appliedPromo),
-        usedPromoCodes: appliedPromo ? [appliedPromo.code] : [],
-      };
-
-      localStorage.setItem('praxis_lead', JSON.stringify(existing));
-      if (onPaymentSuccess) {
-        onPaymentSuccess(existing);
-      }
-
-      setPaymentDone(true);
-      try {
-        confetti({ particleCount: 100, spread: 70, origin: { y: 0.6 } });
-      } catch {}
-    } finally {
+      console.error('[Checkout Paystack] Erreur:', err);
+      setErrorMsg(err.message || 'Impossible de contacter le service de paiement. Réessayez.');
       setIsProcessing(false);
     }
   };
 
   return (
-    <div className="space-y-8 font-sans max-w-6xl mx-auto pb-16 animate-in fade-in duration-300">
-      {/* Back button */}
-      {onBackToApp && (
-        <div className="pt-2">
-          <button
-            type="button"
-            onClick={onBackToApp}
-            className="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-bold shadow-2xs transition-colors cursor-pointer"
-          >
-            <ArrowLeft className="w-3.5 h-3.5 text-slate-600" />
-            <span>Retour à l'espace enseignant</span>
-          </button>
+    <div className="min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 font-sans transition-colors duration-200">
+      {/* TOP NAVIGATION / STATUS BAR */}
+      <div className="border-b border-slate-200 dark:border-slate-800 bg-white/90 dark:bg-slate-900/90 backdrop-blur-md sticky top-0 z-20">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-14 flex items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            {onBackToApp && (
+              <button
+                type="button"
+                onClick={onBackToApp}
+                className="text-xs font-semibold text-slate-700 dark:text-slate-200 hover:text-blue-700 dark:hover:text-blue-400 flex items-center gap-1.5 py-1.5 px-3 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 transition-colors cursor-pointer"
+              >
+                <span>←</span>
+                <span>Retour à la correction</span>
+              </button>
+            )}
+            <span className="text-xs text-slate-500 dark:text-slate-400 hidden md:inline">
+              Praxis · Le copilote de correction des enseignants
+            </span>
+          </div>
+
+          <div className="flex items-center gap-3">
+            {currentLead && (
+              <div className="text-xs px-3 py-1 rounded-lg bg-blue-50 dark:bg-blue-950/50 border border-blue-200 dark:border-blue-800 text-blue-800 dark:text-blue-300 font-medium">
+                Solde actuel : <span className="font-bold">{Math.max(0, (currentLead.quota || 50) - (currentLead.copiesCorrected || 0))}</span> corrections
+              </div>
+            )}
+            {/* Devise switch */}
+            <div className="flex items-center rounded-lg border border-slate-200 dark:border-slate-700 p-0.5 bg-slate-100 dark:bg-slate-800 text-xs font-medium">
+              <button
+                type="button"
+                onClick={() => setCurrency('XOF')}
+                className={`px-2.5 py-1 rounded-md transition-all cursor-pointer ${
+                  currency === 'XOF'
+                    ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-xs font-bold'
+                    : 'text-slate-500 dark:text-slate-400 hover:text-slate-900'
+                }`}
+              >
+                FCFA
+              </button>
+              <button
+                type="button"
+                onClick={() => setCurrency('EUR')}
+                className={`px-2.5 py-1 rounded-md transition-all cursor-pointer ${
+                  currency === 'EUR'
+                    ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-xs font-bold'
+                    : 'text-slate-500 dark:text-slate-400 hover:text-slate-900'
+                }`}
+              >
+                EUR (€)
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* SUCCESS NOTIFICATION */}
+      {paymentSuccessData && (
+        <div className="max-w-4xl mx-auto px-4 mt-6">
+          <div className="p-5 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-300 dark:border-emerald-700 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+            <div className="flex items-center gap-3">
+              <div className="w-9 h-9 rounded-full bg-emerald-600 text-white flex items-center justify-center shrink-0">
+                <Check className="w-5 h-5 stroke-[2.5]" />
+              </div>
+              <div>
+                <h4 className="text-sm font-bold text-emerald-950 dark:text-emerald-100">
+                  {paymentSuccessData.planName} activé avec succès !
+                </h4>
+                <p className="text-xs text-emerald-800 dark:text-emerald-300 mt-0.5">
+                  {paymentSuccessData.message} · Nouveau solde : <strong>{paymentSuccessData.remainingCopies} corrections</strong> disponibles.
+                </p>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={onStartCorrection}
+              className="text-xs font-bold px-4 py-2 rounded-lg bg-emerald-700 text-white hover:bg-emerald-800 transition-colors shrink-0 cursor-pointer"
+            >
+              Corriger une copie maintenant →
+            </button>
+          </div>
         </div>
       )}
 
-      {/* 1. HERO HEADER */}
-      <section className="text-center space-y-4 pt-2">
-        <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-50 border border-blue-200 text-blue-700 text-xs font-bold shadow-2xs">
+      {/* HEADER SECTION */}
+      <section className="pt-12 pb-8 sm:pt-16 sm:pb-10 text-center px-4 max-w-4xl mx-auto">
+        <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-blue-50 dark:bg-blue-950/60 border border-blue-200/80 dark:border-blue-800 text-xs font-semibold text-blue-700 dark:text-blue-300 mb-4">
           <Sparkles className="w-3.5 h-3.5 text-blue-600" />
-          <span>Formules transparentes · Zéro engagement caché</span>
+          <span>Tarification simple et transparente</span>
         </div>
-
-        <h1 className="text-3xl sm:text-5xl font-black text-slate-900 tracking-tight leading-tight">
-          Tarifs flexibles <br />
-          <span className="bg-gradient-to-r from-blue-600 via-indigo-600 to-cyan-600 bg-clip-text text-transparent">
-            adaptés à chaque professeur
-          </span>
+        <h1 className="text-2xl sm:text-4xl font-extrabold tracking-tight text-slate-900 dark:text-white">
+          Choisissez votre formule de correction
         </h1>
-
-        <p className="text-sm sm:text-base text-slate-600 max-w-2xl mx-auto leading-relaxed">
-          Corrigez plus. Passez moins de temps à corriger. Vos corrections non utilisées ne disparaissent jamais.
+        <p className="text-sm sm:text-base text-slate-600 dark:text-slate-300 mt-3 max-w-xl mx-auto leading-relaxed">
+          Corrigez plus de copies, passez moins de temps à les corriger.
         </p>
 
-        {/* DURATION SWITCHER & CURRENCY SWITCHER */}
-        <div className="pt-2 flex flex-wrap items-center justify-center gap-3">
-          {/* Duration Selector Capsule */}
-          <div className="inline-flex items-center bg-white p-1 rounded-2xl border border-slate-200 shadow-xs">
-            <button
-              type="button"
-              onClick={() => handleSelectPlan('monthly')}
-              className={`px-4 py-2 rounded-xl text-xs font-extrabold transition-all cursor-pointer ${
-                selectedPlanId === 'monthly'
-                  ? 'bg-blue-600 text-white shadow-xs'
-                  : 'text-slate-600 hover:text-slate-900'
-              }`}
-            >
-              MENSUEL
-            </button>
-            <button
-              type="button"
-              onClick={() => handleSelectPlan('quarterly')}
-              className={`px-4 py-2 rounded-xl text-xs font-extrabold transition-all cursor-pointer ${
-                selectedPlanId === 'quarterly'
-                  ? 'bg-blue-600 text-white shadow-xs'
-                  : 'text-slate-600 hover:text-slate-900'
-              }`}
-            >
-              3 MOIS
-            </button>
-            <button
-              type="button"
-              onClick={() => handleSelectPlan('school_year')}
-              className={`px-4 py-2 rounded-xl text-xs font-extrabold transition-all cursor-pointer flex items-center gap-1.5 ${
-                selectedPlanId === 'school_year'
-                  ? 'bg-blue-600 text-white shadow-xs'
-                  : 'text-slate-600 hover:text-slate-900'
-              }`}
-            >
-              <span>ANNÉE SCOLAIRE</span>
-              <span className="px-1.5 py-0.5 rounded-md bg-emerald-100 text-emerald-800 font-extrabold text-[10px]">
-                3 MOIS OFFERTS
-              </span>
-            </button>
-          </div>
-
-          {/* Currency Toggle */}
-          <div className="inline-flex items-center bg-white p-1 rounded-2xl border border-slate-200 shadow-xs">
-            <button
-              type="button"
-              onClick={() => setCurrency('EUR')}
-              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-                isEur ? 'bg-slate-100 text-blue-700 font-extrabold' : 'text-slate-500 hover:text-slate-800'
-              }`}
-            >
-              🇪🇺 Euros (€)
-            </button>
-            <button
-              type="button"
-              onClick={() => setCurrency('XOF')}
-              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-                !isEur ? 'bg-slate-100 text-blue-700 font-extrabold' : 'text-slate-500 hover:text-slate-800'
-              }`}
-            >
-              🇨🇮 🇸🇳 FCFA
-            </button>
-          </div>
-        </div>
-
-        {/* ACTIVE PROMO BANNER (Appears ONLY if a valid promo code has been entered and validated) */}
-        {appliedPromo && (
-          <div className="max-w-xl mx-auto pt-1 animate-in fade-in slide-in-from-top-2">
-            <div className="p-3.5 rounded-2xl bg-emerald-50 border border-emerald-300 flex items-center justify-between gap-3 text-xs shadow-xs text-emerald-900">
-              <div className="flex items-center gap-2.5">
-                <span className="px-2 py-0.5 rounded-md bg-emerald-600 text-white font-black text-[11px] shrink-0">
-                  CODE PROMO ACTIF
-                </span>
-                <span className="font-medium text-left">
-                  Code <strong className="font-mono">{appliedPromo.code}</strong> appliqué : -{appliedPromo.discountPercent}% sur le 1er mois
-                  {appliedPromo.partnerName && (
-                    <span className="text-emerald-700 font-normal"> · Recommandé par {appliedPromo.partnerName}</span>
-                  )}
-                </span>
-              </div>
-              <button
-                type="button"
-                onClick={handleRemovePromo}
-                className="text-[11px] font-bold text-emerald-800 hover:text-rose-700 underline shrink-0 cursor-pointer"
-              >
-                Retirer
-              </button>
-            </div>
-          </div>
-        )}
-      </section>
-
-      {/* 2. THE 3 CARDS PRICING GRID (CLEAN MODERN APPLICATION DESIGN) */}
-      <section className="pt-2 pb-4">
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 sm:gap-8 items-stretch">
-          {/* CARD 1: CORE / MENSUEL (Left Card) */}
-          <div
-            className={`rounded-3xl p-7 pt-12 relative transition-all duration-300 flex flex-col justify-between ${
-              selectedPlanId === 'monthly'
-                ? 'bg-white border-2 border-blue-600 shadow-lg ring-2 ring-blue-500/20'
-                : 'bg-white border border-slate-200/90 hover:border-slate-300 shadow-xs'
-            }`}
-          >
-            {/* Top Floating Badge */}
-            <div className="absolute -top-7 left-1/2 -translate-x-1/2 w-14 h-14 rounded-full bg-white border-2 border-blue-400/50 flex items-center justify-center text-blue-600 shadow-md">
-              <div className="w-8 h-8 rounded-full border border-blue-200 bg-blue-50 flex items-center justify-center">
-                <CircleDot className="w-4 h-4 text-blue-600" />
-              </div>
-            </div>
-
-            <div className="space-y-6">
-              {/* Tag / Plan Title */}
-              <div className="text-center pt-2">
-                <span className="inline-block px-3 py-1 rounded-full text-[11px] font-black tracking-widest uppercase border border-slate-200 bg-slate-100 text-slate-700">
-                  CORE · MENSUEL
-                </span>
-              </div>
-
-              {/* Big Bold Price & Subtitle */}
-              <div className="text-center space-y-1">
-                <div className="flex items-baseline justify-center gap-1.5">
-                  {appliedPromo ? (
-                    <>
-                      <span className="text-2xl text-slate-400 line-through font-mono">7,60 €</span>
-                      <span className="text-4xl sm:text-5xl font-black text-emerald-700 tracking-tight font-mono">
-                        5,32 €
-                      </span>
-                    </>
-                  ) : (
-                    <span className="text-4xl sm:text-5xl font-black text-slate-900 tracking-tight font-mono">
-                      7,60 €
-                    </span>
-                  )}
-                  <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">/ MOIS</span>
-                </div>
-
-                {/* FCFA price below */}
-                <p className="text-xs text-slate-600">
-                  Soit{' '}
-                  {appliedPromo ? (
-                    <>
-                      <span className="text-slate-400 line-through">5 000 FCFA</span>{' '}
-                      <strong className="text-emerald-700 font-mono font-bold text-sm">3 500 FCFA</strong>{' '}
-                      <span className="text-[10px] text-emerald-600 font-bold">(1er mois)</span>
-                    </>
-                  ) : (
-                    <strong className="text-blue-700 font-mono font-bold text-sm">5 000 FCFA</strong>
-                  )}{' '}
-                  / mois
-                </p>
-                <p className="text-xs text-blue-700 font-semibold pt-1">
-                  500 corrections / mois · Sans engagement
-                </p>
-              </div>
-
-              {/* Feature Checklist */}
-              <div className="space-y-3 pt-3 border-t border-slate-100 text-xs text-slate-600">
-                <div className="flex items-center gap-2.5">
-                  <div className="w-5 h-5 rounded-full bg-blue-50 border border-blue-200 flex items-center justify-center shrink-0">
-                    <Check className="w-3 h-3 text-blue-600" />
-                  </div>
-                  <span><strong>500 corrections</strong> incluses / mois</span>
-                </div>
-                <div className="flex items-center gap-2.5">
-                  <div className="w-5 h-5 rounded-full bg-blue-50 border border-blue-200 flex items-center justify-center shrink-0">
-                    <Check className="w-3 h-3 text-blue-600" />
-                  </div>
-                  <span>Cumulable jusqu'à <strong>1 500 corrections</strong></span>
-                </div>
-                <div className="flex items-center gap-2.5">
-                  <div className="w-5 h-5 rounded-full bg-blue-50 border border-blue-200 flex items-center justify-center shrink-0">
-                    <Check className="w-3 h-3 text-blue-600" />
-                  </div>
-                  <span>Copies manuscrites & imprimées</span>
-                </div>
-                <div className="flex items-center gap-2.5">
-                  <div className="w-5 h-5 rounded-full bg-blue-50 border border-blue-200 flex items-center justify-center shrink-0">
-                    <Check className="w-3 h-3 text-blue-600" />
-                  </div>
-                  <span>Corrigé et barème 100% sur-mesure</span>
-                </div>
-                <div className="flex items-center gap-2.5">
-                  <div className="w-5 h-5 rounded-full bg-blue-50 border border-blue-200 flex items-center justify-center shrink-0">
-                    <Check className="w-3 h-3 text-blue-600" />
-                  </div>
-                  <span>Export des bulletins & PDF</span>
-                </div>
-                <div className="flex items-center gap-2.5">
-                  <div className="w-5 h-5 rounded-full bg-blue-50 border border-blue-200 flex items-center justify-center shrink-0">
-                    <Check className="w-3 h-3 text-blue-600" />
-                  </div>
-                  <span>Support prioritaire WhatsApp</span>
-                </div>
-              </div>
-            </div>
-
-            {/* Bottom Button */}
-            <div className="pt-8">
-              <button
-                type="button"
-                onClick={() => handleSelectPlan('monthly')}
-                className={`w-full py-3.5 px-5 rounded-2xl font-bold text-xs sm:text-sm flex items-center justify-center gap-2 transition-all cursor-pointer ${
-                  selectedPlanId === 'monthly'
-                    ? 'bg-blue-600 hover:bg-blue-700 text-white shadow-md shadow-blue-600/30'
-                    : 'bg-slate-100 hover:bg-slate-200 text-slate-800'
-                }`}
-              >
-                <span>CHOISIR MENSUEL</span>
-              </button>
-            </div>
-          </div>
-
-          {/* CARD 2: OVERDRIVE / ANNÉE SCOLAIRE 9 MOIS (Center Hero Card) */}
-          <div
-            className={`rounded-3xl p-8 pt-14 relative transition-all duration-300 flex flex-col justify-between lg:-translate-y-2 z-10 ${
-              selectedPlanId === 'school_year'
-                ? 'bg-gradient-to-b from-blue-50/80 via-white to-indigo-50/40 border-2 border-blue-600 shadow-xl shadow-blue-600/15 ring-2 ring-blue-500/20'
-                : 'bg-gradient-to-b from-blue-50/40 to-white border-2 border-blue-400/80 shadow-md'
-            }`}
-          >
-            {/* Top Floating Circular Icon Badge */}
-            <div className="absolute -top-8 left-1/2 -translate-x-1/2 w-16 h-16 rounded-full bg-white border-2 border-blue-500 flex items-center justify-center shadow-lg shadow-blue-500/20">
-              <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-emerald-500 to-cyan-500 flex items-center justify-center text-white shadow-sm">
-                <Triangle className="w-5 h-5 fill-white text-white" />
-              </div>
-            </div>
-
-            <div className="space-y-6">
-              {/* Tag / Plan Title */}
-              <div className="text-center pt-1">
-                <span className="inline-block px-4 py-1.5 rounded-full text-xs font-black tracking-widest uppercase bg-blue-600 text-white shadow-xs">
-                  OVERDRIVE · ANNÉE SCOLAIRE 🎓
-                </span>
-              </div>
-
-              {/* Big Bold Price & Subtitle */}
-              <div className="text-center space-y-1">
-                <div className="flex items-baseline justify-center gap-1.5">
-                  <span className="text-5xl sm:text-6xl font-black text-slate-900 tracking-tight font-mono">
-                    45,75 €
-                  </span>
-                  <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">/ 9 MOIS</span>
-                </div>
-
-                {/* FCFA price below */}
-                <p className="text-xs text-slate-700">
-                  Soit <strong className="text-emerald-700 font-mono text-base font-extrabold">30 000 FCFA</strong> pour toute l'année
-                </p>
-                <div className="inline-block px-3 py-1 rounded-full bg-emerald-100 text-emerald-800 text-[11px] font-bold mt-1 border border-emerald-200">
-                  Revient à 3 333 FCFA / mois · Économisez 15 000 FCFA
-                </div>
-                <p className="text-xs text-blue-700 font-semibold pt-1">
-                  4 500 corrections · Couvre toute l'année scolaire
-                </p>
-              </div>
-
-              {/* Feature Checklist */}
-              <div className="space-y-3.5 pt-3 border-t border-blue-200/60 text-xs text-slate-700">
-                <div className="flex items-center gap-2.5">
-                  <div className="w-5 h-5 rounded-full bg-blue-100 border border-blue-300 flex items-center justify-center shrink-0">
-                    <Check className="w-3 h-3 text-blue-700" />
-                  </div>
-                  <span><strong>4 500 corrections</strong> pour l’année scolaire (500 × 9 mois)</span>
-                </div>
-                <div className="flex items-center gap-2.5">
-                  <div className="w-5 h-5 rounded-full bg-blue-100 border border-blue-300 flex items-center justify-center shrink-0">
-                    <Check className="w-3 h-3 text-blue-700" />
-                  </div>
-                  <span><strong>3 mois offerts</strong> par rapport au paiement mensuel</span>
-                </div>
-                <div className="flex items-center gap-2.5">
-                  <div className="w-5 h-5 rounded-full bg-blue-100 border border-blue-300 flex items-center justify-center shrink-0">
-                    <Check className="w-3 h-3 text-blue-700" />
-                  </div>
-                  <span>Corrections restantes conservées & reportées</span>
-                </div>
-                <div className="flex items-center gap-2.5">
-                  <div className="w-5 h-5 rounded-full bg-blue-100 border border-blue-300 flex items-center justify-center shrink-0">
-                    <Check className="w-3 h-3 text-blue-700" />
-                  </div>
-                  <span>Paiement unique Wave ou Carte sécurisée</span>
-                </div>
-                <div className="flex items-center gap-2.5">
-                  <div className="w-5 h-5 rounded-full bg-blue-100 border border-blue-300 flex items-center justify-center shrink-0">
-                    <Check className="w-3 h-3 text-blue-700" />
-                  </div>
-                  <span>Priorité maximale sur les serveurs d'IA</span>
-                </div>
-                <div className="flex items-center gap-2.5">
-                  <div className="w-5 h-5 rounded-full bg-blue-100 border border-blue-300 flex items-center justify-center shrink-0">
-                    <Check className="w-3 h-3 text-blue-700" />
-                  </div>
-                  <span>Ligne WhatsApp dédiée avec les fondateurs 7j/7</span>
-                </div>
-              </div>
-            </div>
-
-            {/* Bottom Button */}
-            <div className="pt-8 space-y-2">
-              <button
-                type="button"
-                onClick={() => handleSelectPlan('school_year')}
-                className="w-full py-4 px-6 rounded-2xl bg-gradient-to-r from-blue-600 via-indigo-600 to-blue-700 hover:from-blue-500 hover:to-indigo-500 text-white font-extrabold text-sm sm:text-base flex items-center justify-center gap-2 shadow-lg shadow-blue-600/30 hover:shadow-blue-600/40 transition-all cursor-pointer"
-              >
-                <span>CHOISIR L'ANNÉE SCOLAIRE</span>
-                <ArrowRight className="w-4 h-4" />
-              </button>
-
-              <p className="text-[11px] text-center text-slate-500 tracking-wide">
-                - Pensé pour toute l'année scolaire · Meilleur rapport valeur/prix -
-              </p>
-            </div>
-          </div>
-
-          {/* CARD 3: TEAM / TRIMESTRIEL 3 MOIS (Right Card) */}
-          <div
-            className={`rounded-3xl p-7 pt-12 relative transition-all duration-300 flex flex-col justify-between ${
-              selectedPlanId === 'quarterly'
-                ? 'bg-white border-2 border-blue-600 shadow-lg ring-2 ring-blue-500/20'
-                : 'bg-white border border-slate-200/90 hover:border-slate-300 shadow-xs'
-            }`}
-          >
-            {/* Top Floating Badge */}
-            <div className="absolute -top-7 left-1/2 -translate-x-1/2 w-14 h-14 rounded-full bg-white border-2 border-cyan-400/50 flex items-center justify-center text-cyan-600 shadow-md">
-              <div className="w-8 h-8 rounded-full border border-cyan-200 bg-cyan-50 flex items-center justify-center">
-                <Hexagon className="w-4 h-4 text-cyan-600" />
-              </div>
-            </div>
-
-            <div className="space-y-6">
-              {/* Tag / Plan Title */}
-              <div className="text-center pt-2">
-                <span className="inline-block px-3 py-1 rounded-full text-[11px] font-black tracking-widest uppercase border border-slate-200 bg-slate-100 text-slate-700">
-                  TEAM · 3 MOIS
-                </span>
-              </div>
-
-              {/* Big Bold Price & Subtitle */}
-              <div className="text-center space-y-1">
-                <div className="flex items-baseline justify-center gap-1.5">
-                  <span className="text-4xl sm:text-5xl font-black text-slate-900 tracking-tight font-mono">
-                    18,30 €
-                  </span>
-                  <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">/ 3 MOIS</span>
-                </div>
-                {/* FCFA price below */}
-                <p className="text-xs text-slate-600">
-                  Soit <strong className="text-blue-700 font-mono font-bold text-sm">12 000 FCFA</strong> pour 3 mois
-                </p>
-                <div className="inline-block px-2.5 py-0.5 rounded-full bg-blue-50 text-blue-700 text-[11px] font-bold mt-1 border border-blue-200">
-                  Revient à 4 000 FCFA / mois · Économisez 3 000 FCFA
-                </div>
-                <p className="text-xs text-blue-700 font-semibold pt-1">
-                  1 500 corrections · Le meilleur équilibre
-                </p>
-              </div>
-
-              {/* Feature Checklist */}
-              <div className="space-y-3 pt-3 border-t border-slate-100 text-xs text-slate-600">
-                <div className="flex items-center gap-2.5">
-                  <div className="w-5 h-5 rounded-full bg-cyan-50 border border-cyan-200 flex items-center justify-center shrink-0">
-                    <Check className="w-3 h-3 text-cyan-700" />
-                  </div>
-                  <span><strong>1 500 corrections</strong> (500 × 3 mois)</span>
-                </div>
-                <div className="flex items-center gap-2.5">
-                  <div className="w-5 h-5 rounded-full bg-cyan-50 border border-cyan-200 flex items-center justify-center shrink-0">
-                    <Check className="w-3 h-3 text-cyan-700" />
-                  </div>
-                  <span>Économisez <strong>3 000 FCFA</strong> immédiatement</span>
-                </div>
-                <div className="flex items-center gap-2.5">
-                  <div className="w-5 h-5 rounded-full bg-cyan-50 border border-cyan-200 flex items-center justify-center shrink-0">
-                    <Check className="w-3 h-3 text-cyan-700" />
-                  </div>
-                  <span>Aucun paiement mensuel pendant 3 mois</span>
-                </div>
-                <div className="flex items-center gap-2.5">
-                  <div className="w-5 h-5 rounded-full bg-cyan-50 border border-cyan-200 flex items-center justify-center shrink-0">
-                    <Check className="w-3 h-3 text-cyan-700" />
-                  </div>
-                  <span>Corrections restantes reportées</span>
-                </div>
-                <div className="flex items-center gap-2.5">
-                  <div className="w-5 h-5 rounded-full bg-cyan-50 border border-cyan-200 flex items-center justify-center shrink-0">
-                    <Check className="w-3 h-3 text-cyan-700" />
-                  </div>
-                  <span>Analyse pédagogique complète de classe</span>
-                </div>
-                <div className="flex items-center gap-2.5">
-                  <div className="w-5 h-5 rounded-full bg-cyan-50 border border-cyan-200 flex items-center justify-center shrink-0">
-                    <Check className="w-3 h-3 text-cyan-700" />
-                  </div>
-                  <span>Support WhatsApp réactif</span>
-                </div>
-              </div>
-            </div>
-
-            {/* Bottom Button */}
-            <div className="pt-8">
-              <button
-                type="button"
-                onClick={() => handleSelectPlan('quarterly')}
-                className={`w-full py-3.5 px-5 rounded-2xl font-bold text-xs sm:text-sm flex items-center justify-center gap-2 transition-all cursor-pointer ${
-                  selectedPlanId === 'quarterly'
-                    ? 'bg-blue-600 hover:bg-blue-700 text-white shadow-md shadow-blue-600/30'
-                    : 'bg-slate-100 hover:bg-slate-200 text-slate-800'
-                }`}
-              >
-                <span>CHOISIR 3 MOIS</span>
-              </button>
-            </div>
-          </div>
+        {/* 1 correction = 1 copie */}
+        <div className="mt-4 text-xs text-slate-500 dark:text-slate-400">
+          <span className="font-semibold text-slate-700 dark:text-slate-300">Règle simple :</span> 1 correction = 1 copie d’élève complète (recto-verso et pages multiples incluses).
         </div>
       </section>
 
-      {/* 3. RECHARGES EXTRA (SERIES SUPPLEMENTAIRES SANS EXPIRATION) */}
-      <section className="bg-white p-6 sm:p-8 rounded-3xl border border-slate-200/90 shadow-xs space-y-6">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-100 pb-5">
-          <div>
-            <div className="flex items-center gap-2">
-              <span className="text-amber-500 font-bold">⚡</span>
-              <h3 className="text-lg sm:text-xl font-extrabold text-slate-900">
-                Besoin de corrections supplémentaires ?
-              </h3>
-            </div>
-            <p className="text-xs text-slate-500 mt-1">
-              Pas besoin de changer de formule. Ajoutez simplement des corrections à votre solde quand vous en avez besoin.
-            </p>
-          </div>
-          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-bold shrink-0">
-            <Check className="w-3.5 h-3.5 text-emerald-600" />
-            <span>N'expirent jamais</span>
-          </div>
-        </div>
+      {/* THE 4 CORE OFFERS (GRATUIT, MENSUEL, 3 MOIS, ANNÉE SCOLAIRE) */}
+      <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-16">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 items-stretch">
+          {MAIN_OFFERS.map((plan) => {
+            const isFeatured = plan.featured;
+            const isFree = plan.category === 'free';
+            const price = isFree
+              ? 'Gratuit'
+              : currency === 'XOF'
+              ? `${plan.priceFcfa.toLocaleString('fr-FR')} FCFA`
+              : `${plan.priceEur.toFixed(2)} €`;
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          {/* Pack +100 */}
-          <div
-            onClick={() => handleSelectPlan('extra_100')}
-            className={`p-4 rounded-2xl border transition-all cursor-pointer flex items-center justify-between gap-3 ${
-              selectedPlanId === 'extra_100'
-                ? 'bg-blue-50/80 border-blue-500 shadow-xs ring-1 ring-blue-500'
-                : 'bg-slate-50/80 border-slate-200 hover:border-slate-300'
-            }`}
-          >
-            <div>
-              <span className="text-base font-black text-slate-900 block">+100 corrections</span>
-              <span className="text-xs text-slate-500">Crédit permanent sans expiration</span>
-            </div>
-            <div className="text-right shrink-0">
-              <span className="text-base font-black text-slate-900 font-mono block">1 000 FCFA</span>
-              <span className="text-xs text-slate-500">soit 1,50 €</span>
-            </div>
-          </div>
-
-          {/* Pack +500 */}
-          <div
-            onClick={() => handleSelectPlan('extra_500')}
-            className={`p-4 rounded-2xl border transition-all cursor-pointer flex items-center justify-between gap-3 ${
-              selectedPlanId === 'extra_500'
-                ? 'bg-blue-50/80 border-blue-500 shadow-xs ring-1 ring-blue-500'
-                : 'bg-slate-50/80 border-slate-200 hover:border-slate-300'
-            }`}
-          >
-            <div>
-              <span className="text-base font-black text-slate-900 block">+500 corrections</span>
-              <span className="text-xs text-slate-500">Idéal pour les grosses périodes d'examens</span>
-            </div>
-            <div className="text-right shrink-0">
-              <span className="text-base font-black text-slate-900 font-mono block">5 000 FCFA</span>
-              <span className="text-xs text-slate-500">soit 7,60 €</span>
-            </div>
-          </div>
-        </div>
-
-        <p className="text-xs text-slate-500 italic">
-          * Les corrections supplémentaires achetées séparément sont conservées sur votre compte sans limitation de durée tant que votre compte reste actif.
-        </p>
-      </section>
-
-      {/* 4. INLINE DIRECT CHECKOUT MODULE ON THE PAGE */}
-      <section ref={checkoutSectionRef} className="bg-white p-6 sm:p-10 rounded-3xl border border-slate-200/90 shadow-sm space-y-8">
-        {/* Header of Checkout */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-100 pb-6">
-          <div>
-            <span className="text-xs font-black text-blue-700 uppercase tracking-widest block">
-              FINALISATION DE VOTRE COMMANDE
-            </span>
-            <h2 className="text-2xl sm:text-3xl font-black text-slate-900 mt-1">
-              {currentPlan.name}
-            </h2>
-            <p className="text-xs sm:text-sm text-slate-500 mt-1">
-              {currentPlan.correctionsSub} · Activation immédiate de vos crédits
-            </p>
-          </div>
-
-          {/* Price breakdown pill */}
-          <div className="bg-slate-50 border border-slate-200 p-4 rounded-2xl text-right shrink-0 min-w-[200px]">
-            <span className="text-xs text-slate-500 block">Total à régler :</span>
-            <div className="flex items-baseline justify-end gap-1.5 mt-0.5">
-              <span className="text-2xl sm:text-3xl font-black text-slate-900 font-mono">
-                {finalPriceFcfa.toLocaleString('fr-FR')} FCFA
-              </span>
-            </div>
-            <span className="text-xs text-blue-700 font-mono font-bold block mt-0.5">
-              ({finalPriceEur.toFixed(2)} €)
-            </span>
-          </div>
-        </div>
-
-        {paymentDone ? (
-          /* PAYMENT SUCCESS SCREEN */
-          <div className="py-10 text-center space-y-4">
-            <div className="w-16 h-16 rounded-full bg-emerald-100 border-2 border-emerald-400 flex items-center justify-center mx-auto text-emerald-600">
-              <CheckCircle2 className="w-10 h-10" />
-            </div>
-            <h3 className="text-2xl font-black text-slate-900">Félicitations, votre compte est crédité !</h3>
-            <p className="text-sm text-slate-600 max-w-md mx-auto">
-              Votre formule <strong className="text-emerald-700">{currentPlan.name}</strong> a été activée avec succès. Vous disposez de <strong>+{currentPlan.corrections} corrections</strong> prêtes à être utilisées.
-            </p>
-            <div className="pt-4 flex flex-wrap items-center justify-center gap-3">
-              <button
-                type="button"
-                onClick={onStartCorrection}
-                className="px-6 py-3 rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white font-black text-sm shadow-md transition-all flex items-center gap-2 cursor-pointer"
-              >
-                <span>Lancer une correction maintenant</span>
-                <ArrowRight className="w-4 h-4" />
-              </button>
-              <button
-                type="button"
-                onClick={() => setPaymentDone(false)}
-                className="px-5 py-3 rounded-2xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold text-xs transition-colors cursor-pointer"
-              >
-                Effectuer un autre achat
-              </button>
-            </div>
-          </div>
-        ) : (
-          /* ACTIVE CHECKOUT FORM */
-          <form onSubmit={handleProcessPayment} className="space-y-6">
-            {/* PROMO CODE SECTION - STRICT CLIENT & SERVER VALIDATION */}
-            <div className="p-4 sm:p-5 rounded-2xl bg-slate-50 border border-slate-200 space-y-3">
-              <div className="flex items-center justify-between">
-                <label className="text-xs font-black text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
-                  <Tag className="w-3.5 h-3.5 text-blue-600" />
-                  <span>Code promo ou code parrain</span>
-                </label>
-                <span className="text-[11px] text-slate-500">
-                  (Facultatif · ex: PROFJEAN)
-                </span>
-              </div>
-
-              <div className="flex gap-2">
-                <div className="relative flex-1">
-                  <input
-                    type="text"
-                    value={promoCodeInput}
-                    onChange={(e) => {
-                      setPromoCodeInput(e.target.value.toUpperCase());
-                      setPromoError('');
-                    }}
-                    placeholder="Entrez votre code (ex: PROFJEAN)"
-                    className="w-full px-3.5 py-2.5 bg-white border border-slate-300 rounded-xl text-xs font-mono font-bold tracking-wider uppercase text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 placeholder:normal-case placeholder:font-normal"
-                  />
-                  {appliedPromo && (
-                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-emerald-600 font-bold text-xs flex items-center gap-1">
-                      <CheckCircle2 className="w-3.5 h-3.5" />
-                      <span>Appliqué</span>
-                    </span>
-                  )}
-                </div>
-
-                {appliedPromo ? (
-                  <button
-                    type="button"
-                    onClick={handleRemovePromo}
-                    className="px-4 py-2.5 rounded-xl border border-rose-200 bg-rose-50 text-rose-700 hover:bg-rose-100 text-xs font-bold transition-colors cursor-pointer"
-                  >
-                    Retirer
-                  </button>
-                ) : (
-                  <button
-                    type="button"
-                    onClick={() => handleApplyPromo()}
-                    disabled={isValidatingPromo || !promoCodeInput.trim()}
-                    className="px-5 py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 disabled:opacity-50 text-white text-xs font-bold transition-colors cursor-pointer flex items-center gap-1.5 shrink-0"
-                  >
-                    {isValidatingPromo ? (
-                      <>
-                        <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                        <span>Vérification...</span>
-                      </>
-                    ) : (
-                      <span>Appliquer</span>
-                    )}
-                  </button>
-                )}
-              </div>
-
-              {/* Promo error feedback */}
-              {promoError && (
-                <div className="p-2.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-xs font-semibold flex items-center gap-2 animate-in fade-in">
-                  <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
-                  <span>{promoError}</span>
-                </div>
-              )}
-
-              {/* Promo success feedback */}
-              {appliedPromo && (
-                <div className="p-2.5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-900 text-xs flex flex-col sm:flex-row sm:items-center justify-between gap-1 animate-in fade-in">
-                  <span className="font-bold flex items-center gap-1.5">
-                    <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-                    <span>✓ Code {appliedPromo.code} appliqué</span>
-                  </span>
-                  <span className="text-[11px] text-emerald-700">
-                    Réduction de 30% sur le premier mois uniquement
-                  </span>
-                </div>
-              )}
-
-              {/* EXACT PRICE RECAPITULATION (AS REQUESTED) */}
-              <div className="p-3.5 bg-white rounded-xl border border-slate-200 space-y-1.5 font-mono text-xs">
-                <div className="flex items-center justify-between text-slate-700">
-                  <span>{currentPlan.name}</span>
-                  <span className="font-bold">{basePriceFcfa.toLocaleString('fr-FR')} FCFA</span>
-                </div>
-
-                <div className="flex items-center justify-between text-emerald-700 font-semibold">
-                  <span>Réduction ({hasValidPromo ? `${appliedPromo?.discountPercent}%` : '0%'})</span>
-                  <span>{hasValidPromo ? `-${discountFcfa.toLocaleString('fr-FR')} FCFA` : '0 FCFA'}</span>
-                </div>
-
-                <div className="border-t border-slate-200 pt-1.5 flex items-center justify-between font-bold text-sm text-slate-900">
-                  <span>Total à payer</span>
-                  <span className="text-blue-700 text-base">{finalPriceFcfa.toLocaleString('fr-FR')} FCFA</span>
-                </div>
-
-                {hasValidPromo && (
-                  <p className="text-[10px] text-slate-500 font-sans italic pt-1 border-t border-slate-100">
-                    * La réduction de 30% est valable sur le premier mois. Les renouvellements suivants s'effectueront au prix normal de 5 000 FCFA.
-                  </p>
-                )}
-              </div>
-            </div>
-
-            {/* Payment Method Switcher */}
-            <div className="space-y-2">
-              <label className="text-xs font-bold text-slate-700 block">Mode de paiement :</label>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                {/* Wave Mobile Money Button */}
-                <button
-                  type="button"
-                  onClick={() => setPaymentMethod('wave')}
-                  className={`p-4 rounded-2xl border text-left transition-all cursor-pointer flex items-center gap-3.5 ${
-                    paymentMethod === 'wave'
-                      ? 'bg-sky-50 border-sky-400 ring-2 ring-sky-400/40 shadow-xs'
-                      : 'bg-slate-50 border-slate-200 hover:border-slate-300'
-                  }`}
-                >
-                  <div className="w-10 h-10 rounded-xl bg-sky-500 flex items-center justify-center text-white font-black text-sm shrink-0 shadow-xs">
-                    🌊
-                  </div>
-                  <div>
-                    <div className="flex items-center gap-1.5">
-                      <span className="font-extrabold text-slate-900 text-sm">Wave Mobile Money</span>
-                      <span className="text-[10px] bg-emerald-100 text-emerald-800 px-1.5 py-0.2 rounded font-black">0% frais</span>
-                    </div>
-                    <span className="text-[11px] text-slate-500 block">Côte d'Ivoire 🇨🇮, Sénégal 🇸🇳, Bénin 🇧🇯, Burkina 🇧🇫</span>
-                  </div>
-                </button>
-
-                {/* Carte Bancaire Button */}
-                <button
-                  type="button"
-                  onClick={() => setPaymentMethod('card')}
-                  className={`p-4 rounded-2xl border text-left transition-all cursor-pointer flex items-center gap-3.5 ${
-                    paymentMethod === 'card'
-                      ? 'bg-blue-50 border-blue-400 ring-2 ring-blue-400/40 shadow-xs'
-                      : 'bg-slate-50 border-slate-200 hover:border-slate-300'
-                  }`}
-                >
-                  <div className="w-10 h-10 rounded-xl bg-indigo-600 flex items-center justify-center text-white shrink-0 shadow-xs">
-                    <CreditCard className="w-5 h-5" />
-                  </div>
-                  <div>
-                    <span className="font-extrabold text-slate-900 text-sm block">Carte Bancaire</span>
-                    <span className="text-[11px] text-slate-500 block">Visa, Mastercard, cartes bancaires locales & internationales</span>
-                  </div>
-                </button>
-              </div>
-            </div>
-
-            {/* Wave Mobile Money Instructions & QR Code */}
-            {paymentMethod === 'wave' && (
-              <div className="p-5 rounded-2xl bg-sky-50/50 border border-sky-200 space-y-4">
-                <div className="flex flex-col sm:flex-row items-center gap-5">
-                  {/* QR Code representation */}
-                  <div className="p-3 bg-white rounded-2xl border border-sky-200 shadow-xs shrink-0 flex flex-col items-center">
-                    <div className="w-28 h-28 bg-slate-900 rounded-xl p-1 flex items-center justify-center relative overflow-hidden">
-                      <QrCode className="w-24 h-24 text-white" />
-                      <div className="absolute inset-0 flex items-center justify-center">
-                        <span className="bg-sky-500 text-white font-black text-[10px] px-1.5 py-0.5 rounded shadow-xs">
-                          Wave
-                        </span>
-                      </div>
-                    </div>
-                    <span className="text-[10px] font-black text-slate-800 mt-1 uppercase">Scan QR Wave</span>
-                  </div>
-
-                  <div className="space-y-2 flex-1 text-xs text-slate-700">
-                    <span className="text-xs font-black text-sky-800 uppercase tracking-wider block">
-                      Règlement direct par Wave
-                    </span>
-                    <p>
-                      1. Ouvrez votre application <strong>Wave</strong> sur votre téléphone ou cliquez sur le lien ci-dessous.
-                    </p>
-                    <p>
-                      2. Effectuez le virement de <strong className="text-slate-900 font-mono font-bold">{finalPriceFcfa.toLocaleString('fr-FR')} FCFA</strong> vers le numéro officiel Praxis :
-                    </p>
-                    <div className="flex items-center gap-2 pt-1">
-                      <code className="bg-white text-sky-900 font-mono font-extrabold text-sm px-3 py-1.5 rounded-xl border border-sky-300">
-                        +225 01 03 89 03 14
-                      </code>
-                      <button
-                        type="button"
-                        onClick={() => handleCopyWaveNumber('+2250103890314')}
-                        className="px-2.5 py-1.5 rounded-xl bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 text-[11px] font-bold flex items-center gap-1 cursor-pointer transition-colors shadow-2xs"
-                      >
-                        <Copy className="w-3 h-3" />
-                        <span>{copyFeedback ? 'Copié !' : 'Copier'}</span>
-                      </button>
-                    </div>
-
-                    <div className="pt-2">
-                      <a
-                        href={`https://wave.com/pay/?amount=${finalPriceFcfa}&recipient=${encodeURIComponent('+2250103890314')}&memo=${encodeURIComponent(`Praxis ${currentPlan.name} ${teacherName || 'Professeur'}`)}`}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="inline-flex items-center gap-1.5 text-xs font-bold text-sky-700 hover:text-sky-900 underline"
-                      >
-                        <span>Ouvrir l'application Wave pour payer</span>
-                        <ExternalLink className="w-3.5 h-3.5" />
-                      </a>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* Inputs: Teacher Coordinates */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div className="space-y-1">
-                <label className="text-xs font-bold text-slate-700 block">Votre nom complet * :</label>
-                <input
-                  type="text"
-                  required
-                  value={teacherName}
-                  onChange={(e) => setTeacherName(e.target.value)}
-                  placeholder="Ex: Professeur Jean-Marc"
-                  className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium text-slate-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600"
-                />
-              </div>
-
-              <div className="space-y-1">
-                <label className="text-xs font-bold text-slate-700 block">Numéro WhatsApp / Téléphone * :</label>
-                <input
-                  type="tel"
-                  required
-                  value={teacherPhone}
-                  onChange={(e) => setTeacherPhone(e.target.value)}
-                  placeholder="Ex: +225 07 12 34 56 78"
-                  className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium text-slate-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600"
-                />
-              </div>
-
-              <div className="space-y-1">
-                <label className="text-xs font-bold text-slate-700 block">Adresse email :</label>
-                <input
-                  type="email"
-                  value={teacherEmail}
-                  onChange={(e) => setTeacherEmail(e.target.value)}
-                  placeholder="jean.marc@education.ci"
-                  className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium text-slate-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600"
-                />
-              </div>
-
-              <div className="space-y-1">
-                <label className="text-xs font-bold text-slate-700 block">
-                  {paymentMethod === 'wave' ? 'Référence de transaction Wave :' : 'Nom sur la carte :'}
-                </label>
-                <input
-                  type="text"
-                  value={transactionRef}
-                  onChange={(e) => setTransactionRef(e.target.value)}
-                  placeholder={paymentMethod === 'wave' ? 'Ex: TX-984210' : 'M. Jean-Marc'}
-                  className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium text-slate-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600"
-                />
-              </div>
-            </div>
-
-            {errorMsg && (
-              <div className="p-3 bg-rose-50 border border-rose-200 text-rose-800 text-xs font-bold rounded-xl animate-in fade-in">
-                {errorMsg}
-              </div>
-            )}
-
-            {/* Validation CTA Button */}
-            <div className="pt-2">
-              <button
-                type="submit"
-                disabled={isProcessing}
-                className="w-full py-4 px-6 rounded-2xl bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-black text-sm sm:text-base flex items-center justify-center gap-2 shadow-md shadow-blue-600/30 transition-all cursor-pointer"
-              >
-                {isProcessing ? (
-                  <>
-                    <RefreshCw className="w-5 h-5 animate-spin" />
-                    <span>Validation du paiement en cours...</span>
-                  </>
-                ) : (
-                  <>
-                    <Lock className="w-4 h-4" />
-                    <span>
-                      Confirmer et activer {currentPlan.corrections} corrections ({finalPriceFcfa.toLocaleString('fr-FR')} FCFA)
-                    </span>
-                    <ArrowRight className="w-4 h-4" />
-                  </>
-                )}
-              </button>
-
-              <p className="text-[11px] text-center text-slate-400 mt-2.5 flex items-center justify-center gap-1.5">
-                <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
-                <span>Paiement sécurisé · Activation instantanée de vos crédits sur votre compte</span>
-              </p>
-            </div>
-          </form>
-        )}
-      </section>
-
-      {/* 5. ACCORDION FAQ REGARDING CREDITS AND PROMOTIONS */}
-      <section className="bg-white p-6 sm:p-8 rounded-3xl border border-slate-200/90 shadow-xs space-y-4">
-        <h3 className="text-base sm:text-lg font-extrabold text-slate-900 flex items-center gap-2 border-b border-slate-100 pb-3">
-          <HelpCircle className="w-4 h-4 text-blue-600" />
-          <span>Questions fréquentes sur les corrections et le paiement</span>
-        </h3>
-
-        <div className="space-y-2 text-xs">
-          {[
-            {
-              q: 'Comment s’applique la réduction avec un code promo ?',
-              a: 'Si vous avez reçu un code promo (par exemple via un professeur partenaire comme PROFJEAN), saisissez-le dans le champ "Code promo" lors de votre souscription. La réduction de 30% s’applique immédiatement sur le montant de votre premier mois. Les mois suivants sont facturés au prix normal de 5 000 FCFA.',
-            },
-            {
-              q: 'Que se passe-t-il avec mes corrections restantes à la fin du mois ?',
-              a: 'Elles ne disparaissent jamais ! Si vous avez 70 corrections restantes et que votre abonnement mensuel se renouvelle : 70 restantes + 500 nouvelles = 570 corrections disponibles. Les corrections mensuelles sont cumulables jusqu’à 1 500 crédits.',
-            },
-            {
-              q: 'Les corrections des recharges supplémentaires (+100, +500) expirent-elles ?',
-              a: 'Non, jamais. Les corrections achetées séparément en recharge restent disponibles sur votre compte indéfiniment tant que celui-ci est actif.',
-            },
-            {
-              q: 'Puis-je payer directement avec mon solde Wave en Côte d’Ivoire ou au Sénégal ?',
-              a: 'Oui, à 100%. Wave est intégré avec 0% de frais additionnels. Le virement est instantané et votre compte Praxis est crédité en quelques secondes.',
-            },
-          ].map((item, idx) => {
-            const isOpen = faqOpenIndex === idx;
             return (
-              <div key={idx} className="rounded-2xl border border-slate-100 bg-slate-50/50 overflow-hidden">
-                <button
-                  type="button"
-                  onClick={() => setFaqOpenIndex(isOpen ? null : idx)}
-                  className="w-full p-3.5 text-left font-bold text-slate-800 hover:text-blue-700 flex items-center justify-between gap-3 cursor-pointer"
-                >
-                  <span>{item.q}</span>
-                  {isOpen ? <ChevronUp className="w-4 h-4 text-slate-400 shrink-0" /> : <ChevronDown className="w-4 h-4 text-slate-400 shrink-0" />}
-                </button>
-                {isOpen && (
-                  <div className="p-3.5 pt-0 text-slate-600 text-xs leading-relaxed border-t border-slate-100 bg-white">
-                    {item.a}
+              <div
+                key={plan.id}
+                className={`relative flex flex-col justify-between rounded-2xl p-6 transition-all duration-200 ${
+                  isFeatured
+                    ? 'bg-white dark:bg-slate-900 border-2 border-blue-600 dark:border-blue-500 shadow-md ring-1 ring-blue-600/20 md:-translate-y-1'
+                    : 'bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700 shadow-xs'
+                }`}
+              >
+                {/* Single recommended badge */}
+                {plan.badge && (
+                  <div className="absolute -top-3.5 left-1/2 -translate-x-1/2 px-3 py-1 rounded-full bg-blue-600 text-white text-[11px] font-bold tracking-wide shadow-xs whitespace-nowrap">
+                    {plan.badge}
                   </div>
                 )}
+
+                <div>
+                  {/* Plan Name & Tag */}
+                  <div className="flex items-center justify-between gap-2">
+                    <h2 className="text-lg font-bold text-slate-900 dark:text-white">
+                      {plan.name}
+                    </h2>
+                    {plan.unitCostFcfa && (
+                      <span className="text-[11px] font-medium text-slate-600 dark:text-slate-300 bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded">
+                        {plan.unitCostFcfa}
+                      </span>
+                    )}
+                  </div>
+
+                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-2 min-h-[36px] leading-relaxed">
+                    {plan.description}
+                  </p>
+
+                  {/* Price Box */}
+                  <div className="mt-4 pb-4 border-b border-slate-100 dark:border-slate-800">
+                    <div className="flex items-baseline gap-1.5 flex-wrap">
+                      <span className="text-2xl sm:text-3xl font-extrabold tracking-tight text-slate-900 dark:text-white tabular-nums">
+                        {price}
+                      </span>
+                      <span className="text-xs font-medium text-slate-500 dark:text-slate-400">
+                        {plan.periodLabel}
+                      </span>
+                    </div>
+
+                    {/* Calculated monthly rate or summary */}
+                    {plan.monthlyEquivalentFcfa ? (
+                      <div className="mt-2 text-xs font-semibold text-blue-700 dark:text-blue-400">
+                        {currency === 'XOF' ? plan.monthlyEquivalentFcfa : plan.monthlyEquivalentEur}
+                        {plan.savingsLabel && (
+                          <div className="text-[11px] text-emerald-700 dark:text-emerald-400 font-medium mt-0.5">
+                            {plan.savingsLabel}
+                          </div>
+                        )}
+                      </div>
+                    ) : (
+                      <div className="mt-2 text-xs font-medium text-slate-600 dark:text-slate-300">
+                        {plan.corrections} corrections incluses
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Features list */}
+                  <div className="py-4">
+                    <div className="text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-2.5">
+                      Inclus dans cette formule :
+                    </div>
+                    <ul className="space-y-2">
+                      {plan.features.map((feat, i) => (
+                        <li key={i} className="flex items-start gap-2 text-xs text-slate-600 dark:text-slate-300 leading-normal">
+                          <Check className={`w-3.5 h-3.5 shrink-0 mt-0.5 stroke-[2.5] ${isFeatured ? 'text-blue-600 dark:text-blue-400' : 'text-slate-700 dark:text-slate-300'}`} />
+                          <span>{feat}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                </div>
+
+                {/* Call to action button */}
+                <div className="pt-4 mt-auto">
+                  {isFree ? (
+                    <button
+                      type="button"
+                      onClick={onStartCorrection}
+                      className="w-full py-2.5 px-3 rounded-xl text-xs font-bold border border-slate-300 dark:border-slate-700 text-slate-800 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer flex items-center justify-center gap-1.5"
+                    >
+                      <span>{currentLead ? 'Tester sur une copie' : 'Commencer gratuitement'}</span>
+                      <span>→</span>
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => handleOpenCheckout(plan.id as PaywallPlanId)}
+                      className={`w-full py-2.5 px-3 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
+                        isFeatured
+                          ? 'bg-blue-600 text-white hover:bg-blue-700 shadow-sm'
+                          : 'border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white hover:bg-slate-100 dark:hover:bg-slate-800'
+                      }`}
+                    >
+                      <span>{plan.ctaLabel}</span>
+                      <span>→</span>
+                    </button>
+                  )}
+                </div>
               </div>
             );
           })}
         </div>
       </section>
+
+      {/* CORRECTIONS SUPPLÉMENTAIRES (PACKS DE RECHARGE) */}
+      <section className="max-w-5xl mx-auto px-4 sm:px-6 pb-20">
+        <div className="border-t border-slate-200 dark:border-slate-800 pt-12">
+          <div className="text-center max-w-xl mx-auto mb-8">
+            <h3 className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-white">
+              Besoin de plus de corrections ?
+            </h3>
+            <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-400 mt-2 leading-relaxed">
+              Ajoutez des corrections supplémentaires quand votre quota ne suffit plus. Vos corrections achetées restent disponibles séparément de votre abonnement.
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+            {EXTRA_PACKS.map((pack) => {
+              const packPrice = currency === 'XOF' ? `${pack.priceFcfa.toLocaleString('fr-FR')} FCFA` : `${pack.priceEur.toFixed(2)} €`;
+
+              return (
+                <div
+                  key={pack.id}
+                  className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-5 flex flex-col justify-between hover:border-slate-300 dark:hover:border-slate-700 transition-colors shadow-2xs"
+                >
+                  <div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-base font-bold text-slate-900 dark:text-white">
+                        {pack.name}
+                      </span>
+                      <span className="text-sm font-extrabold text-slate-900 dark:text-white tabular-nums">
+                        {packPrice}
+                      </span>
+                    </div>
+
+                    <p className="text-xs text-slate-500 dark:text-slate-400 mt-2 leading-relaxed">
+                      {pack.description}
+                    </p>
+
+                    <div className="mt-4 pt-3 border-t border-slate-100 dark:border-slate-800 space-y-1.5">
+                      {pack.features.map((f, i) => (
+                        <div key={i} className="text-[11px] text-slate-600 dark:text-slate-300 flex items-center gap-2">
+                          <Check className="w-3 h-3 text-blue-600 dark:text-blue-400 shrink-0" />
+                          <span>{f}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="mt-5">
+                    <button
+                      type="button"
+                      onClick={() => handleOpenCheckout(pack.id as PaywallPlanId)}
+                      className="w-full py-2 px-3 text-xs font-bold rounded-lg border border-slate-300 dark:border-slate-700 text-slate-800 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
+                    >
+                      <span>{pack.ctaLabel}</span>
+                      <span>→</span>
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </section>
+
+      {/* TABLEAU COMPARATIF SIMPLE */}
+      <section className="max-w-4xl mx-auto px-4 sm:px-6 pb-20">
+        <div className="border-t border-slate-200 dark:border-slate-800 pt-12">
+          <div className="text-center mb-8">
+            <h3 className="text-lg sm:text-xl font-bold text-slate-900 dark:text-white">
+              Synthèse comparative des formules
+            </h3>
+            <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+              Toutes les formules bénéficient du moteur de correction complet Praxis.
+            </p>
+          </div>
+
+          <div className="overflow-x-auto rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-2xs">
+            <table className="w-full text-xs text-left">
+              <thead>
+                <tr className="border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/60 text-slate-800 dark:text-slate-200 font-semibold">
+                  <th className="py-3 px-4">Critère</th>
+                  <th className="py-3 px-3 text-center">Gratuit</th>
+                  <th className="py-3 px-3 text-center">Mensuel</th>
+                  <th className="py-3 px-3 text-center">3 mois</th>
+                  <th className="py-3 px-3 text-center font-bold text-blue-700 dark:text-blue-400">Année scolaire</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100 dark:divide-slate-800 text-slate-600 dark:text-slate-300">
+                <tr>
+                  <td className="py-3 px-4 font-medium text-slate-900 dark:text-white">Corrections incluses</td>
+                  <td className="py-3 px-3 text-center">50 copies</td>
+                  <td className="py-3 px-3 text-center">500 / mois</td>
+                  <td className="py-3 px-3 text-center">1 500 total</td>
+                  <td className="py-3 px-3 text-center font-bold text-slate-900 dark:text-white">4 500 total</td>
+                </tr>
+                <tr>
+                  <td className="py-3 px-4 font-medium text-slate-900 dark:text-white">Tarif total</td>
+                  <td className="py-3 px-3 text-center font-semibold text-emerald-600">0 FCFA</td>
+                  <td className="py-3 px-3 text-center">5 000 FCFA</td>
+                  <td className="py-3 px-3 text-center">12 000 FCFA</td>
+                  <td className="py-3 px-3 text-center font-bold text-slate-900 dark:text-white">30 000 FCFA</td>
+                </tr>
+                <tr>
+                  <td className="py-3 px-4 font-medium text-slate-900 dark:text-white">Coût mensuel équivalent</td>
+                  <td className="py-3 px-3 text-center">—</td>
+                  <td className="py-3 px-3 text-center">5 000 FCFA / m</td>
+                  <td className="py-3 px-3 text-center">4 000 FCFA / m</td>
+                  <td className="py-3 px-3 text-center font-bold text-blue-700 dark:text-blue-400">≈ 3 333 FCFA / m</td>
+                </tr>
+                <tr>
+                  <td className="py-3 px-4 font-medium text-slate-900 dark:text-white">Report des crédits non utilisés</td>
+                  <td className="py-3 px-3 text-center">Sans limite</td>
+                  <td className="py-3 px-3 text-center">Jusqu'à 1 500</td>
+                  <td className="py-3 px-3 text-center">Oui</td>
+                  <td className="py-3 px-3 text-center font-bold text-slate-900 dark:text-white">Toute l'année</td>
+                </tr>
+                <tr>
+                  <td className="py-3 px-4 font-medium text-slate-900 dark:text-white">Packs de recharge compatibles</td>
+                  <td className="py-3 px-3 text-center">Oui</td>
+                  <td className="py-3 px-3 text-center">Oui</td>
+                  <td className="py-3 px-3 text-center">Oui</td>
+                  <td className="py-3 px-3 text-center font-bold text-slate-900 dark:text-white">Oui</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      {/* FAQ DE 5 QUESTIONS PRÉCISES */}
+      <section className="max-w-3xl mx-auto px-4 sm:px-6 pb-24">
+        <div className="border-t border-slate-200 dark:border-slate-800 pt-12">
+          <h3 className="text-xl font-bold text-center text-slate-900 dark:text-white mb-8">
+            Questions fréquentes
+          </h3>
+
+          <div className="space-y-3">
+            {[
+              {
+                q: 'Qu’est-ce qu’une correction ?',
+                a: 'Une correction correspond à une copie d’élève, même si cette copie contient plusieurs pages (recto-verso, copies doubles). Le nombre de pages ne change pas le décompte en corrections.',
+              },
+              {
+                q: 'Que se passe-t-il si je dépasse mes 500 corrections ?',
+                a: 'Vos corrections ne sont jamais interrompues. Vous pouvez à tout moment ajouter une recharge de +100, +500 ou +1 000 corrections pour continuer à corriger sans modifier votre formule en cours.',
+              },
+              {
+                q: 'Mes corrections restantes disparaissent-elles à la fin de mon abonnement ?',
+                a: 'Non. Vos recharges achetées restent acquises sans date d’expiration. Pour vos crédits d’abonnement, ils sont gelés à l’échéance et sont immédiatement réactivés dès le renouvellement de votre formule.',
+              },
+              {
+                q: 'Quels moyens de paiement sont disponibles ?',
+                a: 'Les paiements sont traités de manière sécurisée et instantanée par Paystack. Vous pouvez régler par Mobile Money (Wave, Orange Money, MTN MoMo, Moov) ou par Carte bancaire (Visa, Mastercard).',
+              },
+              {
+                q: 'Les copies de mes élèves sont-elles sécurisées ?',
+                a: 'Oui. Les photos et devoirs importés sont traités uniquement dans le cadre de la pré-correction pédagogique demandée. Vos documents restent confidentiels et sous votre contrôle final.',
+              },
+            ].map((faq, index) => {
+              const isOpen = openFaqIndex === index;
+              return (
+                <div
+                  key={index}
+                  className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 overflow-hidden"
+                >
+                  <button
+                    type="button"
+                    onClick={() => setOpenFaqIndex(isOpen ? null : index)}
+                    className="w-full py-4 px-5 text-left flex items-center justify-between gap-4 text-xs sm:text-sm font-semibold text-slate-900 dark:text-white cursor-pointer"
+                  >
+                    <span>{faq.q}</span>
+                    <span className="text-slate-400 shrink-0">
+                      {isOpen ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                    </span>
+                  </button>
+                  {isOpen && (
+                    <div className="px-5 pb-4 text-xs text-slate-600 dark:text-slate-300 leading-relaxed border-t border-slate-100 dark:border-slate-800 pt-3">
+                      {faq.a}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+
+          {onOpenContact && (
+            <div className="text-center mt-8">
+              <p className="text-xs text-slate-500 dark:text-slate-400">
+                Vous représentez un établissement scolaire ou une coordination ?{' '}
+                <button
+                  type="button"
+                  onClick={onOpenContact}
+                  className="font-semibold text-blue-600 dark:text-blue-400 hover:underline cursor-pointer"
+                >
+                  Contactez notre équipe
+                </button>
+              </p>
+            </div>
+          )}
+        </div>
+      </section>
+
+      {/* CHECKOUT SLIDE-OVER (SÉPARÉ DE LA GRILLE, PROPRE ET SANS IMAGES INEXACTES) */}
+      {checkoutOpen && (
+        <div className="fixed inset-0 z-50 overflow-hidden">
+          {/* Backdrop */}
+          <div
+            className="absolute inset-0 bg-slate-900/60 backdrop-blur-xs transition-opacity"
+            onClick={handleCloseCheckout}
+          />
+
+          <div className="fixed inset-y-0 right-0 max-w-full flex pl-4 sm:pl-16">
+            <div className="w-screen max-w-lg bg-white dark:bg-slate-900 shadow-2xl flex flex-col justify-between border-l border-slate-200 dark:border-slate-800 animate-in slide-in-from-right duration-200">
+              {/* Header */}
+              <div className="p-6 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between">
+                <div>
+                  <h3 className="text-base font-bold text-slate-900 dark:text-white">
+                    Finaliser votre commande
+                  </h3>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                    Activation instantanée · Paiement sécurisé Paystack
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleCloseCheckout}
+                  className="w-8 h-8 rounded-lg flex items-center justify-center text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              {/* Body */}
+              <div className="p-6 overflow-y-auto space-y-6 flex-1">
+                {/* Résumé de commande */}
+                <div className="rounded-xl p-4 bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700">
+                  <div className="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400">
+                    <span>Formule choisie :</span>
+                    <span className="font-semibold text-slate-700 dark:text-slate-200 uppercase tracking-wide">
+                      {selectedPlan.category === 'subscription' ? 'Abonnement' : 'Recharge'}
+                    </span>
+                  </div>
+
+                  <div className="mt-2 flex items-baseline justify-between">
+                    <div>
+                      <h4 className="text-base font-bold text-slate-900 dark:text-white">
+                        {selectedPlan.name}
+                      </h4>
+                      <div className="text-xs text-slate-600 dark:text-slate-300 mt-0.5">
+                        {selectedPlan.corrections} corrections incluses
+                      </div>
+                    </div>
+
+                    <div className="text-right">
+                      {discountPercent > 0 ? (
+                        <div>
+                          <span className="text-xs line-through text-slate-400 block tabular-nums">
+                            {currency === 'XOF' ? `${basePriceFcfa.toLocaleString('fr-FR')} F` : `${basePriceEur.toFixed(2)} €`}
+                          </span>
+                          <span className="text-lg font-extrabold text-blue-700 dark:text-blue-400 tabular-nums">
+                            {currency === 'XOF' ? `${finalPriceFcfa.toLocaleString('fr-FR')} FCFA` : `${finalPriceEur.toFixed(2)} €`}
+                          </span>
+                        </div>
+                      ) : (
+                        <span className="text-lg font-extrabold text-slate-900 dark:text-white tabular-nums">
+                          {currency === 'XOF' ? `${basePriceFcfa.toLocaleString('fr-FR')} FCFA` : `${basePriceEur.toFixed(2)} €`}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="mt-3 pt-3 border-t border-slate-200 dark:border-slate-700 text-[11px] text-slate-500 dark:text-slate-400 flex items-center justify-between">
+                    <span>1 correction = 1 copie d’élève (multi-pages)</span>
+                    <span className="font-semibold text-slate-700 dark:text-slate-300">
+                      {selectedPlan.unitCostFcfa}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Moyens de paiement (Texte & Badges typographiques propres - SANS images inexactes) */}
+                <div className="space-y-2.5">
+                  <label className="text-xs font-bold text-slate-800 dark:text-slate-200 block">
+                    Moyens de paiement acceptés via Paystack :
+                  </label>
+
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                    <div className="py-2.5 px-3 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-center">
+                      <div className="text-xs font-bold text-slate-900 dark:text-white">Wave</div>
+                      <div className="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5">Mobile Money</div>
+                    </div>
+                    <div className="py-2.5 px-3 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-center">
+                      <div className="text-xs font-bold text-slate-900 dark:text-white">Orange</div>
+                      <div className="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5">Orange Money</div>
+                    </div>
+                    <div className="py-2.5 px-3 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-center">
+                      <div className="text-xs font-bold text-slate-900 dark:text-white">MTN & Moov</div>
+                      <div className="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5">MoMo & Moov</div>
+                    </div>
+                    <div className="py-2.5 px-3 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-center">
+                      <div className="text-xs font-bold text-slate-900 dark:text-white">Cartes CB</div>
+                      <div className="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5">Visa / Mastercard</div>
+                    </div>
+                  </div>
+
+                  <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-normal">
+                    Réglez en toute sécurité par Mobile Money ou Carte bancaire. Aucun compte Paystack requis, déblocage automatique immédiat.
+                  </p>
+                </div>
+
+                {/* Formulaire client */}
+                <form id="checkout-form" onSubmit={handleStartPaystackPayment} className="space-y-4">
+                  <div>
+                    <label className="text-xs font-semibold text-slate-800 dark:text-slate-200 block mb-1">
+                      Votre adresse email <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      type="email"
+                      required
+                      value={teacherEmail}
+                      onChange={(e) => setTeacherEmail(e.target.value)}
+                      placeholder="professeur@etablissement.ci"
+                      className="w-full text-xs px-3.5 py-2.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-hidden focus:ring-2 focus:ring-blue-600"
+                    />
+                    <span className="text-[10px] text-slate-500 dark:text-slate-400 mt-1 block">
+                      Votre reçu et vos crédits de correction seront attribués à cette adresse.
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="text-xs font-semibold text-slate-800 dark:text-slate-200 block mb-1">
+                        Nom complet (optionnel)
+                      </label>
+                      <input
+                        type="text"
+                        value={teacherName}
+                        onChange={(e) => setTeacherName(e.target.value)}
+                        placeholder="M. / Mme Nom"
+                        className="w-full text-xs px-3.5 py-2.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-hidden focus:ring-2 focus:ring-blue-600"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-xs font-semibold text-slate-800 dark:text-slate-200 block mb-1">
+                        Numéro WhatsApp (optionnel)
+                      </label>
+                      <input
+                        type="tel"
+                        value={teacherPhone}
+                        onChange={(e) => setTeacherPhone(e.target.value)}
+                        placeholder="+225 07..."
+                        className="w-full text-xs px-3.5 py-2.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-hidden focus:ring-2 focus:ring-blue-600"
+                      />
+                    </div>
+                  </div>
+                </form>
+
+                {/* Promo Code Toggle */}
+                <div className="border-t border-slate-200 dark:border-slate-800 pt-3">
+                  {!promoExpanded && !appliedPromo ? (
+                    <button
+                      type="button"
+                      onClick={() => setPromoExpanded(true)}
+                      className="text-xs font-semibold text-blue-600 dark:text-blue-400 hover:underline cursor-pointer"
+                    >
+                      Vous avez un code promo ?
+                    </button>
+                  ) : (
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <label className="text-xs font-semibold text-slate-800 dark:text-slate-200">
+                          Code promo
+                        </label>
+                        {!appliedPromo && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setPromoExpanded(false);
+                              setPromoError('');
+                            }}
+                            className="text-[11px] text-slate-400 hover:text-slate-600 cursor-pointer"
+                          >
+                            Annuler
+                          </button>
+                        )}
+                      </div>
+
+                      {appliedPromo ? (
+                        <div className="flex items-center justify-between p-2.5 rounded-lg bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 text-xs text-emerald-800 dark:text-emerald-300">
+                          <div className="flex items-center gap-2">
+                            <Check className="w-3.5 h-3.5 stroke-[2.5]" />
+                            <span>Code <strong>{appliedPromo.code}</strong> appliqué (-{appliedPromo.discountPercent}%)</span>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => setAppliedPromo(null)}
+                            className="text-[11px] font-medium text-emerald-900 dark:text-emerald-200 underline cursor-pointer"
+                          >
+                            Retirer
+                          </button>
+                        </div>
+                      ) : (
+                        <div className="flex gap-2">
+                          <input
+                            type="text"
+                            value={promoCodeInput}
+                            onChange={(e) => setPromoCodeInput(e.target.value.toUpperCase())}
+                            placeholder="Ex: PROMO30"
+                            className="flex-1 text-xs px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white font-mono uppercase"
+                          />
+                          <button
+                            type="button"
+                            disabled={isValidatingPromo || !promoCodeInput.trim()}
+                            onClick={() => applyPromoCode(promoCodeInput)}
+                            className="px-3 py-2 text-xs font-bold rounded-lg bg-slate-900 text-white dark:bg-white dark:text-slate-900 hover:bg-slate-800 dark:hover:bg-slate-100 disabled:opacity-50 transition-colors cursor-pointer"
+                          >
+                            {isValidatingPromo ? '...' : 'Appliquer'}
+                          </button>
+                        </div>
+                      )}
+
+                      {promoError && (
+                        <p className="text-[11px] text-red-600 dark:text-red-400">
+                          {promoError}
+                        </p>
+                      )}
+                    </div>
+                  )}
+                </div>
+
+                {errorMsg && (
+                  <div className="p-3 rounded-lg bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-800 text-xs text-red-700 dark:text-red-300">
+                    {errorMsg}
+                  </div>
+                )}
+              </div>
+
+              {/* Footer */}
+              <div className="p-6 border-t border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 space-y-3">
+                <button
+                  type="submit"
+                  form="checkout-form"
+                  disabled={isProcessing}
+                  className="w-full py-3.5 px-4 rounded-xl text-sm font-bold bg-blue-600 hover:bg-blue-700 text-white disabled:opacity-60 transition-all shadow-sm flex items-center justify-center gap-2 cursor-pointer"
+                >
+                  {isProcessing ? (
+                    <span>Connexion à Paystack...</span>
+                  ) : (
+                    <>
+                      <span>Payer {currency === 'XOF' ? `${finalPriceFcfa.toLocaleString('fr-FR')} FCFA` : `${finalPriceEur.toFixed(2)} €`}</span>
+                      <span>→</span>
+                    </>
+                  )}
+                </button>
+
+                <div className="flex items-center justify-center gap-2 text-[11px] text-slate-500 dark:text-slate-400">
+                  <Lock className="w-3.5 h-3.5 text-slate-400" />
+                  <span>Paiement chiffré 256-bit opéré par Paystack · Validation instantanée</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

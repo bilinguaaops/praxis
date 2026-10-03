@@ -20,9 +20,7 @@ import {
   TrendingDown,
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
-import { LeadData, SaaSPlan } from '../types';
-
-export type PaywallPlanId = 'monthly' | 'quarterly' | 'school_year' | 'extra_100' | 'extra_500';
+import { LeadData, SaaSPlan, PaywallPlanId } from '../types';
 
 interface PaywallModalProps {
   isOpen: boolean;
@@ -160,6 +158,24 @@ const PLANS: PlanOption[] = [
       'Cumulable avec tout abonnement',
     ],
   },
+  {
+    id: 'extra_1000',
+    name: 'Recharge Extra +1 000',
+    category: 'pack',
+    priceFcfa: 10000,
+    priceEur: 15.20,
+    period: 'paiement unique',
+    copiesIncluded: 1000,
+    badge: 'Grand Pack Économique',
+    popular: false,
+    description: '+1 000 corrections supplémentaires permanentes. Idéal pour les grands examens et fins d’année.',
+    features: [
+      '+1 000 corrections permanentes',
+      'Validité sans date de fin',
+      'Idéal examens et corrections massives',
+      'Cumulable avec tout abonnement',
+    ],
+  },
 ];
 
 export const PaywallModal: React.FC<PaywallModalProps> = ({
@@ -173,7 +189,7 @@ export const PaywallModal: React.FC<PaywallModalProps> = ({
   const [currency, setCurrency] = useState<'XOF' | 'EUR'>('XOF');
   const [selectedPlanId, setSelectedPlanId] = useState<PaywallPlanId>(initialPlanId);
   const [tabCategory, setTabCategory] = useState<'all' | 'subscriptions' | 'extra'>('all');
-  const [paymentMethod, setPaymentMethod] = useState<'wave' | 'card'>('wave');
+  const [paymentMethod, setPaymentMethod] = useState<'paystack' | 'wave' | 'card'>('paystack');
 
   // Customer form fields
   const [email, setEmail] = useState('');
@@ -354,6 +370,48 @@ export const PaywallModal: React.FC<PaywallModalProps> = ({
     setIsSubmitting(true);
 
     try {
+      // 1. Paystack Flow: initialize and redirect to Paystack checkout
+      if (paymentMethod === 'paystack') {
+        if (!email.trim()) {
+          setErrorMsg('Votre adresse email est obligatoire pour recevoir votre reçu et activer Paystack.');
+          setIsSubmitting(false);
+          return;
+        }
+
+        const initRes = await fetch('/api/paystack/initialize', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            planId: selectedPlanId,
+            name: name.trim() || 'Enseignant',
+            email: email.trim(),
+            whatsapp: wavePhone.trim(),
+            currency,
+            promoCode: appliedPromo ? appliedPromo.code : undefined,
+            callbackUrl: window.location.origin + '/?paystack_ref=init',
+          }),
+        });
+
+        const initData = await initRes.json();
+        if (!initRes.ok || !initData.success) {
+          throw new Error(initData.error || 'Impossible d’initialiser le paiement Paystack.');
+        }
+
+        if (initData.authorizationUrl) {
+          const pendingLead = {
+            name: name.trim(),
+            email: email.trim(),
+            whatsapp: wavePhone.trim(),
+            plan: selectedPlanId,
+            reference: initData.reference,
+          };
+          localStorage.setItem('praxis_pending_paystack', JSON.stringify(pendingLead));
+          window.location.href = initData.authorizationUrl;
+          return;
+        }
+      }
+
+      // 2. Wave manual or Card flow
       const payload = {
         email: email.trim(),
         name: name.trim() || 'Enseignant',
@@ -818,7 +876,33 @@ export const PaywallModal: React.FC<PaywallModalProps> = ({
                 <span>Choisissez votre moyen de paiement</span>
               </label>
 
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                {/* PAYSTACK BUTTON */}
+                <button
+                  type="button"
+                  onClick={() => setPaymentMethod('paystack')}
+                  className={`p-3.5 rounded-xl border-2 transition-all cursor-pointer text-left flex items-start gap-3 ${
+                    paymentMethod === 'paystack'
+                      ? 'border-emerald-500 bg-emerald-50/50 shadow-xs ring-1 ring-emerald-500'
+                      : 'border-slate-200 hover:border-slate-300 bg-white'
+                  }`}
+                >
+                  <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-emerald-600 to-teal-500 text-white flex items-center justify-center shrink-0 shadow-xs font-black text-sm">
+                    ⚡
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <span className="font-extrabold text-slate-900 text-sm">Paystack</span>
+                      <span className="px-1.5 py-0.2 rounded text-[10px] font-extrabold bg-emerald-100 text-emerald-900">
+                        Instantané
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-slate-600 mt-0.5 leading-snug">
+                      Mobile Money & Cartes CB
+                    </p>
+                  </div>
+                </button>
+
                 {/* WAVE BUTTON */}
                 <button
                   type="button"
@@ -834,13 +918,13 @@ export const PaywallModal: React.FC<PaywallModalProps> = ({
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-1.5">
-                      <span className="font-extrabold text-slate-900 text-sm">Wave</span>
+                      <span className="font-extrabold text-slate-900 text-sm">Wave Direct</span>
                       <span className="px-1.5 py-0.2 rounded text-[10px] font-extrabold bg-[#00D2FF]/20 text-cyan-900">
                         0% Frais
                       </span>
                     </div>
                     <p className="text-[11px] text-slate-600 mt-0.5 leading-snug">
-                      Mobile Money · Côte d'Ivoire & Sénégal
+                      Transfert manuel CI / SN
                     </p>
                   </div>
                 </button>
@@ -860,21 +944,104 @@ export const PaywallModal: React.FC<PaywallModalProps> = ({
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-1.5">
-                      <span className="font-extrabold text-slate-900 text-sm">Carte Bancaire</span>
-                      <span className="px-1.5 py-0.2 rounded text-[10px] font-extrabold bg-indigo-100 text-indigo-900">
-                        Visa · MC
-                      </span>
+                      <span className="font-extrabold text-slate-900 text-sm">Carte Directe</span>
                     </div>
                     <p className="text-[11px] text-slate-600 mt-0.5 leading-snug">
-                      Banques locales & International
+                      Formulaire classique Visa/MC
                     </p>
                   </div>
                 </button>
               </div>
             </div>
 
+            {/* Paystack Instructions Card */}
+            {paymentMethod === 'paystack' && (
+              <div className="p-4 sm:p-5 rounded-2xl bg-gradient-to-br from-emerald-50/70 via-teal-50/40 to-white border border-emerald-200 space-y-3">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-emerald-600 text-white flex items-center justify-center font-black text-lg shadow-xs shrink-0">
+                    ⚡
+                  </div>
+                  <div>
+                    <h4 className="font-extrabold text-slate-900 text-sm">
+                      Paiement Sécurisé Paystack ({selectedPlan.name})
+                    </h4>
+                    <p className="text-xs text-slate-600">
+                      Montant : <strong className="text-emerald-900 font-bold">{priceDisplay}</strong> · Activation instantanée de vos corrections
+                    </p>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-2 border-t border-emerald-100">
+                  <div className="py-2 px-2.5 rounded-lg bg-white border border-emerald-200/80 text-center font-bold text-xs text-slate-800 flex items-center justify-center gap-1.5">
+                    <span className="w-2 h-2 rounded-full bg-cyan-500"></span>
+                    <span>Wave</span>
+                  </div>
+                  <div className="py-2 px-2.5 rounded-lg bg-white border border-emerald-200/80 text-center font-bold text-xs text-slate-800 flex items-center justify-center gap-1.5">
+                    <span className="w-2 h-2 rounded-full bg-orange-500"></span>
+                    <span>Orange Money</span>
+                  </div>
+                  <div className="py-2 px-2.5 rounded-lg bg-white border border-emerald-200/80 text-center font-bold text-xs text-slate-800 flex items-center justify-center gap-1.5">
+                    <span className="w-2 h-2 rounded-full bg-amber-500"></span>
+                    <span>MTN MoMo</span>
+                  </div>
+                  <div className="py-2 px-2.5 rounded-lg bg-white border border-emerald-200/80 text-center font-bold text-xs text-slate-800 flex items-center justify-center gap-1.5">
+                    <CreditCard className="w-3.5 h-3.5 text-blue-600" />
+                    <span>Cartes CB</span>
+                  </div>
+                </div>
+              </div>
+            )}
+
             {/* Payment Details Form */}
             <form onSubmit={handleSubmitPayment} className="space-y-4">
+              {/* PAYSTACK CUSTOMER FORM */}
+              {paymentMethod === 'paystack' && (
+                <div className="p-4 sm:p-5 rounded-2xl bg-white border border-slate-200 space-y-3">
+                  <h4 className="font-extrabold text-slate-900 text-xs uppercase tracking-wider">
+                    Vos coordonnées pour le reçu et l'activation automatique
+                  </h4>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 mb-1">
+                        Adresse e-mail <span className="text-rose-500">*</span>
+                      </label>
+                      <input
+                        type="email"
+                        value={email}
+                        onChange={(e) => setEmail(e.target.value)}
+                        placeholder="votre.email@gmail.com"
+                        className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-xs text-slate-900 focus:ring-2 focus:ring-emerald-500 outline-hidden"
+                        required
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 mb-1">
+                        Nom complet
+                      </label>
+                      <input
+                        type="text"
+                        value={name}
+                        onChange={(e) => setName(e.target.value)}
+                        placeholder="M. ou Mme Nom"
+                        className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-xs text-slate-900 focus:ring-2 focus:ring-emerald-500 outline-hidden"
+                      />
+                    </div>
+                    <div className="sm:col-span-2">
+                      <label className="block text-xs font-bold text-slate-700 mb-1">
+                        Numéro WhatsApp / Téléphone Mobile Money
+                      </label>
+                      <input
+                        type="tel"
+                        value={wavePhone}
+                        onChange={(e) => setWavePhone(e.target.value)}
+                        placeholder="+225 07 00 00 00 00"
+                        className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-xs text-slate-900 focus:ring-2 focus:ring-emerald-500 outline-hidden font-mono"
+                      />
+                    </div>
+                  </div>
+                </div>
+              )}
+
               {/* WAVE FORM */}
               {paymentMethod === 'wave' && (
                 <div className="p-4 sm:p-5 rounded-2xl bg-gradient-to-b from-cyan-50/50 to-white border border-cyan-200 space-y-4">
@@ -1209,7 +1376,9 @@ export const PaywallModal: React.FC<PaywallModalProps> = ({
                   disabled={isSubmitting}
                   id="btn-confirm-paywall-payment"
                   className={`w-full py-3.5 px-4 rounded-xl text-white font-extrabold text-sm shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-60 ${
-                    paymentMethod === 'wave'
+                    paymentMethod === 'paystack'
+                      ? 'bg-emerald-600 hover:bg-emerald-700 shadow-emerald-600/30 ring-2 ring-emerald-500/20'
+                      : paymentMethod === 'wave'
                       ? 'bg-gradient-to-r from-[#00D2FF] to-blue-600 hover:from-[#00bde6] hover:to-blue-700 text-slate-950 font-black'
                       : 'bg-gradient-to-r from-blue-700 to-indigo-700 hover:from-blue-800 hover:to-indigo-800 text-white'
                   }`}
@@ -1217,7 +1386,17 @@ export const PaywallModal: React.FC<PaywallModalProps> = ({
                   {isSubmitting ? (
                     <>
                       <RefreshCw className="w-4 h-4 animate-spin" />
-                      <span>Validation du paiement...</span>
+                      <span>
+                        {paymentMethod === 'paystack'
+                          ? 'Redirection sécurisée vers Paystack...'
+                          : 'Validation du paiement...'}
+                      </span>
+                    </>
+                  ) : paymentMethod === 'paystack' ? (
+                    <>
+                      <Zap className="w-4 h-4 text-emerald-200" />
+                      <span>Payer {priceDisplay} via Paystack (Instantané)</span>
+                      <ArrowRight className="w-4 h-4" />
                     </>
                   ) : (
                     <>

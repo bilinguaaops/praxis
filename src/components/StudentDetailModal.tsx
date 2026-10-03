@@ -756,7 +756,7 @@ export const StudentDetailModal: React.FC<StudentDetailModalProps> = ({
                   : 'text-slate-400 hover:text-white'
               }`}
             >
-              📄 Copie
+              Copie
             </button>
             <button
               type="button"
@@ -767,7 +767,7 @@ export const StudentDetailModal: React.FC<StudentDetailModalProps> = ({
                   : 'text-slate-400 hover:text-white'
               }`}
             >
-              📊 Bilan & Note
+              Évaluation & Note
             </button>
             <button
               type="button"
@@ -778,7 +778,7 @@ export const StudentDetailModal: React.FC<StudentDetailModalProps> = ({
                   : 'text-slate-400 hover:text-white'
               }`}
             >
-              ⚖️ Les 2
+              Vue partagée
             </button>
           </div>
         </div>

@@ -19,6 +19,7 @@ import {
   Lock,
   Zap,
   CreditCard,
+  BarChart3,
 } from 'lucide-react';
 
 interface Step3ProgressProps {
@@ -438,13 +439,13 @@ export const Step3Progress: React.FC<Step3ProgressProps> = ({
       {activeLead && (
         <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-4 text-xs">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-blue-100 text-blue-700 flex items-center justify-center font-bold text-base shrink-0">
-              📊
+            <div className="w-9 h-9 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 flex items-center justify-center font-bold text-sm shrink-0">
+              <BarChart3 className="w-4 h-4" />
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <span className="font-extrabold text-slate-900 text-sm">{activeLead.name || 'Enseignant'}</span>
-                <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-blue-100 text-blue-800">
+                <span className="font-bold text-slate-900 dark:text-white text-sm">{activeLead.name || 'Enseignant'}</span>
+                <span className="px-2 py-0.5 rounded-md text-[10px] font-medium bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700">
                   {activeLead.plan === 'monthly'
                     ? 'Abonnement Mensuel'
                     : activeLead.plan === 'quarterly'
@@ -520,14 +521,13 @@ export const Step3Progress: React.FC<Step3ProgressProps> = ({
       )}
 
       {/* Progress Header Card */}
-      <div className="bg-white rounded-2xl border border-slate-200 shadow-xs p-4 sm:p-8">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-6 border-b border-slate-100">
+      <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-4 sm:p-6 shadow-2xs">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-5 border-b border-slate-100 dark:border-slate-800">
           <div>
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-50 text-blue-700 text-xs font-semibold mb-2">
-              <Sparkles className="w-3.5 h-3.5 text-blue-600 animate-pulse" />
-              Étape 3 : Évaluation Pédagogique
+            <div className="text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1">
+              Étape 3 sur 4 · Évaluation des copies
             </div>
-            <h1 className="text-xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">
+            <h1 className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-white tracking-tight">
               {isRunning
                 ? 'Correction des copies en cours...'
                 : allFinished

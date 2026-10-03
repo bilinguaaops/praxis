@@ -152,18 +152,17 @@ export const ClassesView: React.FC<ClassesViewProps> = ({
 
   return (
     <div className="max-w-6xl mx-auto space-y-6 pb-16">
-      {/* Header Banner */}
-      <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-xs flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+      {/* Header */}
+      <div className="pb-6 border-b border-slate-200 dark:border-slate-800 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
-          <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-blue-50 text-blue-700 text-xs font-semibold mb-2">
-            <Users className="w-3.5 h-3.5" />
-            Gestion des classes & Carnet de notes
+          <div className="text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+            Organisation scolaire
           </div>
-          <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">
-            Mes Classes & Rosters
+          <h1 className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-white tracking-tight mt-1">
+            Mes classes et élèves
           </h1>
-          <p className="text-xs sm:text-sm text-slate-500 mt-1">
-            Créez vos classes, entrez à l'intérieur pour suivre la moyenne de la classe, les notes des élèves et générer les bulletins.
+          <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-400 mt-1">
+            Gérez vos effectifs scolaires, suivez les moyennes et rattachez vos devoirs aux listes d’élèves.
           </p>
         </div>
 
@@ -175,7 +174,7 @@ export const ClassesView: React.FC<ClassesViewProps> = ({
             setEditingId(null);
             setShowForm(!showForm);
           }}
-          className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold transition-all shadow-xs cursor-pointer"
+          className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-slate-900 hover:bg-slate-800 text-white text-xs font-semibold transition-colors cursor-pointer shadow-2xs"
         >
           <Plus className="w-4 h-4" />
           <span>{showForm ? 'Fermer le formulaire' : 'Nouvelle classe'}</span>

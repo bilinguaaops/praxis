@@ -639,21 +639,17 @@ Q5 : B`;
 
   return (
     <div className="max-w-4xl mx-auto space-y-6 pb-12">
-      {/* Intro banner */}
-      <div className="bg-gradient-to-r from-blue-900 to-indigo-900 text-white rounded-2xl p-6 sm:p-8 shadow-sm">
-        <div className="max-w-2xl">
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-800/80 border border-blue-700 text-xs font-semibold text-blue-200 mb-3">
-            <Sparkles className="w-3.5 h-3.5" />
-            Étape 1 sur 4 : Paramétrage Pédagogique
-          </div>
-          <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight">
-            Configurez votre évaluation
-          </h1>
-          <p className="mt-2 text-sm sm:text-base text-blue-100/90 leading-relaxed">
-            Définissez la matière, le niveau académique, le barème et vos critères d'évaluation.
-            L'IA adaptera automatiquement son niveau d'exigence et son vocabulaire à vos élèves.
-          </p>
+      {/* Editorial Header */}
+      <div className="pb-6 border-b border-slate-200 dark:border-slate-800">
+        <div className="text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+          Étape 1 sur 4 · Configuration
         </div>
+        <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-slate-900 dark:text-white mt-1">
+          Matière, sujet et barème
+        </h1>
+        <p className="mt-1.5 text-xs sm:text-sm text-slate-600 dark:text-slate-400 leading-relaxed">
+          Définissez le cadre pédagogique de votre évaluation. Praxis adaptera automatiquement sa grille de notation aux exigences de votre discipline.
+        </p>
       </div>
 
       {/* AI Rubric Detection Notification */}

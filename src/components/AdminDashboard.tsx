@@ -1940,6 +1940,86 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToApp }) =
               </div>
             </div>
 
+            {/* Paystack Integration Card */}
+            <div className="bg-[#141C2E] border border-slate-800/90 rounded-2xl p-6 shadow-xl">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-6 border-b border-slate-800">
+                <div className="flex items-center gap-3.5">
+                  <div className="w-12 h-12 rounded-xl bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 flex items-center justify-center shrink-0">
+                    <Zap className="w-6 h-6" />
+                  </div>
+                  <div>
+                    <h3 className="text-base font-bold text-white flex items-center gap-2">
+                      <span>Passerelle Paystack (Paiements Cartes & Mobile Money)</span>
+                      {settings?.paystackConfigured ? (
+                        <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                          settings.paystackMode === 'live'
+                            ? 'bg-emerald-950 text-emerald-400 border border-emerald-800'
+                            : 'bg-amber-950 text-amber-400 border border-amber-800'
+                        }`}>
+                          {settings.paystackMode === 'live' ? '🟢 Live Production' : '🟡 Mode Test'}
+                        </span>
+                      ) : (
+                        <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-slate-800 text-slate-400 border border-slate-700">
+                          ⚪ En attente des clés API
+                        </span>
+                      )}
+                    </h3>
+                    <p className="text-xs text-slate-400 mt-0.5">
+                      Encaissement automatisé en FCFA (XOF) et EUR via Wave, Orange Money, MTN MoMo, Moov et Cartes Visa/Mastercard.
+                    </p>
+                  </div>
+                </div>
+
+                <a
+                  href="https://dashboard.paystack.com/#/settings/developer"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold rounded-xl shadow-md transition-all shrink-0 cursor-pointer"
+                >
+                  <ExternalLink className="w-4 h-4" />
+                  <span>Tableau de bord Paystack</span>
+                </a>
+              </div>
+
+              {/* Webhook Configuration Section */}
+              <div className="mt-6 space-y-3">
+                <span className="text-xs font-semibold text-slate-300 block">
+                  URL du Webhook à renseigner dans Paystack :
+                </span>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="text"
+                    readOnly
+                    value="https://praxis-pro.pro/api/paystack/webhook"
+                    className="flex-1 bg-[#0B0F17] px-3.5 py-2.5 rounded-xl border border-slate-800 font-mono text-xs text-emerald-400 select-all outline-none"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      navigator.clipboard.writeText('https://praxis-pro.pro/api/paystack/webhook');
+                      showToast('URL du Webhook Paystack copiée dans le presse-papier !', 'success');
+                    }}
+                    className="px-3 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl text-xs font-bold transition-colors cursor-pointer"
+                  >
+                    Copier
+                  </button>
+                </div>
+                <p className="text-[11px] text-slate-500">
+                  Paystack envoie un événement POST sécurisé par signature HMAC-SHA512 (<code className="text-slate-400 font-mono">x-paystack-signature</code>) dès qu'un paiement est validé.
+                </p>
+              </div>
+
+              {/* Instructions */}
+              <div className="mt-6 pt-6 border-t border-slate-800 space-y-2 text-xs text-slate-400">
+                <p className="font-semibold text-slate-300">Comment activer Paystack en 3 étapes :</p>
+                <ol className="list-decimal list-inside space-y-1 pl-1">
+                  <li>Rendez-vous sur <a href="https://dashboard.paystack.com" target="_blank" rel="noopener noreferrer" className="text-emerald-400 underline font-semibold">dashboard.paystack.com</a> &gt; <strong>Settings</strong> &gt; <strong>API Keys & Webhooks</strong>.</li>
+                  <li>Copiez l'URL de Webhook ci-dessus dans le champ <strong>Live Webhook URL</strong>.</li>
+                  <li>Ajoutez <code className="bg-slate-900 px-1 py-0.5 rounded text-slate-200">PAYSTACK_SECRET_KEY</code> (commence par <code className="text-emerald-400">sk_live_...</code>) et <code className="bg-slate-900 px-1 py-0.5 rounded text-slate-200">PAYSTACK_PUBLIC_KEY</code> (<code className="text-emerald-400">pk_live_...</code>) dans votre environnement.</li>
+                </ol>
+              </div>
+            </div>
+
             {/* Database Management & Tools */}
             <div className="bg-[#141C2E] border border-slate-800/90 rounded-2xl p-6 shadow-xl space-y-6">
               <div>

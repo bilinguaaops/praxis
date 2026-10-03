@@ -417,17 +417,16 @@ export const Step4Dashboard: React.FC<Step4DashboardProps> = ({
   return (
     <div className="max-w-7xl mx-auto space-y-6 pb-16">
       {/* Top Banner with Quick Actions */}
-      <div className="bg-white rounded-2xl border border-slate-200 shadow-xs p-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-5 sm:p-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-2xs">
         <div>
-          <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-blue-50 text-blue-700 text-xs font-semibold mb-2">
-            <BarChart3 className="w-3.5 h-3.5" />
-            Étape 4 : Tableau de bord de classe & Restitution
+          <div className="text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1">
+            Étape 4 sur 4 · Tableau de bord & Notes
           </div>
-          <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">
+          <h1 className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-white tracking-tight">
             {config.title}
           </h1>
-          <p className="text-xs sm:text-sm text-slate-500 mt-1">
-            {config.discipline} • {config.level} • {gradedList.length} sur {submissions.length} copies évaluées
+          <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+            {config.discipline} · {config.level} · {gradedList.length} sur {submissions.length} copies évaluées
           </p>
         </div>
 
@@ -443,10 +442,10 @@ export const Step4Dashboard: React.FC<Step4DashboardProps> = ({
               }
             }}
             id="btn-validate-class-correction"
-            className={`inline-flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl text-xs font-extrabold transition-all cursor-pointer shadow-xs ${
+            className={`inline-flex items-center justify-center gap-1.5 px-3.5 py-2 rounded-lg text-xs font-semibold transition-colors cursor-pointer shadow-2xs ${
               isValidatedState
-                ? 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-emerald-600/20'
-                : 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-emerald-600/30 ring-2 ring-emerald-500/20 hover:scale-[1.02]'
+                ? 'bg-emerald-700 text-white'
+                : 'bg-emerald-600 hover:bg-emerald-700 text-white'
             }`}
             title="Confirmer définitivement les notes et les archiver automatiquement dans l'historique global"
           >

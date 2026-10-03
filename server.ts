@@ -1,6 +1,7 @@
 import express from 'express';
 import path from 'path';
 import fs from 'fs';
+import crypto from 'crypto';
 import dotenv from 'dotenv';
 import { GoogleGenAI, Type } from '@google/genai';
 import Anthropic from '@anthropic-ai/sdk';
@@ -11,8 +12,15 @@ dotenv.config();
 const app = express();
 const PORT = 3000;
 
-// Support large payload for high-resolution scanned copies (up to 50MB)
-app.use(express.json({ limit: '50mb' }));
+// Support large payload for high-resolution scanned copies (up to 50MB) + rawBody for Paystack webhook HMAC verification
+app.use(
+  express.json({
+    limit: '50mb',
+    verify: (req: any, _res, buf) => {
+      req.rawBody = buf;
+    },
+  })
+);
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 
 // --- Leads & SaaS Accounts Storage helpers ---
@@ -694,14 +702,14 @@ app.post('/api/correct', async (req, res) => {
 
     if (!lead) {
       return res.status(401).json({
-        error: "Compte enseignant non trouvé. Veuillez vous inscrire gratuitement via le formulaire pour débloquer vos 30 copies d'essai.",
+        error: "Compte enseignant non trouvé. Veuillez vous inscrire gratuitement via le formulaire pour débloquer vos 50 copies d'essai.",
         requiresRegistration: true,
       });
     }
 
     // Check Quota Limit: Evaluate subscriptionCredits + extraCredits, with fallback to quota - copiesCorrected
     const currentCopies = lead.copiesCorrected || 0;
-    const defaultTrialQuota = Number(process.env.FREE_TRIAL_QUOTA) || 30;
+    const defaultTrialQuota = Number(process.env.FREE_TRIAL_QUOTA) || 50;
 
     const hasExplicitCredits = typeof lead.subscriptionCredits === 'number' || typeof lead.extraCredits === 'number';
     const subCredits = typeof lead.subscriptionCredits === 'number' ? lead.subscriptionCredits : 0;
@@ -1592,8 +1600,8 @@ app.post('/api/leads', async (req, res) => {
     plan: 'trial',
     status: 'trial',
     trialDaysLeft: 7,
-    quota: Number(process.env.FREE_TRIAL_QUOTA) || 30,
-    subscriptionCredits: Number(process.env.FREE_TRIAL_QUOTA) || 30,
+    quota: Number(process.env.FREE_TRIAL_QUOTA) || 50,
+    subscriptionCredits: Number(process.env.FREE_TRIAL_QUOTA) || 50,
     extraCredits: 0,
     copiesCorrected: 0,
     totalSpent: 0,
@@ -1736,6 +1744,24 @@ const PAYWALL_PLANS = [
       'Report automatique garanti',
     ],
   },
+  {
+    id: 'extra_1000',
+    name: 'Recharge Extra +1 000 corrections',
+    category: 'pack',
+    priceFcfa: 10000,
+    priceEur: 15.20,
+    period: 'paiement unique',
+    copiesIncluded: 1000,
+    tag: 'Grand Pack Économique',
+    popular: false,
+    description: '+1 000 corrections supplémentaires sans expiration. Idéal pour les grands examens et fins d’année.',
+    features: [
+      '+1 000 corrections permanentes',
+      'Validité sans date d’expiration',
+      'Idéal examens et corrections massives',
+      'Report automatique garanti',
+    ],
+  },
 ];
 
 // Public endpoint to retrieve plans & Wave merchant info
@@ -1773,7 +1799,7 @@ app.get('/api/teacher/me', (req, res) => {
     return res.status(404).json({ error: 'Compte enseignant non trouvé.' });
   }
 
-  const defaultTrialQuota = Number(process.env.FREE_TRIAL_QUOTA) || 30;
+  const defaultTrialQuota = Number(process.env.FREE_TRIAL_QUOTA) || 50;
   const currentQuota = typeof teacher.quota === 'number' ? teacher.quota : defaultTrialQuota;
   const copiesUsed = teacher.copiesCorrected || 0;
   const remaining = Math.max(0, currentQuota - copiesUsed);
@@ -2137,6 +2163,500 @@ ${waveTxId ? `🔖 *Réf Wave :* \`${waveTxId}\`\n` : ''}⏰ *Date :* ${new Date
     waveLaunchUrl,
     message: `Paiement de ${displayAmount.toLocaleString('fr-FR')} ${isXof ? 'FCFA' : '€'}${applyDiscount && appliedPromo ? ` (Code ${appliedPromo.code} appliqué)` : ''} validé avec succès ! ${creditNotice}. Vous avez ${remainingCopies} corrections prêtes à l'emploi.`,
   });
+});
+
+// ==========================================
+// --- PAYSTACK INTEGRATION (API & WEBHOOK) ---
+// ==========================================
+
+interface FulfillPaymentParams {
+  email: string;
+  name?: string;
+  whatsapp?: string;
+  planId: string;
+  finalPriceFcfa: number;
+  finalPriceEur: number;
+  isXof: boolean;
+  paymentMethodLabel: string;
+  promoCode?: string;
+  externalReference?: string;
+  channel?: string;
+}
+
+function fulfillPaidOrder(params: FulfillPaymentParams) {
+  const {
+    email,
+    name,
+    whatsapp,
+    planId,
+    finalPriceFcfa,
+    finalPriceEur,
+    isXof,
+    paymentMethodLabel,
+    promoCode,
+    externalReference,
+    channel,
+  } = params;
+
+  const selectedPlan = PAYWALL_PLANS.find((p) => p.id === planId) || PAYWALL_PLANS[0];
+  const leads = loadLeads();
+
+  const cleanEmail = (email || '').toString().trim().toLowerCase();
+  const cleanPhone = (whatsapp || '').toString().trim();
+
+  let teacher = leads.find(
+    (l) =>
+      (cleanEmail && l.email && l.email.toLowerCase() === cleanEmail) ||
+      (cleanPhone && l.whatsapp && l.whatsapp === cleanPhone)
+  );
+
+  if (!teacher) {
+    teacher = {
+      id: 'lead_' + Date.now() + '_' + Math.random().toString(36).substring(2, 7),
+      name: name || 'Enseignant',
+      email: cleanEmail || 'prof@praxis.education',
+      whatsapp: cleanPhone || '',
+      school: '',
+      city: '',
+      plan: 'trial',
+      status: 'active',
+      copiesCorrected: 0,
+      subscriptionCredits: 50,
+      extraCredits: 0,
+      quota: 50,
+      totalSpent: 0,
+      createdAt: new Date().toISOString(),
+      lastActiveAt: new Date().toISOString(),
+      notes: 'Inscription directe via Paystack.',
+      transactions: [],
+      usedPromoCodes: [],
+    };
+    leads.unshift(teacher);
+  }
+
+  // Idempotency: verify if this external transaction reference was already credited
+  if (externalReference && teacher.transactions) {
+    const existingTx = teacher.transactions.find(
+      (tx) => tx.id === externalReference || (tx.description && tx.description.includes(externalReference))
+    );
+    if (existingTx) {
+      console.log(`[Paystack] Transaction ${externalReference} déjà traitée (idempotence).`);
+      const currentCopies = teacher.copiesCorrected || 0;
+      return {
+        teacher,
+        transaction: existingTx,
+        creditNotice: 'Paiement déjà validé',
+        remainingCopies: Math.max(0, (teacher.quota || 0) - currentCopies),
+      };
+    }
+  }
+
+  // Handle promo code tracking if applicable
+  const rawCode = (promoCode || '').toString().trim().toUpperCase();
+  let appliedPromo: PromoCodeConfig | null = null;
+  if (rawCode) {
+    appliedPromo = PROMO_CODES_REGISTRY[rawCode] || null;
+    if (appliedPromo) {
+      teacher.usedPromoCodes = Array.from(new Set([...(teacher.usedPromoCodes || []), appliedPromo.code]));
+      teacher.firstPurchaseDiscountUsed = true;
+      if (appliedPromo.partnerName) {
+        teacher.referredByPartner = appliedPromo.partnerName;
+      }
+    }
+  }
+
+  const currentCopies = teacher.copiesCorrected || 0;
+  const currentSub = teacher.subscriptionCredits || 0;
+  const currentExtra = teacher.extraCredits || 0;
+  let creditNotice = '';
+
+  if (selectedPlan.id === 'monthly') {
+    const newSub = Math.min(1500, currentSub + 500);
+    teacher.subscriptionCredits = newSub;
+    teacher.plan = 'monthly';
+    teacher.renewalDate = new Date(Date.now() + 30 * 24 * 3600 * 1000).toISOString().slice(0, 10);
+    creditNotice = `${newSub} corrections incluses (cumulable max 1 500)`;
+  } else if (selectedPlan.id === 'quarterly') {
+    teacher.subscriptionCredits = currentSub + 1500;
+    teacher.plan = 'quarterly';
+    teacher.renewalDate = new Date(Date.now() + 90 * 24 * 3600 * 1000).toISOString().slice(0, 10);
+    creditNotice = `1 500 corrections trimestrielles ajoutées`;
+  } else if (selectedPlan.id === 'school_year') {
+    teacher.subscriptionCredits = currentSub + 4500;
+    teacher.plan = 'school_year';
+    teacher.renewalDate = new Date(Date.now() + 270 * 24 * 3600 * 1000).toISOString().slice(0, 10);
+    creditNotice = `4 500 corrections Année Scolaire ajoutées`;
+  } else if (selectedPlan.id === 'extra_100') {
+    teacher.extraCredits = currentExtra + 100;
+    if (teacher.plan === 'free' || teacher.plan === 'trial') teacher.plan = 'pack';
+    creditNotice = `+100 corrections supplémentaires permanentes ajoutées`;
+  } else if (selectedPlan.id === 'extra_500') {
+    teacher.extraCredits = currentExtra + 500;
+    if (teacher.plan === 'free' || teacher.plan === 'trial') teacher.plan = 'pack';
+    creditNotice = `+500 corrections supplémentaires permanentes ajoutées`;
+  } else if (selectedPlan.id === 'extra_1000') {
+    teacher.extraCredits = currentExtra + 1000;
+    if (teacher.plan === 'free' || teacher.plan === 'trial') teacher.plan = 'pack';
+    creditNotice = `+1 000 corrections supplémentaires permanentes ajoutées`;
+  }
+
+  teacher.quota = currentCopies + (teacher.subscriptionCredits || 0) + (teacher.extraCredits || 0);
+  teacher.status = 'active';
+  teacher.lastActiveAt = new Date().toISOString();
+
+  const displayAmount = isXof ? finalPriceFcfa : finalPriceEur;
+  const eurEquivalent = isXof ? Number((finalPriceFcfa / 655.957).toFixed(2)) : finalPriceEur;
+  teacher.totalSpent = Number(((teacher.totalSpent || 0) + eurEquivalent).toFixed(2));
+
+  if (name && (!teacher.name || teacher.name === 'Enseignant')) {
+    teacher.name = name;
+  }
+  if (whatsapp && !teacher.whatsapp) {
+    teacher.whatsapp = whatsapp;
+  }
+
+  const txnId = externalReference || 'tx_ps_' + Date.now().toString(36) + '_' + Math.random().toString(36).substring(2, 5);
+  const newTxn: TransactionItem = {
+    id: txnId,
+    teacherId: teacher.id,
+    teacherName: teacher.name,
+    teacherEmail: teacher.email,
+    date: new Date().toISOString().slice(0, 10),
+    amount: eurEquivalent,
+    currency: isXof ? 'XOF' : 'EUR',
+    plan: teacher.plan,
+    status: 'succeeded',
+    paymentMethod: paymentMethodLabel,
+    description: `${selectedPlan.name} · ${displayAmount.toLocaleString('fr-FR')} ${isXof ? 'FCFA' : '€'}${
+      channel ? ` (${channel})` : ''
+    }${externalReference ? ` · Réf: ${externalReference}` : ''}`,
+    originalAmount: isXof ? selectedPlan.priceFcfa : selectedPlan.priceEur,
+    discountAmount: appliedPromo ? (isXof ? Math.round(selectedPlan.priceFcfa * (appliedPromo.discountPercent / 100)) : Number((selectedPlan.priceEur * (appliedPromo.discountPercent / 100)).toFixed(2))) : 0,
+    promoCode: appliedPromo ? appliedPromo.code : undefined,
+    discountPercent: appliedPromo ? appliedPromo.discountPercent : 0,
+    partnerAttribution: appliedPromo ? (appliedPromo.partnerName || appliedPromo.code) : teacher.referredByPartner,
+  };
+
+  teacher.transactions = [newTxn, ...(teacher.transactions || [])];
+  teacher.notes = `${teacher.notes || ''}\n[Paystack ${paymentMethodLabel} ${new Date().toLocaleString('fr-FR')}] : ${displayAmount} ${isXof ? 'FCFA' : '€'} - ${selectedPlan.name}`.trim();
+
+  saveLeads(leads);
+
+  // Send real-time Telegram alert to admin
+  const telegramMessage = `⚡ *Nouveau Paiement Paystack Confirmé !*
+━━━━━━━━━━━━━━━━━━━━
+👤 *Enseignant :* ${teacher.name}
+📧 *Email :* ${teacher.email}
+📱 *Téléphone :* ${whatsapp || teacher.whatsapp || 'Non renseigné'}
+💳 *Moyen :* ${paymentMethodLabel}${channel ? ` (${channel})` : ''}
+💵 *Montant Payé :* *${displayAmount.toLocaleString('fr-FR')} ${isXof ? 'FCFA' : '€'}* (~${eurEquivalent} €)
+📦 *Formule :* ${selectedPlan.name}
+🎯 *Solde Débloqué :* ${teacher.subscriptionCredits || 0} incluses + ${teacher.extraCredits || 0} extra
+🔖 *Réf Paystack :* \`${txnId}\`
+⏰ *Date :* ${new Date().toLocaleString('fr-FR')}
+━━━━━━━━━━━━━━━━━━━━
+👉 *Voir dans le CRM :* /dashboard`;
+
+  sendTelegramNotification(telegramMessage).catch((err) =>
+    console.warn('[Telegram Paystack] Erreur envoi notif:', err)
+  );
+
+  const remainingCopies = Math.max(0, (teacher.quota || 0) - currentCopies);
+  return {
+    teacher,
+    transaction: newTxn,
+    creditNotice,
+    remainingCopies,
+  };
+}
+
+// 1. Paystack Configuration Status endpoint
+app.get('/api/paystack/config', (_req, res) => {
+  const secretKey = (process.env.PAYSTACK_SECRET_KEY || '').trim();
+  const publicKey = (process.env.PAYSTACK_PUBLIC_KEY || '').trim();
+  const isConfigured = Boolean(secretKey);
+  const isLive = secretKey.startsWith('sk_live_');
+  const isTest = secretKey.startsWith('sk_test_');
+
+  res.json({
+    configured: isConfigured,
+    mode: isLive ? 'live' : isTest ? 'test' : isConfigured ? 'custom' : 'demo_simulation',
+    publicKey: publicKey || (isConfigured ? 'pk_live_configured_on_server' : ''),
+    supportedCurrencies: ['XOF', 'EUR', 'USD', 'NGN', 'GHS'],
+    channels: ['card', 'mobile_money', 'bank_transfer'],
+    webhookUrl: `${process.env.APP_URL || 'https://praxis-pro.pro'}/api/paystack/webhook`,
+  });
+});
+
+// 2. Initialize Paystack Transaction
+app.post('/api/paystack/initialize', async (req, res) => {
+  try {
+    const {
+      planId,
+      email,
+      name,
+      whatsapp,
+      currency = 'XOF',
+      promoCode,
+      callbackUrl,
+    } = req.body;
+
+    if (!planId) {
+      return res.status(400).json({ error: 'Veuillez sélectionner un forfait ou une recharge.' });
+    }
+
+    const selectedPlan = PAYWALL_PLANS.find((p) => p.id === planId);
+    if (!selectedPlan) {
+      return res.status(400).json({ error: 'Forfait invalide.' });
+    }
+
+    if (!email || !email.includes('@')) {
+      return res.status(400).json({ error: 'Une adresse email valide est obligatoire pour Paystack.' });
+    }
+
+    // Promo code validation & price calculation
+    const rawCode = (promoCode || '').toString().trim().toUpperCase();
+    let appliedPromo: PromoCodeConfig | null = null;
+    let applyDiscount = false;
+
+    if (rawCode) {
+      appliedPromo = PROMO_CODES_REGISTRY[rawCode] || null;
+      if (appliedPromo && appliedPromo.active && (!appliedPromo.allowedPlans || appliedPromo.allowedPlans.includes(planId))) {
+        applyDiscount = true;
+      }
+    }
+
+    const originalPriceFcfa = selectedPlan.priceFcfa;
+    const originalPriceEur = selectedPlan.priceEur;
+    let finalPriceFcfa = originalPriceFcfa;
+    let finalPriceEur = originalPriceEur;
+
+    if (applyDiscount && appliedPromo) {
+      const discountFcfa = Math.round(originalPriceFcfa * (appliedPromo.discountPercent / 100));
+      const discountEur = Number((originalPriceEur * (appliedPromo.discountPercent / 100)).toFixed(2));
+      finalPriceFcfa = Math.max(0, originalPriceFcfa - discountFcfa);
+      finalPriceEur = Number(Math.max(0, originalPriceEur - discountEur).toFixed(2));
+    }
+
+    // For Paystack Côte d'Ivoire / West Africa, transactions are processed in XOF (FCFA)
+    // Paystack amounts in minor units (subunits * 100) -> 5 000 FCFA = 500000 subunits
+    // International cards (Visa, Mastercard) are automatically converted by the customer's bank into XOF.
+    const amountInSubunits = finalPriceFcfa * 100;
+    const isXof = true;
+
+    const ref = 'px_' + Date.now().toString(36) + '_' + Math.random().toString(36).substring(2, 6);
+    const secretKey = (process.env.PAYSTACK_SECRET_KEY || '').trim();
+
+    const hostUrl = (process.env.APP_URL || `${req.protocol}://${req.get('host')}`).replace(/\/$/, '');
+    const finalCallbackUrl = callbackUrl || `${hostUrl}/?paystack_ref=${ref}`;
+
+    // If real Paystack Secret Key is configured, call official Paystack API
+    if (secretKey) {
+      const paystackPayload = {
+        email: email.trim().toLowerCase(),
+        amount: amountInSubunits,
+        currency: 'XOF',
+        reference: ref,
+        callback_url: finalCallbackUrl,
+        metadata: {
+          custom_fields: [
+            { display_name: 'Enseignant', variable_name: 'teacher_name', value: name || 'Enseignant' },
+            { display_name: 'Formule', variable_name: 'plan_name', value: selectedPlan.name },
+            { display_name: 'WhatsApp', variable_name: 'teacher_whatsapp', value: whatsapp || '' },
+          ],
+          planId: selectedPlan.id,
+          teacherName: name || '',
+          teacherEmail: email.trim().toLowerCase(),
+          teacherWhatsapp: whatsapp || '',
+          promoCode: appliedPromo?.code || null,
+          isXof: true,
+          finalPriceFcfa,
+          finalPriceEur,
+        },
+      };
+
+      const paystackRes = await fetch('https://api.paystack.co/transaction/initialize', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${secretKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(paystackPayload),
+      });
+
+      const paystackData: any = await paystackRes.json();
+
+      if (!paystackRes.ok || !paystackData.status) {
+        console.error('[Paystack Init] Erreur Paystack:', paystackData);
+        return res.status(400).json({
+          error: paystackData.message || 'Impossible d’initialiser le paiement avec Paystack.',
+        });
+      }
+
+      return res.json({
+        success: true,
+        reference: ref,
+        authorizationUrl: paystackData.data.authorization_url,
+        accessCode: paystackData.data.access_code,
+      });
+    }
+
+    // Safe Sandbox Fallback if PAYSTACK_SECRET_KEY is not configured yet
+    console.log('[Paystack] PAYSTACK_SECRET_KEY non configurée. Génération du lien de simulation sécurisé.');
+    return res.json({
+      success: true,
+      isDemo: true,
+      reference: ref,
+      authorizationUrl: `${finalCallbackUrl}&demo_pay=1`,
+      message: 'Mode simulation actif (PAYSTACK_SECRET_KEY en attente de configuration).',
+    });
+  } catch (err: any) {
+    console.error('[Paystack Init] Erreur:', err);
+    res.status(500).json({ error: err.message || 'Erreur lors de l’initialisation Paystack.' });
+  }
+});
+
+// 3. Verify Paystack Transaction
+app.get('/api/paystack/verify/:reference', async (req, res) => {
+  try {
+    const { reference } = req.params;
+    const isDemo = req.query.demo === '1' || req.query.demo === 'true';
+
+    if (!reference) {
+      return res.status(400).json({ error: 'Référence de transaction requise.' });
+    }
+
+    const secretKey = (process.env.PAYSTACK_SECRET_KEY || '').trim();
+
+    // In Live / Test mode with valid key
+    if (secretKey && !isDemo) {
+      const verifyRes = await fetch(`https://api.paystack.co/transaction/verify/${encodeURIComponent(reference)}`, {
+        headers: {
+          Authorization: `Bearer ${secretKey}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      const verifyData: any = await verifyRes.json();
+
+      if (!verifyRes.ok || !verifyData.status || verifyData.data.status !== 'success') {
+        return res.status(400).json({
+          success: false,
+          error: verifyData.data?.gateway_response || verifyData.message || 'Paiement non validé par Paystack.',
+        });
+      }
+
+      const txData = verifyData.data;
+      const metadata = txData.metadata || {};
+      const channel = txData.channel || 'carte_ou_mobile_money';
+      const paidAmountSubunits = txData.amount || 0;
+      const currency = (txData.currency || 'XOF').toUpperCase();
+      const isXof = currency === 'XOF';
+      const paidAmount = isXof ? Math.round(paidAmountSubunits / 100) : Number((paidAmountSubunits / 100).toFixed(2));
+
+      const fulfillment = fulfillPaidOrder({
+        email: txData.customer?.email || metadata.teacherEmail || 'prof@praxis.education',
+        name: metadata.teacherName,
+        whatsapp: metadata.teacherWhatsapp,
+        planId: metadata.planId || 'monthly',
+        finalPriceFcfa: isXof ? paidAmount : Math.round(paidAmount * 655.957),
+        finalPriceEur: isXof ? Number((paidAmount / 655.957).toFixed(2)) : paidAmount,
+        isXof,
+        paymentMethodLabel: `Paystack (${channel.toUpperCase()})`,
+        promoCode: metadata.promoCode,
+        externalReference: reference,
+        channel,
+      });
+
+      return res.json({
+        success: true,
+        teacher: fulfillment.teacher,
+        transaction: fulfillment.transaction,
+        remainingCopies: fulfillment.remainingCopies,
+        message: `Paiement Paystack de ${paidAmount.toLocaleString('fr-FR')} ${currency} confirmé ! ${fulfillment.creditNotice}.`,
+      });
+    }
+
+    // Demo / Simulation mode
+    const fallbackPlan = PAYWALL_PLANS[0];
+    const fulfillment = fulfillPaidOrder({
+      email: (req.query.email as string) || 'enseignant@praxis.education',
+      name: (req.query.name as string) || 'Enseignant Démo',
+      whatsapp: (req.query.whatsapp as string) || '',
+      planId: (req.query.planId as string) || fallbackPlan.id,
+      finalPriceFcfa: fallbackPlan.priceFcfa,
+      finalPriceEur: fallbackPlan.priceEur,
+      isXof: true,
+      paymentMethodLabel: 'Paystack (Simulation)',
+      externalReference: reference,
+      channel: 'mobile_money',
+    });
+
+    return res.json({
+      success: true,
+      isDemo: true,
+      teacher: fulfillment.teacher,
+      transaction: fulfillment.transaction,
+      remainingCopies: fulfillment.remainingCopies,
+      message: `Paiement simulé validé avec succès ! ${fulfillment.creditNotice}.`,
+    });
+  } catch (err: any) {
+    console.error('[Paystack Verify] Erreur:', err);
+    res.status(500).json({ error: err.message || 'Erreur lors de la vérification Paystack.' });
+  }
+});
+
+// 4. Paystack Webhook Handler (Instant background fulfillment with HMAC-SHA512 verification)
+app.post('/api/paystack/webhook', (req: any, res) => {
+  try {
+    const secretKey = (process.env.PAYSTACK_SECRET_KEY || '').trim();
+    const signature = req.headers['x-paystack-signature'];
+
+    if (secretKey) {
+      const rawPayload = req.rawBody ? req.rawBody : JSON.stringify(req.body);
+      const hash = crypto.createHmac('sha512', secretKey).update(rawPayload).digest('hex');
+
+      if (hash !== signature) {
+        console.warn('[Paystack Webhook] Signature invalide rejetée.');
+        return res.status(401).send('Signature invalide.');
+      }
+    }
+
+    const event = req.body;
+    console.log(`[Paystack Webhook] Événement reçu : ${event?.event}`);
+
+    if (event && event.event === 'charge.success') {
+      const txData = event.data;
+      const metadata = txData.metadata || {};
+      const reference = txData.reference;
+      const channel = txData.channel || 'mobile_money';
+      const currency = (txData.currency || 'XOF').toUpperCase();
+      const isXof = currency === 'XOF';
+      const paidAmount = isXof ? Math.round((txData.amount || 0) / 100) : Number(((txData.amount || 0) / 100).toFixed(2));
+
+      fulfillPaidOrder({
+        email: txData.customer?.email || metadata.teacherEmail || 'prof@praxis.education',
+        name: metadata.teacherName,
+        whatsapp: metadata.teacherWhatsapp,
+        planId: metadata.planId || 'monthly',
+        finalPriceFcfa: isXof ? paidAmount : Math.round(paidAmount * 655.957),
+        finalPriceEur: isXof ? Number((paidAmount / 655.957).toFixed(2)) : paidAmount,
+        isXof,
+        paymentMethodLabel: `Paystack Webhook (${channel.toUpperCase()})`,
+        promoCode: metadata.promoCode,
+        externalReference: reference,
+        channel,
+      });
+
+      console.log(`[Paystack Webhook] Commande débloquée pour réf ${reference}`);
+    }
+
+    // Always respond 200 OK to Paystack
+    res.status(200).send('OK');
+  } catch (err: any) {
+    console.error('[Paystack Webhook] Erreur traitement:', err);
+    res.status(500).send('Erreur webhook.');
+  }
 });
 
 // Admin login: verifies master password and issues an authenticated session token
@@ -2617,10 +3137,24 @@ Vous recevrez instantanément une alerte à chaque nouvelle inscription d'enseig
 // Protected: Get environment and automation settings
 app.get('/api/admin/settings', requireAdminAuth, (req, res) => {
   const leads = loadLeads();
+  const secretKey = (process.env.PAYSTACK_SECRET_KEY || '').trim();
+  const publicKey = (process.env.PAYSTACK_PUBLIC_KEY || '').trim();
+
   res.json({
     telegramConfigured: Boolean(process.env.TELEGRAM_BOT_TOKEN && process.env.TELEGRAM_CHAT_ID),
     telegramChatId: process.env.TELEGRAM_CHAT_ID
       ? process.env.TELEGRAM_CHAT_ID.slice(0, 3) + '••••' + process.env.TELEGRAM_CHAT_ID.slice(-3)
+      : null,
+    paystackConfigured: Boolean(secretKey),
+    paystackMode: secretKey.startsWith('sk_live_')
+      ? 'live'
+      : secretKey.startsWith('sk_test_')
+      ? 'test'
+      : secretKey
+      ? 'custom'
+      : 'not_configured',
+    paystackPublicKey: publicKey
+      ? publicKey.slice(0, 7) + '••••' + publicKey.slice(-4)
       : null,
     totalTeachers: leads.length,
     hasMasterPassword: Boolean(process.env.ADMIN_MASTER_PASSWORD),
