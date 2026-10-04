@@ -508,6 +508,22 @@ export const PricingPage: React.FC<PricingPageProps> = ({
         <div className="mt-4 text-xs text-slate-500 dark:text-slate-400">
           <span className="font-semibold text-slate-700 dark:text-slate-300">Règle simple :</span> 1 correction = 1 copie d’élève complète (recto-verso et pages multiples incluses).
         </div>
+
+        {/* Wave Card Banner */}
+        <div className="mt-5 max-w-2xl mx-auto p-3.5 rounded-xl bg-cyan-50 dark:bg-cyan-950/40 border border-cyan-200 dark:border-cyan-800 text-xs text-cyan-950 dark:text-cyan-200 flex items-start gap-3 shadow-2xs text-left">
+          <span className="text-xl shrink-0">🌊</span>
+          <div className="space-y-1">
+            <div className="font-bold text-slate-900 dark:text-white flex items-center gap-1.5 flex-wrap">
+              <span>Utilisateurs Wave : payez avec votre Carte Bancaire Wave</span>
+              <span className="px-1.5 py-0.2 rounded bg-cyan-200 dark:bg-cyan-900 text-cyan-900 dark:text-cyan-100 text-[10px] font-extrabold uppercase">
+                Actif & sans frais
+              </span>
+            </div>
+            <p className="text-[11px] text-slate-600 dark:text-slate-300 leading-relaxed">
+              Le paiement direct par numéro Wave n’est pas disponible pour le moment. Vous pouvez cependant recharger vos crédits instantanément et sans frais en utilisant la <strong>Carte Bancaire fournie par Wave</strong> (votre carte virtuelle Visa Wave accessible directement dans votre application Wave). Pour cela, choisissez simplement l’option <strong>Carte Bancaire</strong> au moment du règlement.
+            </p>
+          </div>
+        </div>
       </section>
 
       {/* THE 4 CORE OFFERS (GRATUIT, MENSUEL, 3 MOIS, ANNÉE SCOLAIRE) */}
@@ -915,9 +931,9 @@ export const PricingPage: React.FC<PricingPageProps> = ({
                   </label>
 
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                    <div className="py-2.5 px-3 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-center">
-                      <div className="text-xs font-bold text-slate-900 dark:text-white">Wave</div>
-                      <div className="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5">Mobile Money</div>
+                    <div className="py-2.5 px-3 rounded-lg border border-cyan-200 dark:border-cyan-800 bg-cyan-50/50 dark:bg-cyan-950/30 text-center">
+                      <div className="text-xs font-bold text-cyan-900 dark:text-cyan-200">Carte Wave</div>
+                      <div className="text-[10px] text-cyan-700 dark:text-cyan-400 mt-0.5">Visa Wave</div>
                     </div>
                     <div className="py-2.5 px-3 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-center">
                       <div className="text-xs font-bold text-slate-900 dark:text-white">Orange</div>
@@ -931,6 +947,13 @@ export const PricingPage: React.FC<PricingPageProps> = ({
                       <div className="text-xs font-bold text-slate-900 dark:text-white">Cartes CB</div>
                       <div className="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5">Visa / Mastercard</div>
                     </div>
+                  </div>
+
+                  <div className="p-3 rounded-xl bg-cyan-50 dark:bg-cyan-950/40 border border-cyan-200 dark:border-cyan-800 text-[11px] text-cyan-950 dark:text-cyan-200 flex items-start gap-2">
+                    <span className="text-sm shrink-0">🌊</span>
+                    <p className="leading-relaxed">
+                      <strong>Client Wave ?</strong> Le paiement direct par numéro Wave est temporairement suspendu. Vous pouvez régler immédiatement en utilisant la <strong>Carte Bancaire fournie par Wave</strong> (votre carte virtuelle Visa Wave disponible dans l’application Wave). Cliquez sur « Payer par Carte Bancaire » pour finaliser.
+                    </p>
                   </div>
 
                   <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-normal">

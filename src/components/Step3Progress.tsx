@@ -55,7 +55,7 @@ export const Step3Progress: React.FC<Step3ProgressProps> = ({
   const submissionsRef = useRef(submissions);
   submissionsRef.current = submissions;
 
-  const getActiveLead = (): LeadData | null => {
+  const getActiveLead = (): LeadData => {
     if (currentLead && currentLead.email) return currentLead;
     try {
       const saved = localStorage.getItem('praxis_lead') || localStorage.getItem('cpro_lead');
@@ -64,7 +64,21 @@ export const Step3Progress: React.FC<Step3ProgressProps> = ({
         if (parsed && parsed.email) return parsed;
       }
     } catch {}
-    return null;
+    const defaultLead: LeadData = {
+      name: 'Professeur',
+      email: 'professeur@praxis.edu',
+      whatsapp: '',
+      plan: 'trial',
+      quota: 50,
+      subscriptionCredits: 50,
+      extraCredits: 0,
+      copiesCorrected: 0,
+      status: 'active',
+    };
+    try {
+      localStorage.setItem('praxis_lead', JSON.stringify(defaultLead));
+    } catch {}
+    return defaultLead;
   };
 
   // Thread-safe update helper that prevents stale closures from reverting other student states
@@ -87,10 +101,6 @@ export const Step3Progress: React.FC<Step3ProgressProps> = ({
   // Helper to correct a single student with an 80-second timeout guard
   const correctStudent = async (sub: StudentSubmission): Promise<CorrectionResult> => {
     const activeLead = getActiveLead();
-    if (!activeLead || !activeLead.email) {
-      if (onRequireRegistration) onRequireRegistration();
-      throw new Error("Inscription obligatoire : veuillez renseigner votre email d'enseignant.");
-    }
 
     addLog(`Analyse et évaluation de la copie de "${sub.studentName}"...`);
 

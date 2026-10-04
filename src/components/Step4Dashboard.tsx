@@ -1078,6 +1078,27 @@ export const Step4Dashboard: React.FC<Step4DashboardProps> = ({
                             <span>✍️ En marge : {res.nom_manuscrit_detecte}</span>
                           </span>
                         )}
+
+                        {/* Indicateur de lisibilité visible pour le professeur */}
+                        {isCompleted && res?.lisibilite && (
+                          <div className="flex items-center gap-1.5 mt-1">
+                            <span
+                              className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold ${
+                                res.lisibilite === 'excellente'
+                                  ? 'bg-emerald-50 text-emerald-800 border border-emerald-200'
+                                  : res.lisibilite === 'bonne'
+                                  ? 'bg-sky-50 text-sky-800 border border-sky-200'
+                                  : res.lisibilite === 'moyenne'
+                                  ? 'bg-amber-50 text-amber-900 border border-amber-200'
+                                  : 'bg-rose-50 text-rose-800 border border-rose-200'
+                              }`}
+                              title={res.avertissement_lisibilite || `Qualité de lecture de la copie : ${res.lisibilite}`}
+                            >
+                              <Eye className="w-2.5 h-2.5 shrink-0" />
+                              <span>Lisibilité : {res.lisibilite.charAt(0).toUpperCase() + res.lisibilite.slice(1)}</span>
+                            </span>
+                          </div>
+                        )}
                       </div>
                     </div>
 

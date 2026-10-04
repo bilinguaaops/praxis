@@ -13,8 +13,11 @@ import {
   X,
   ChevronRight,
   User,
+  Sun,
+  Moon,
 } from 'lucide-react';
 import { MainView, LeadData } from '../types';
+import { useTheme } from '../lib/useTheme';
 
 interface SidebarProps {
   activeView: MainView;
@@ -45,6 +48,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onCloseMobile,
   onOpenBilling,
 }) => {
+  const { isDark, toggleTheme } = useTheme();
   // Credits calculation
   const subscriptionCredits = currentLead?.subscriptionCredits ?? 50;
   const extraCredits = currentLead?.extraCredits ?? 0;
@@ -291,6 +295,27 @@ export const Sidebar: React.FC<SidebarProps> = ({
             </div>
             <ChevronRight className="w-3.5 h-3.5 text-slate-500 shrink-0" />
           </div>
+
+          {/* Quick Theme Toggle Button */}
+          <button
+            type="button"
+            onClick={toggleTheme}
+            id="btn-sidebar-theme-toggle"
+            className="w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800/60 text-xs font-medium transition-colors cursor-pointer"
+            title={isDark ? 'Passer en mode clair' : 'Passer en mode sombre'}
+          >
+            <div className="flex items-center gap-2">
+              {isDark ? (
+                <Sun className="w-3.5 h-3.5 text-amber-400" />
+              ) : (
+                <Moon className="w-3.5 h-3.5 text-slate-400" />
+              )}
+              <span>{isDark ? 'Mode clair' : 'Mode sombre'}</span>
+            </div>
+            <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-800 text-slate-400 font-mono">
+              {isDark ? 'Nuit' : 'Jour'}
+            </span>
+          </button>
         </div>
       </aside>
     </>

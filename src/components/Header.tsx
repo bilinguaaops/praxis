@@ -25,6 +25,7 @@ import {
   Zap,
 } from 'lucide-react';
 import { MainView, LeadData } from '../types';
+import { useTheme } from '../lib/useTheme';
 
 interface HeaderProps {
   currentStep: number;
@@ -57,29 +58,8 @@ export const Header: React.FC<HeaderProps> = ({
   onOpenContactModal,
   onOpenPaywall,
 }) => {
-  const [isDark, setIsDark] = useState(false);
+  const { isDark, toggleTheme: toggleDarkMode } = useTheme();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-
-  useEffect(() => {
-    const saved = localStorage.getItem('cpro_dark_mode') === 'true';
-    setIsDark(saved);
-    if (saved) {
-      document.documentElement.classList.add('dark');
-    } else {
-      document.documentElement.classList.remove('dark');
-    }
-  }, []);
-
-  const toggleDarkMode = () => {
-    const next = !isDark;
-    setIsDark(next);
-    localStorage.setItem('cpro_dark_mode', String(next));
-    if (next) {
-      document.documentElement.classList.add('dark');
-    } else {
-      document.documentElement.classList.remove('dark');
-    }
-  };
 
   const handleNavClick = (view: MainView) => {
     onViewChange(view);

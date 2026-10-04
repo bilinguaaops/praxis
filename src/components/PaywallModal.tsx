@@ -972,9 +972,9 @@ export const PaywallModal: React.FC<PaywallModalProps> = ({
                 </div>
 
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-2 border-t border-emerald-100">
-                  <div className="py-2 px-2.5 rounded-lg bg-white border border-emerald-200/80 text-center font-bold text-xs text-slate-800 flex items-center justify-center gap-1.5">
+                  <div className="py-2 px-2.5 rounded-lg bg-cyan-50 border border-cyan-200 text-center font-bold text-xs text-cyan-900 flex items-center justify-center gap-1.5">
                     <span className="w-2 h-2 rounded-full bg-cyan-500"></span>
-                    <span>Wave</span>
+                    <span>Carte Wave</span>
                   </div>
                   <div className="py-2 px-2.5 rounded-lg bg-white border border-emerald-200/80 text-center font-bold text-xs text-slate-800 flex items-center justify-center gap-1.5">
                     <span className="w-2 h-2 rounded-full bg-orange-500"></span>
@@ -988,6 +988,13 @@ export const PaywallModal: React.FC<PaywallModalProps> = ({
                     <CreditCard className="w-3.5 h-3.5 text-blue-600" />
                     <span>Cartes CB</span>
                   </div>
+                </div>
+
+                <div className="p-2.5 rounded-xl bg-cyan-50 border border-cyan-200 text-[11px] text-cyan-950 flex items-start gap-2">
+                  <span className="text-sm shrink-0">🌊</span>
+                  <p className="leading-snug">
+                    <strong>Utilisateurs Wave :</strong> Le paiement direct par numéro Wave n'est pas disponible pour le moment. Vous pouvez recharger instantanément avec la <strong>Carte Bancaire fournie par Wave</strong> (accessible dans votre appli Wave). Choisissez l'option <strong>Carte Bancaire</strong>.
+                  </p>
                 </div>
               </div>
             )}

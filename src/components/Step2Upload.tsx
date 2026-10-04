@@ -1379,36 +1379,28 @@ export const Step2Upload: React.FC<Step2UploadProps> = ({
             onClick={onNext}
             disabled={submissions.length === 0}
             id="btn-step2-launch"
-            className={`w-full sm:w-auto inline-flex items-center justify-center gap-2 px-6 py-3 rounded-xl font-bold text-sm transition-all shadow-xs cursor-pointer ${
+            className={`w-full sm:w-auto inline-flex items-center justify-center gap-2 px-6 py-2.5 rounded-lg font-semibold text-sm transition-all shadow-xs cursor-pointer ${
               submissions.length > 0
-                ? 'bg-blue-600 hover:bg-blue-700 text-white shadow-blue-600/20 hover:shadow-md'
-                : 'bg-slate-200 text-slate-400 cursor-not-allowed'
+                ? 'bg-blue-600 hover:bg-blue-700 text-white shadow-blue-600/20'
+                : 'bg-slate-200 dark:bg-slate-800 text-slate-400 cursor-not-allowed'
             }`}
           >
             <Sparkles className="w-4 h-4" />
             <span>
-              {isRegistered
-                ? `Lancer la correction IA (${submissions.length} ${submissions.length > 1 ? 'copies' : 'copie'})`
-                : `S'inscrire et lancer la correction IA (${submissions.length} ${submissions.length > 1 ? 'copies' : 'copie'})`}
+              {`Lancer la correction (${submissions.length} ${submissions.length > 1 ? 'copies' : 'copie'})`}
             </span>
             <ArrowRight className="w-4 h-4" />
           </button>
-
-          {!isRegistered && submissions.length > 0 && (
-            <span className="text-[11px] text-amber-700 font-medium">
-              🔒 Inscription gratuite obligatoire pour débloquer vos 50 crédits offerts
-            </span>
-          )}
         </div>
       </div>
 
       {/* Mobile Sticky Quick Launch Bar (appears when copies are loaded) */}
       {submissions.length > 0 && (
-        <div className="sm:hidden fixed bottom-0 left-0 right-0 p-3 bg-white/95 backdrop-blur-md border-t border-slate-200 shadow-xl z-40 flex items-center gap-2">
+        <div className="sm:hidden fixed bottom-0 left-0 right-0 p-3 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border-t border-slate-200 dark:border-slate-800 shadow-xl z-40 flex items-center gap-2">
           <button
             type="button"
             onClick={onBack}
-            className="p-3 rounded-xl border border-slate-300 text-slate-700 bg-white hover:bg-slate-50 transition-colors shrink-0 cursor-pointer shadow-2xs"
+            className="p-2.5 rounded-lg border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 bg-white dark:bg-slate-800 transition-colors shrink-0 cursor-pointer shadow-2xs"
             title="Retour à la configuration"
           >
             <ArrowLeft className="w-4 h-4" />
@@ -1416,13 +1408,11 @@ export const Step2Upload: React.FC<Step2UploadProps> = ({
           <button
             type="button"
             onClick={onNext}
-            className="flex-1 inline-flex items-center justify-center gap-2 py-3 px-4 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold text-xs shadow-md transition-all cursor-pointer"
+            className="flex-1 inline-flex items-center justify-center gap-2 py-2.5 px-4 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-semibold text-xs shadow-md transition-colors cursor-pointer"
           >
             <Sparkles className="w-4 h-4 shrink-0" />
             <span className="truncate">
-              {isRegistered
-                ? `Lancer correction (${submissions.length})`
-                : `S'inscrire & Lancer (${submissions.length})`}
+              {`Lancer correction (${submissions.length})`}
             </span>
             <ArrowRight className="w-4 h-4 shrink-0" />
           </button>

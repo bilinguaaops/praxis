@@ -10,8 +10,11 @@ import {
   ChevronDown,
   Phone,
   ArrowLeft,
+  Sun,
+  Moon,
 } from 'lucide-react';
 import { MainView, LeadData } from '../types';
+import { useTheme } from '../lib/useTheme';
 
 interface TopHeaderProps {
   activeView: MainView;
@@ -38,6 +41,7 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
   onOpenBilling,
   onBack,
 }) => {
+  const { isDark, toggleTheme } = useTheme();
   const [isNotifOpen, setIsNotifOpen] = useState(false);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [unreadNotifsCount, setUnreadNotifsCount] = useState(1);
@@ -144,6 +148,28 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
         >
           <Phone className="w-3.5 h-3.5 text-slate-500" />
           <span>Support</span>
+        </button>
+
+        {/* Theme Toggle (Light / Dark) */}
+        <button
+          type="button"
+          onClick={toggleTheme}
+          id="btn-header-theme-toggle"
+          className="p-1.5 sm:px-2.5 sm:py-1 rounded-md text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs font-medium transition-colors cursor-pointer flex items-center gap-1.5"
+          title={isDark ? 'Passer en mode clair' : 'Passer en mode sombre'}
+          aria-label={isDark ? 'Passer en mode clair' : 'Passer en mode sombre'}
+        >
+          {isDark ? (
+            <>
+              <Sun className="w-3.5 h-3.5 text-amber-400" />
+              <span className="hidden md:inline">Clair</span>
+            </>
+          ) : (
+            <>
+              <Moon className="w-3.5 h-3.5 text-slate-600" />
+              <span className="hidden md:inline">Sombre</span>
+            </>
+          )}
         </button>
 
         {/* Notifications Popover */}

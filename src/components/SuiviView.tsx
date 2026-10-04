@@ -136,18 +136,17 @@ export const SuiviView: React.FC<SuiviViewProps> = ({
 
   return (
     <div className="max-w-6xl mx-auto space-y-6 pb-16">
-      {/* Top Banner */}
-      <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-xs flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+      {/* Top Header */}
+      <div className="pb-6 border-b border-slate-200 dark:border-slate-800 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
-          <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-blue-50 text-blue-700 text-xs font-semibold mb-2">
-            <TrendingUp className="w-3.5 h-3.5" />
-            Suivi individuel & progression
+          <div className="text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+            Suivi individuel & bilan
           </div>
-          <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">
-            Suivi Pédagogique des Élèves
+          <h1 className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-white tracking-tight mt-1">
+            Résultats et progression des élèves
           </h1>
-          <p className="text-xs sm:text-sm text-slate-500 mt-1">
-            Visualisez l'historique des notes, la trajectoire de progression et les axes de travail pour chaque élève.
+          <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-400 mt-1">
+            Visualisez l'historique des notes, la trajectoire de progression et les axes d'apprentissage par élève.
           </p>
         </div>
 
@@ -159,7 +158,7 @@ export const SuiviView: React.FC<SuiviViewProps> = ({
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             placeholder="Rechercher un élève..."
-            className="w-full pl-9 pr-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:bg-white focus:ring-2 focus:ring-blue-500 outline-none"
+            className="w-full pl-9 pr-3.5 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-xs text-slate-900 dark:text-white focus:ring-1 focus:ring-slate-900 dark:focus:ring-slate-300 outline-none"
           />
         </div>
       </div>

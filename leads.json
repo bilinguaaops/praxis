@@ -1,1 +1,30 @@
-[]
+[
+  {
+    "id": "lead_1791121635351",
+    "name": "bilingua.agency",
+    "email": "bilingua.agency@gmail.com",
+    "whatsapp": "",
+    "plan": "trial",
+    "quota": 30,
+    "subscriptionCredits": 28,
+    "extraCredits": 0,
+    "copiesCorrected": 2,
+    "status": "active",
+    "createdAt": "2026-10-04T13:47:15.351Z",
+    "lastActiveAt": "2026-10-04T14:17:39.591Z"
+  },
+  {
+    "id": "lead_1791122526078",
+    "name": "professeur",
+    "email": "professeur@praxis.edu",
+    "whatsapp": "",
+    "plan": "trial",
+    "quota": 30,
+    "subscriptionCredits": 21,
+    "extraCredits": 0,
+    "copiesCorrected": 9,
+    "status": "active",
+    "createdAt": "2026-10-04T14:02:06.078Z",
+    "lastActiveAt": "2026-10-04T14:25:42.780Z"
+  }
+]

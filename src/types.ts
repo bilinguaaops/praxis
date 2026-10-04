@@ -87,10 +87,12 @@ export interface QuestionEvaluation {
   note: number;
   note_max: number;
   justification: string;
+  evidence?: string; // Preuve factuelle relevée directement sur la copie de l'élève
   confiance?: 'elevee' | 'moyenne' | 'faible';
   verification_recommandee?: boolean;
   difficulte_lecture?: boolean;
   remarque_enseignant?: string;
+  page?: number;
 }
 
 export interface CorrectionResult {
@@ -100,7 +102,9 @@ export interface CorrectionResult {
   note_ia?: number;
   confiance_globale?: 'elevee' | 'moyenne' | 'faible';
   verification_humaine_recommandee?: boolean;
+  needs_review?: boolean; // Signal standardisé : révision humaine requise
   motif_verification?: string;
+  injection_suspected?: boolean; // Alerte sécurité : instruction suspecte détectée sur la copie
   statut_validation?: 'propose_ia' | 'en_cours_examen' | 'valide_professeur';
   valide_par_nom?: string;
   valide_le?: string;
@@ -115,6 +119,11 @@ export interface CorrectionResult {
   avertissement_lisibilite?: string;
   teacherNotes?: string;
   manuallyAdjusted?: boolean;
+  calculation_details?: {
+    raw_points_sum: number;
+    raw_max_sum: number;
+    scaled_grade: number;
+  };
 }
 
 export interface ClassMetrics {

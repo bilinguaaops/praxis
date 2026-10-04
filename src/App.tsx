@@ -88,10 +88,24 @@ export default function App() {
   const [localLead, setLocalLead] = useState<LeadData | null>(() => {
     try {
       const saved = localStorage.getItem('praxis_lead') || localStorage.getItem('cpro_lead');
-      return saved ? JSON.parse(saved) : null;
-    } catch {
-      return null;
-    }
+      if (saved) return JSON.parse(saved);
+    } catch {}
+    const defaultLead: LeadData = {
+      name: 'Professeur',
+      email: 'professeur@praxis.edu',
+      whatsapp: '',
+      plan: 'trial',
+      quota: 50,
+      subscriptionCredits: 50,
+      extraCredits: 0,
+      copiesCorrected: 0,
+      status: 'active',
+    };
+    try {
+      localStorage.setItem('praxis_lead', JSON.stringify(defaultLead));
+      localStorage.setItem('cpro_lead', JSON.stringify(defaultLead));
+    } catch {}
+    return defaultLead;
   });
 
   // Effective authenticated lead (Supabase Auth takes absolute precedence)
@@ -857,13 +871,23 @@ export default function App() {
 
   // Action when teacher triggers the correction process (Step 2 button or direct step navigation)
   const handleRequestStartCorrection = () => {
-    const isRegistered = Boolean(user || currentLead);
-    if (isRegistered) {
-      goToStep(3);
-    } else {
-      // Registration is strictly required before launching correction
-      handleViewChange('register');
+    if (!currentLead) {
+      const defaultLead: LeadData = {
+        name: 'Professeur',
+        email: 'professeur@praxis.edu',
+        whatsapp: '',
+        plan: 'trial',
+        quota: 50,
+        subscriptionCredits: 50,
+        extraCredits: 0,
+        copiesCorrected: 0,
+        status: 'active',
+      };
+      localStorage.setItem('praxis_lead', JSON.stringify(defaultLead));
+      localStorage.setItem('cpro_lead', JSON.stringify(defaultLead));
+      setLocalLead(defaultLead);
     }
+    goToStep(3);
   };
 
   const handleLeadSubmitSuccess = (lead: LeadData) => {
