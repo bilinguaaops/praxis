@@ -18,6 +18,7 @@ import {
 } from 'lucide-react';
 import { MainView, LeadData } from '../types';
 import { useTheme } from '../lib/useTheme';
+import { MobilePWAInstallMenuItem } from './MobilePWAInstallModal';
 
 interface SidebarProps {
   activeView: MainView;
@@ -244,6 +245,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
         {/* Footer: Solde & User Profile */}
         <div className="p-3 border-t border-slate-800/80 space-y-3 bg-[#0D121B]">
+          {/* Mobile Install App Button (Phone only) */}
+          <MobilePWAInstallMenuItem onClick={onCloseMobile} />
+
           {/* Solde de corrections */}
           <div className="px-2.5 py-2 rounded-lg bg-slate-900/90 border border-slate-800 space-y-1.5">
             <div className="flex items-center justify-between text-[11px]">

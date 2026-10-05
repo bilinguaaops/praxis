@@ -327,6 +327,145 @@ function roundToAcademicStep(val: number): number {
   return Number((Math.round(val * 4) / 4).toFixed(2));
 }
 
+// 🛡️ DÉTECTION STRICTE DES EXERCICES / QUESTIONS NON TRAITÉES
+// Règle pédagogique absolue : un exercice non fait, absent ou laissé vide = STRICTEMENT 0 POINT.
+function isQuestionUnattempted(q: any): boolean {
+  if (!q) return true;
+  const reponse = (typeof q.reponse_eleve === 'string' ? q.reponse_eleve : '').trim().toLowerCase();
+  const justification = (typeof q.justification === 'string' ? q.justification : '').trim().toLowerCase();
+
+  // 1. Réponse totalement vide ou symbole d'absence
+  if (
+    !reponse ||
+    reponse === '' ||
+    reponse === '-' ||
+    reponse === '—' ||
+    reponse === '/' ||
+    reponse === 'néant' ||
+    reponse === 'neant' ||
+    reponse === 'aucun' ||
+    reponse === 'aucune' ||
+    reponse === 'rien' ||
+    reponse === 'vide' ||
+    reponse === 'null' ||
+    reponse === 'n/a'
+  ) {
+    return true;
+  }
+
+  const unattemptedKeywords = [
+    'non traité',
+    'non traitée',
+    'non traitee',
+    'non traite',
+    'pas traité',
+    'pas traitée',
+    'pas traitee',
+    'pas traite',
+    'non fait',
+    'non faite',
+    'pas fait',
+    'pas faite',
+    'non abordé',
+    'non abordée',
+    'non aborde',
+    'non abordee',
+    'non répondu',
+    'non répondue',
+    'non respondu',
+    'non effectué',
+    'non effectuée',
+    'aucune réponse',
+    'aucune reponse',
+    'aucun calcul',
+    'aucune tentative',
+    'laissé vide',
+    'laissée vide',
+    'laisse vide',
+    'laissee vide',
+    'rien écrit',
+    'rien ecrit',
+    'rien d\'écrit',
+    'rien d\'ecrit',
+    'sans réponse',
+    'sans reponse',
+    'non résolu',
+    'non resolu',
+    'non détecté',
+    'non detecte',
+    'non détectée',
+    'non detectee',
+    'absent de la copie',
+    'absente de la copie',
+  ];
+
+  for (const kw of unattemptedKeywords) {
+    if (reponse === kw || reponse.startsWith(kw + ' ') || reponse.startsWith(kw + '.') || reponse.startsWith(kw + ':') || reponse.startsWith(kw + ',')) {
+      return true;
+    }
+  }
+
+  // Formulation courte contenant l'un des marqueurs (ex: "Exercice 3 : non traité")
+  if (reponse.length <= 90 && (
+    /non\s+trait[eé]/i.test(reponse) ||
+    /pas\s+trait[eé]/i.test(reponse) ||
+    /non\s+fait/i.test(reponse) ||
+    /aucune\s+r[eé]ponse/i.test(reponse) ||
+    /aucun\s+calcul/i.test(reponse) ||
+    /laiss[eé]\s+vide/i.test(reponse) ||
+    /non\s+d[eé]tect[eé]/i.test(reponse) ||
+    /absent/i.test(reponse)
+  )) {
+    return true;
+  }
+
+  // Détection via la justification de l'IA (ex: "questions n'ont pas été traitées", "barème résiduel pour éviter une note trop basse")
+  if (/questions?\s+n'ont?\s+pas\s+[eé]t[eé]\s+trait[eé]/i.test(justification) ||
+      /n'a\s+pas\s+[eé]t[eé]\s+trait[eé]/i.test(justification) ||
+      /n'a\s+rien\s+[eé]crit/i.test(justification) ||
+      /n'a\s+pas\s+effectu[eé]/i.test(justification) ||
+      /exercice\s+non\s+trait[eé]/i.test(justification) ||
+      /bar[eè]me\s+r[eé]siduel/i.test(justification) ||
+      /ici\s+0\/\d+\s+sur\s+ces\s+questions/i.test(justification) ||
+      /ces\s+questions\s+n'ont\s+pas\s+[eé]t[eé]\s+trait[eé]es/i.test(justification) ||
+      /non\s+d[eé]tect[eé]\s+sur\s+la\s+copie/i.test(justification)) {
+    return true;
+  }
+
+  return false;
+}
+
+// Extraction des exercices définis dans le barème du professeur
+function extractExercisesFromRubric(rubricText: string): { title: string; maxPoints?: number }[] {
+  if (!rubricText || typeof rubricText !== 'string') return [];
+  const results: { title: string; maxPoints?: number }[] = [];
+  const lines = rubricText.split('\n');
+
+  // Repérage d'intitulés d'exercices ou questions explicites
+  const titleRegex = /(?:^|\b)((?:Exercice|Question|Questions|Partie|Problème|Exo)\s+[0-9A-Za-z]+(?:[,\s]+(?:et|[0-9A-Za-z]+))*)/i;
+
+  for (const line of lines) {
+    const trimmed = line.trim();
+    const match = trimmed.match(titleRegex);
+    if (match) {
+      const rawTitle = match[1].trim();
+      let maxPts: number | undefined;
+      const ptsMatch = trimmed.match(/(?:sur|\/|\()?\s*([0-9]+(?:[.,][0-9]+)?)\s*(?:points?|pts?|\/)\s*\)?/i);
+      if (ptsMatch) {
+        const val = parseFloat(ptsMatch[1].replace(',', '.'));
+        if (!isNaN(val) && val > 0 && val <= 50) {
+          maxPts = val;
+        }
+      }
+      if (rawTitle.length >= 3 && !results.some(r => r.title.toLowerCase() === rawTitle.toLowerCase())) {
+        results.push({ title: rawTitle, maxPoints: maxPts });
+      }
+    }
+  }
+
+  return results;
+}
+
 async function getResolvedClaudeCandidates(): Promise<string[]> {
   const anthropic = getAnthropic();
   if (!anthropic) return [];
@@ -941,10 +1080,14 @@ RÈGLES IMPÉRATIVES DE NOTATION MATHÉMATIQUE :
 1. VALORISATION DE LA DÉMARCHE ET DES ÉTAPES :
    - Distingue rigoureusement la formule/théorème énoncé, l'application numérique et le résultat final avec son unité.
    - Si la démarche est correcte mais qu'une erreur de calcul est commise à la fin, accorde la majorité des points de méthode (ex: 70% des points).
-2. RIGUEUR DES FORMULATIONS :
+   - ⚠️ ATTENTION : Les points de démarche ne s'appliquent QUE s'il y a un début de raisonnement ou calcul écrit par l'élève sur sa copie.
+2. EXERCICE OU QUESTION NON TRAITÉ(E) = STRICTEMENT 0 POINT :
+   - Si un exercice ou une question n'est pas traité(e) par l'élève (calculs, équations, géométrie...), la note est STRICTEMENT 0 (ex: 0/9).
+   - IL EST FORMELLEMENT INTERDIT d'accorder des points résiduels, de complaisance ou de démarche pour un exercice non fait.
+3. RIGUEUR DES FORMULATIONS :
    - Exige la mention explicite des hypothèses (ex: "Le triangle ABC est rectangle en A, donc d'après le théorème de Pythagore...").
    - Sanctionne l'absence d'unité ou un arrondi injustifié si demandé dans la consigne.
-3. COMPÉTENCES CLÉS :
+4. COMPÉTENCES CLÉS :
    - Évalue : "Chercher & Modéliser", "Raisonner & Démontrer", "Calculer & Résoudre", "Communiquer & Rédiger avec rigueur".
 `;
     } else if (assessmentType === 'qcm') {
@@ -957,13 +1100,14 @@ RÈGLES IMPÉRATIVES DE NOTATION DE QCM :
    - Dans "reponse_attendue", indique la bonne réponse et son explication rapide.
 2. PAS D'AMBIGUÏTÉ :
    - Si une réponse est raturée avec un choix clairement rectifié, prends en compte la rectification finale de l'élève.
+3. ITEM NON RÉPONDU = 0 POINT.
 `;
     }
 
     let guidelinesPrompt = `
 Consignes pédagogiques du professeur:
 - Tolérance orthographique/syntaxique: ${guidelines.spellingTolerance ? 'Oui (ne pas pénaliser les fautes de langue si le sens est clair)' : 'Non (veiller à une expression soignée et pénaliser les fautes flagrantes selon le niveau)'}
-- Valorisation de la démarche et des brouillons: ${guidelines.rewardEffortAndMethod ? 'Oui (accorder des points partiels significatifs si la méthode est juste même si le calcul final est erroné)' : 'Standard'}
+- Valorisation de la démarche et des brouillons: ${guidelines.rewardEffortAndMethod ? 'Oui (accorder des points partiels significatifs si la méthode est juste même si le calcul final est erroné. ATTENTION : s\'il n\'y a AUCUNE production écrite sur la copie, la note est impérativement 0 point)' : 'Standard (un exercice non fait = 0 point)'}
 - Rigueur des justifications et rédaction: ${guidelines.rigorousJustification ? 'Très élevée (exiger les propriétés, théorèmes ou citations exactes)' : 'Modérée'}
 - Clarté et soin de la copie: ${guidelines.encourageClarity ? 'Prendre en compte le soin, la lisibilité et la présentation' : 'Non prioritaire'}
 ${guidelines.customInstructions ? `- Consignes spécifiques de l'enseignant: "${guidelines.customInstructions}"` : ''}
@@ -990,8 +1134,13 @@ RÈGLES D'APPLICATION DU CORRIGÉ :
    - Si la réponse est partielle ou incomplète selon les critères du corrigé : attribue des points partiels proportionnels.
    - Si la réponse est fausse ou manquante par rapport au corrigé : applique la pénalité prévue ou mets 0 point à la question.
 3. JUSTIFICATION PÉDAGOGIQUE ET SOLUTION ATTENDUE :
-   - Dans chaque élément de "details_questions", indique précisément dans "reponse_attendue" la solution issue du corrigé de référence.
-   - Dans "justification", explique avec clarté et bienveillance à l'élève en quoi sa copie correspond ou s'écarte du corrigé officiel du professeur.
+   - Dans chaque élément de "questions", indique précisément dans "reponse_attendue" la solution issue du corrigé de référence.
+   - Dans "justification", explique avec clarté à l'élève en quoi sa copie correspond ou s'écarte du corrigé officiel.
+4. CONTRÔLE D'EXHAUSTIVITÉ DU BARÈME (OBLIGATION ABSOLUE) :
+   - Tu DOIS recenser et évaluer TOUS les exercices et questions définis dans ce corrigé / barème officiel.
+   - Si un exercice ou une question du barème officiel n'apparaît PAS sur la copie de l'élève, ou n'est PAS traité(e) :
+     * Tu DOIS OBLIGATOIREMENT l'inclure dans "questions" avec "reponse_eleve": "Non traité (exercice absent sur la copie)", "evidence": "Exercice absent de la copie", "note": 0.
+     * IL EST STRICTEMENT INTERDIT d'attribuer des points par défaut ou de sauter un exercice non traité.
 `;
     } else {
       rubricPrompt = `
@@ -1069,6 +1218,11 @@ RÈGLES D'ÉVALUATION ET D'EXHAUSTIVITÉ :
 5. STANDARD DE NOTATION ACADÉMIQUE STRICT (CÔTE D'IVOIRE & AFRIQUE FRANCOPHONE) :
    - Chaque note attribuée (aux questions et au total) DOIT impérativement être un nombre entier (0, 1, 2, 3...), un demi-point (0.5, 1.5, 2.5...) ou un quart de point (0.25, 0.75, 1.25...).
    - NE JAMAIS donner de décimales fantaisistes (comme 0.13, 0.33, 0.67, 14.18, 7.82). Reste toujours sur les paliers scolaires reconnus (pas de 0.25 ou 0.5).
+
+6. RÈGLE CRITIQUE ET ABSOLUE : EXERCICE OU QUESTION NON TRAITÉ(E) = STRICTEMENT 0 POINT (NOTE = 0) :
+   - Tout exercice, question, sous-question ou calcul NON TRAITÉ, NON FAIT, ABSENT, LAISSÉ VIDE, NON ABORDÉ ou SANS AUCUNE DÉMARCHE ÉCRITE par l'élève DOIT OBLIGATOIREMENT RECEVOIR LA NOTE DE 0 (ex: "note": 0).
+   - IL EST FORMELLEMENT ET STRICTEMENT INTERDIT d'accorder des points de complaisance, des "points résiduels pour éviter une note trop basse", ou des points de méthode pour un travail non réalisé.
+   - Si l'élève a sauté les questions 6, 7 et 8 : dans "reponse_eleve", inscris "Non traité", et dans "note", mets OBLIGATOIREMENT 0 (ex: 0/9).
 
 RÉPONDS UNIQUEMENT SOUS FORME D'UN OBJET JSON STRICT respectant le schéma demandé.`;
 
@@ -1566,18 +1720,45 @@ IMPORTANT : Ne pose AUCUNE question. Remplis directement le JSON avec les inform
         // Enforce types, academic bounds and standard steps (0, 0.25, 0.5, 0.75, 1, 1.5...)
         const rawQMax = typeof q.note_max === 'number' && !isNaN(q.note_max) && q.note_max > 0 ? q.note_max : 1;
         const qMax = roundToAcademicStep(rawQMax);
-        const rawAwarded = typeof q.note === 'number' && !isNaN(q.note) ? Math.max(0, q.note) : 0;
-        const qAwarded = roundToAcademicStep(Math.min(qMax, rawAwarded));
 
-        // Never allow awarded points to exceed question max points
-        q.note = qAwarded;
-        q.note_max = qMax;
+        // 🚨 RÈGLE PÉDAGOGIQUE ABSOLUE : EXERCICE NON TRAITÉ = 0 POINT STRICT
+        // Si l'élève n'a pas fait l'exercice, aucun point de complaisance ni "barème résiduel" ne peut être accordé
+        const unattempted = isQuestionUnattempted(q);
+        let qAwarded = 0;
+
+        if (unattempted) {
+          qAwarded = 0;
+          q.note = 0;
+          q.note_max = qMax;
+          if (!q.reponse_eleve || typeof q.reponse_eleve !== 'string' || !q.reponse_eleve.trim()) {
+            q.reponse_eleve = 'Non traité';
+          }
+          // Nettoyer toute justification contradictoire générée par l'IA (comme "barème résiduel pour éviter une note trop basse")
+          if (q.justification && typeof q.justification === 'string') {
+            q.justification = q.justification
+              .replace(/\(barème résiduel[^\)]*\)/gi, '')
+              .replace(/mais ici \d+\/\d+[^\)]*/gi, '')
+              .trim();
+            if (!q.justification.toLowerCase().includes('0 point') && !q.justification.toLowerCase().includes('0/')) {
+              q.justification += (q.justification ? ' ' : '') + `(Question non traitée par l'élève : 0/${qMax} attribué conformément au barème officiel).`;
+            }
+          } else {
+            q.justification = `Question non traitée par l'élève : 0/${qMax} attribué conformément au barème officiel.`;
+          }
+        } else {
+          const rawAwarded = typeof q.note === 'number' && !isNaN(q.note) ? Math.max(0, q.note) : 0;
+          qAwarded = roundToAcademicStep(Math.min(qMax, rawAwarded));
+          q.note = qAwarded;
+          q.note_max = qMax;
+        }
 
         // Ensure evidence exists
         if (!q.evidence || typeof q.evidence !== 'string' || !q.evidence.trim()) {
-          q.evidence = (q.reponse_eleve && typeof q.reponse_eleve === 'string' && q.reponse_eleve.trim())
-            ? q.reponse_eleve.slice(0, 200)
-            : 'Élément visible sur la copie de l’élève';
+          q.evidence = unattempted
+            ? 'Exercice non traité (aucun élément produit par l’élève)'
+            : ((q.reponse_eleve && typeof q.reponse_eleve === 'string' && q.reponse_eleve.trim())
+                ? q.reponse_eleve.slice(0, 200)
+                : 'Élément visible sur la copie de l’élève');
         }
 
         // Check for injection attempts inside student answer text
@@ -1597,6 +1778,50 @@ IMPORTANT : Ne pose AUCUNE question. Remplis directement le JSON avec les inform
         rawPointsSum += q.note;
         rawMaxSum += q.note_max;
       });
+
+      // 🛡️ RECONCILIATION STRICTE DU BARÈME :
+      // Vérifier si des exercices définis dans le corrigé/barème ont été totalement omis de la copie
+      if (rubricContent && typeof rubricContent === 'string' && rubricContent.trim()) {
+        const rubricExercises = extractExercisesFromRubric(rubricContent);
+        if (rubricExercises.length > 0) {
+          rubricExercises.forEach((rubEx) => {
+            const rubTitleLower = rubEx.title.toLowerCase();
+            const exists = parsed.questions.some((q: any) => {
+              const qTitleLower = (q.numero_ou_titre || '').toLowerCase();
+              return qTitleLower.includes(rubTitleLower) || rubTitleLower.includes(qTitleLower);
+            });
+
+            // Si un exercice défini dans le barème n'a pas été traité / n'a pas été détecté sur la copie :
+            // Forcer son inclusion avec strictement 0 point !
+            if (!exists) {
+              const exMax = rubEx.maxPoints ? roundToAcademicStep(rubEx.maxPoints) : 1;
+              const unattemptedQuestion = {
+                numero_ou_titre: rubEx.title,
+                reponse_eleve: "Non traité (exercice non détecté sur la copie de l'élève)",
+                evidence: "Exercice absent de la copie",
+                reponse_attendue: "Attendus selon le barème officiel du professeur",
+                note: 0,
+                note_max: exMax,
+                page: 1,
+                justification: `L'exercice « ${rubEx.title} » est prévu dans le barème officiel mais n'a pas été traité sur cette copie (0/${exMax} conformément au barème).`,
+                confiance: "elevee",
+                verification_recommandee: false,
+                difficulte_lecture: false,
+              };
+              parsed.questions.push(unattemptedQuestion);
+              rawMaxSum += exMax;
+            }
+          });
+        }
+      }
+
+      // Re-vérification absolue : aucune question non traitée ne peut avoir de points
+      parsed.questions.forEach((q: any) => {
+        if (isQuestionUnattempted(q)) {
+          q.note = 0;
+        }
+      });
+      rawPointsSum = parsed.questions.reduce((sum: number, q: any) => sum + (Number(q.note) || 0), 0);
     } else {
       // Fallback question structure if model output missed questions array
       parsed.questions = [{
@@ -3333,6 +3558,13 @@ app.get('/api/admin/settings', requireAdminAuth, (req, res) => {
 app.post('/api/admin/clear-leads', requireAdminAuth, (req, res) => {
   saveLeads([]);
   res.json({ success: true, count: 0, message: 'La base a été remise à zéro. Le tableau de bord affiche désormais uniquement les données réelles en direct.' });
+});
+
+// Explicit manifest route with proper MIME type for PWA compliance (both dev & prod)
+app.get(['/manifest.webmanifest', '/manifest.json'], (req, res) => {
+  res.setHeader('Content-Type', 'application/manifest+json; charset=utf-8');
+  const manifestPath = path.join(process.cwd(), 'public', 'manifest.webmanifest');
+  res.sendFile(manifestPath);
 });
 
 // Vite middleware in dev or static serving in prod

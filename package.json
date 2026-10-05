@@ -40,6 +40,7 @@
     "@resvg/resvg-js": "^2.6.2",
     "@types/html2canvas": "^1.0.0",
     "@types/pngjs": "^6.0.5",
-    "pngjs": "^7.0.0"
+    "pngjs": "^7.0.0",
+    "vite-plugin-pwa": "^2.0.0"
   }
 }

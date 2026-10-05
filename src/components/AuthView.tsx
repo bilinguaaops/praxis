@@ -92,9 +92,51 @@ export const AuthView: React.FC<AuthViewProps> = ({
 
     try {
       if (!isSupabaseConfigured) {
-        throw new Error(
-          'Supabase n\'est pas encore configuré. Renseignez VITE_SUPABASE_URL et VITE_SUPABASE_PUBLISHABLE_KEY dans votre fichier .env.'
-        );
+        // Enregistrement direct et persistant sur le serveur Praxis
+        const res = await fetch('/api/leads', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            name: fullName.trim() || 'Enseignant',
+            email: email.trim().toLowerCase(),
+            whatsapp: phoneWhatsapp.trim(),
+            school: schoolName.trim(),
+          }),
+        });
+
+        const data = await res.json();
+        if (!res.ok || !data.success) {
+          throw new Error(data.error || 'Erreur lors de l’inscription.');
+        }
+
+        const lead: LeadData = {
+          name: data.lead.name,
+          email: data.lead.email,
+          whatsapp: data.lead.whatsapp || '',
+          school: data.lead.school || 'Établissement non précisé',
+          plan: data.lead.plan || 'trial',
+          status: data.lead.status || 'trial',
+          quota: data.lead.quota || 50,
+          subscriptionCredits: data.lead.subscriptionCredits || 50,
+          extraCredits: data.lead.extraCredits || 0,
+          copiesCorrected: data.lead.copiesCorrected || 0,
+          userId: data.lead.id,
+          role: 'teacher',
+        };
+
+        localStorage.setItem('praxis_lead', JSON.stringify(lead));
+        localStorage.setItem('cpro_lead', JSON.stringify(lead));
+
+        if (onAuthSuccess) {
+          onAuthSuccess(lead, lead);
+        }
+        if (onClose) {
+          onClose();
+        }
+        if (onNavigate) {
+          onNavigate('dashboard');
+        }
+        return;
       }
 
       const { data, error } = await supabase.auth.signUp({
@@ -189,9 +231,43 @@ export const AuthView: React.FC<AuthViewProps> = ({
 
     try {
       if (!isSupabaseConfigured) {
-        throw new Error(
-          'Supabase n\'est pas encore configuré. Renseignez VITE_SUPABASE_URL et VITE_SUPABASE_PUBLISHABLE_KEY dans votre fichier .env.'
-        );
+        // Recherche du compte enseignant sur le serveur Praxis
+        const res = await fetch(`/api/teacher/me?email=${encodeURIComponent(email.trim().toLowerCase())}`);
+        const data = await res.json();
+
+        if (!res.ok || !data.email) {
+          setErrorMsg('Aucun compte trouvé avec cette adresse email. Veuillez d’abord vous inscrire.');
+          return;
+        }
+
+        const lead: LeadData = {
+          name: data.name || 'Enseignant',
+          email: data.email,
+          whatsapp: data.whatsapp || '',
+          school: data.school || 'Établissement non précisé',
+          plan: data.plan || 'trial',
+          status: data.status || 'trial',
+          quota: data.quota || 50,
+          subscriptionCredits: data.subscriptionCredits || 50,
+          extraCredits: data.extraCredits || 0,
+          copiesCorrected: data.copiesCorrected || 0,
+          userId: data.id,
+          role: 'teacher',
+        };
+
+        localStorage.setItem('praxis_lead', JSON.stringify(lead));
+        localStorage.setItem('cpro_lead', JSON.stringify(lead));
+
+        if (onAuthSuccess) {
+          onAuthSuccess(lead, lead);
+        }
+        if (onClose) {
+          onClose();
+        }
+        if (onNavigate) {
+          onNavigate('dashboard');
+        }
+        return;
       }
 
       const { data, error } = await supabase.auth.signInWithPassword({

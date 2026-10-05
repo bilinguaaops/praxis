@@ -260,9 +260,10 @@ export const StudentDetailModal: React.FC<StudentDetailModalProps> = ({
     updated[index] = { ...updated[index], note: newNote };
     setQuestions(updated);
 
-    // Auto calculate new sum if questions have max grades
+    // Auto calculate new sum with academic step (0, 0.25, 0.5, 0.75, 1...)
     const newSum = updated.reduce((acc, q) => acc + (Number(q.note) || 0), 0);
-    setGrade(Number(newSum.toFixed(2)));
+    const roundedSum = Math.round(newSum * 4) / 4;
+    setGrade(Number(roundedSum.toFixed(2)));
   };
 
   const handleCompetenceStatusChange = (index: number, newStatus: 'Acquis' | 'En cours' | 'Non acquis') => {
@@ -1361,10 +1362,17 @@ export const StudentDetailModal: React.FC<StudentDetailModalProps> = ({
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 pt-0.5 text-slate-700">
                       <div className="p-2 bg-white rounded-md border border-slate-200/80">
-                        <span className="font-bold text-[9px] uppercase tracking-wider text-blue-700 block mb-0.5">
-                          Formulation élève :
-                        </span>
-                        <p className="font-mono text-[11px] text-slate-800 leading-snug line-clamp-3">
+                        <div className="flex items-center justify-between mb-0.5">
+                          <span className="font-bold text-[9px] uppercase tracking-wider text-blue-700">
+                            Formulation élève :
+                          </span>
+                          {(q.reponse_eleve?.toLowerCase().includes('non traité') || q.reponse_eleve?.toLowerCase().includes('non fait') || q.note === 0) && (
+                            <span className="text-[9px] font-bold text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded">
+                              Non traité (0 pt)
+                            </span>
+                          )}
+                        </div>
+                        <p className={`font-mono text-[11px] leading-snug line-clamp-3 ${q.reponse_eleve?.toLowerCase().includes('non traité') ? 'text-slate-500 italic' : 'text-slate-800'}`}>
                           {q.reponse_eleve || 'Non traité / illisible'}
                         </p>
                       </div>

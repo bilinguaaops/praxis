@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { RotateCcw, Zap } from 'lucide-react';
 import confetti from 'canvas-confetti';
-import { AssignmentConfig, StudentSubmission, ClassGroup, SavedEvaluation, MainView, LeadData, PaywallPlanId } from './types';
+import { AssignmentConfig, StudentSubmission, ClassGroup, SavedEvaluation, MainView, LeadData, PaywallPlanId, SaaSPlan } from './types';
 import { Header } from './components/Header';
 import { Sidebar } from './components/Sidebar';
 import { TopHeader } from './components/TopHeader';
@@ -26,6 +26,7 @@ import { PricingPage } from './components/PricingPage';
 import { ContactModal } from './components/ContactModal';
 import { PaywallModal } from './components/PaywallModal';
 import { AuthView } from './components/AuthView';
+import { MobilePWAInstallModal } from './components/MobilePWAInstallModal';
 import { useSupabaseAuth } from './lib/useSupabaseAuth';
 
 const DEFAULT_CONFIG: AssignmentConfig = {
@@ -84,31 +85,38 @@ export default function App() {
     refreshProfile,
   } = useSupabaseAuth();
 
-  // Local state fallback for non-migrated demo leads
+  // Local state for authenticated teacher (persisted across sessions)
   const [localLead, setLocalLead] = useState<LeadData | null>(() => {
     try {
       const saved = localStorage.getItem('praxis_lead') || localStorage.getItem('cpro_lead');
-      if (saved) return JSON.parse(saved);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        // Exclure formellement l'ancien compte test générique pour éviter tout contournement
+        if (parsed && parsed.email && parsed.email !== 'professeur@praxis.edu') {
+          return parsed;
+        }
+      }
     } catch {}
-    const defaultLead: LeadData = {
-      name: 'Professeur',
-      email: 'professeur@praxis.edu',
-      whatsapp: '',
-      plan: 'trial',
-      quota: 50,
-      subscriptionCredits: 50,
-      extraCredits: 0,
-      copiesCorrected: 0,
-      status: 'active',
-    };
-    try {
-      localStorage.setItem('praxis_lead', JSON.stringify(defaultLead));
-      localStorage.setItem('cpro_lead', JSON.stringify(defaultLead));
-    } catch {}
-    return defaultLead;
+    // Par défaut, aucun compte test générique : l'utilisateur doit s'inscrire ou se connecter
+    return null;
   });
 
-  // Effective authenticated lead (Supabase Auth takes absolute precedence)
+  // Nettoyage immédiat de tout ancien compte test partagé
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem('praxis_lead') || localStorage.getItem('cpro_lead');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (parsed?.email === 'professeur@praxis.edu') {
+          localStorage.removeItem('praxis_lead');
+          localStorage.removeItem('cpro_lead');
+          setLocalLead(null);
+        }
+      }
+    } catch {}
+  }, []);
+
+  // Effective authenticated lead (Supabase Auth prend la priorité absolue, puis profil local persistant)
   const currentLead: LeadData | null = supabaseLead || localLead;
 
   // Paystack Return / Callback Handler
@@ -403,11 +411,13 @@ export default function App() {
   useEffect(() => {
     if (authLoading) return;
 
-    const isUserAuthenticated = Boolean(user || localLead);
+    const isUserAuthenticated = Boolean(
+      user || (currentLead && currentLead.email && currentLead.email !== 'professeur@praxis.edu')
+    );
 
-    // 1. Utilisateur non authentifié tentant d'accéder à une route privée -> redirection vers /login
+    // 1. Utilisateur non authentifié tentant d'accéder à une route privée -> redirection vers l'inscription obligatoire
     if (!isUserAuthenticated && PRIVATE_VIEWS.includes(activeView)) {
-      handleViewChange('login');
+      handleViewChange('register');
     }
 
     // 2. Utilisateur déjà connecté visitant /login ou /register -> redirection vers /dashboard
@@ -417,7 +427,7 @@ export default function App() {
     ) {
       handleViewChange('dashboard');
     }
-  }, [user, localLead, activeView, authLoading]);
+  }, [user, currentLead, activeView, authLoading]);
 
   const [isLeadGateOpen, setIsLeadGateOpen] = useState<boolean>(false);
   const [isPaywallOpen, setIsPaywallOpen] = useState<boolean>(false);
@@ -930,7 +940,10 @@ export default function App() {
       {activeView === 'landing' && (
         <LandingPage
           onStartCorrection={() => {
-            if (user || currentLead) {
+            const isAuth = Boolean(
+              user || (currentLead && currentLead.email && currentLead.email !== 'professeur@praxis.edu')
+            );
+            if (isAuth) {
               handleViewChange('corr');
               setCurrentStep(1);
             } else {
@@ -953,11 +966,30 @@ export default function App() {
           initialMode={activeView}
           onNavigate={(view) => handleViewChange(view)}
           onBack={handleBack}
-          onAuthSuccess={() => {
+          onAuthSuccess={(authUser: any, authProfile?: any) => {
             refreshProfile();
-            // Si des copies sont déjà prêtes dans la session, on poursuit directement vers l'évaluation (étape 3)
+            if (authUser) {
+              const lead: LeadData = {
+                name: authProfile?.full_name || authUser?.name || (authUser?.user_metadata?.full_name as string) || (authUser?.email?.split('@')[0] ?? 'Enseignant'),
+                email: authUser?.email || '',
+                whatsapp: authProfile?.phone_whatsapp || authUser?.whatsapp || (authUser?.user_metadata?.phone_whatsapp as string) || '',
+                school: authProfile?.school_name || authUser?.school || (authUser?.user_metadata?.school_name as string) || 'Établissement non précisé',
+                plan: (authProfile?.plan_id as SaaSPlan) || authUser?.plan || 'trial',
+                status: 'active',
+                subscriptionCredits: authUser?.subscriptionCredits ?? 50,
+                extraCredits: authUser?.extraCredits ?? 0,
+                quota: authUser?.quota ?? 50,
+                copiesCorrected: authUser?.copiesCorrected ?? 0,
+                userId: authUser?.id || authUser?.userId,
+                role: 'teacher',
+              };
+              setLocalLead(lead);
+              localStorage.setItem('praxis_lead', JSON.stringify(lead));
+              localStorage.setItem('cpro_lead', JSON.stringify(lead));
+            }
+            // Si des copies sont déjà prêtes dans la session, on poursuit vers l'évaluation
             if (submissions.length > 0) {
-              handleViewChange('corr', 3);
+              handleViewChange('corr', 2);
             } else {
               handleViewChange('dashboard');
             }
@@ -1278,6 +1310,9 @@ export default function App() {
           </div>
         </div>
       )}
+
+      {/* PWA Mobile Installation Bottom Sheet (Phones only) */}
+      <MobilePWAInstallModal />
     </div>
   );
 }
