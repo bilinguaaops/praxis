@@ -666,7 +666,7 @@ export const Step3Progress: React.FC<Step3ProgressProps> = ({
           </span>
         </div>
 
-        <div className="divide-y divide-slate-100">
+        <div className="divide-y divide-slate-100 dark:divide-slate-800">
           {submissions.map((sub, index) => {
             const isAnalyzing = sub.status === 'analyzing';
             const isCompleted = sub.status === 'completed';
@@ -675,12 +675,16 @@ export const Step3Progress: React.FC<Step3ProgressProps> = ({
             return (
               <div
                 key={sub.id}
-                className={`px-6 py-3.5 flex items-center justify-between gap-4 transition-colors ${
-                  isAnalyzing ? 'bg-blue-50/50' : isCompleted ? 'bg-white' : 'bg-slate-50/30'
+                className={`px-4 sm:px-6 py-3.5 flex items-center justify-between gap-4 transition-colors ${
+                  isAnalyzing
+                    ? 'bg-blue-50/50 dark:bg-blue-950/20'
+                    : isCompleted
+                    ? 'bg-white dark:bg-slate-900'
+                    : 'bg-slate-50/30 dark:bg-slate-900/40'
                 }`}
               >
                 <div className="flex items-center gap-3.5 min-w-0">
-                  <div className="w-10 h-10 rounded-lg bg-slate-100 border border-slate-200 overflow-hidden shrink-0 flex items-center justify-center">
+                  <div className="w-10 h-10 rounded-lg bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 overflow-hidden shrink-0 flex items-center justify-center">
                     <img
                       src={sub.imageDataUrl}
                       alt={sub.studentName}
@@ -689,15 +693,21 @@ export const Step3Progress: React.FC<Step3ProgressProps> = ({
                   </div>
 
                   <div className="min-w-0">
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 flex-wrap">
                       <span className="text-xs font-bold text-slate-400">#{index + 1}</span>
-                      <p className="text-sm font-bold text-slate-900 truncate">
+                      <p className="text-sm font-bold text-slate-900 dark:text-white truncate">
                         {sub.studentName}
                       </p>
                       {sub.pageCount && sub.pageCount > 1 && (
-                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-blue-50 text-blue-700 text-[10px] font-bold shrink-0 border border-blue-200">
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-blue-50 dark:bg-blue-950/50 text-blue-700 dark:text-blue-300 text-[10px] font-bold shrink-0 border border-blue-200 dark:border-blue-800">
                           <FileText className="w-3 h-3" />
                           {sub.pageCount} pages
+                        </span>
+                      )}
+                      {isCompleted && sub.result && !sub.result.verification_humaine_recommandee && (
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 text-[10px] font-bold shrink-0 border border-emerald-200 dark:border-emerald-800">
+                          <ShieldCheck className="w-3 h-3 text-emerald-600" />
+                          Ancrage validé ({sub.result.questions?.length || 0} items)
                         </span>
                       )}
                       {isCompleted &&
@@ -705,33 +715,32 @@ export const Step3Progress: React.FC<Step3ProgressProps> = ({
                         (sub.result.verification_humaine_recommandee ||
                           sub.result.lisibilite === 'faible' ||
                           sub.result.lisibilite === 'illisible' ||
-                          sub.result.lisibilite === 'moyenne' ||
                           Boolean(sub.result.avertissement_lisibilite)) && (
                           <span
-                            className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-amber-100 text-amber-900 text-[10px] font-bold shrink-0 border border-amber-300"
+                            className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-amber-50 dark:bg-amber-950/40 text-amber-800 dark:text-amber-300 text-[10px] font-bold shrink-0 border border-amber-300 dark:border-amber-700"
                             title={sub.result.avertissement_lisibilite || "Lisibilité difficile : relecture conseillée"}
                           >
                             <AlertTriangle className="w-3 h-3 text-amber-600" />
-                            Lisibilité : {sub.result.lisibilite || 'délicate'}
+                            Lisibilité {sub.result.lisibilite || 'délicate'}
                           </span>
                         )}
                     </div>
 
                     {isCompleted && sub.result && (
-                      <p className="text-xs text-slate-500 truncate max-w-md">
+                      <p className="text-xs text-slate-500 dark:text-slate-400 truncate max-w-md mt-0.5">
                         {sub.result.appreciation}
                       </p>
                     )}
 
                     {isError && (
-                      <p className="text-xs text-red-600 font-medium truncate">
+                      <p className="text-xs text-rose-600 dark:text-rose-400 font-medium truncate mt-0.5">
                         {sub.errorMessage || "Échec de l'analyse"}
                       </p>
                     )}
 
                     {isAnalyzing && (
-                      <p className="text-xs text-blue-600 font-medium animate-pulse">
-                        Transcription et évaluation en cours...
+                      <p className="text-xs text-blue-600 dark:text-blue-400 font-medium animate-pulse mt-0.5">
+                        Transcription visuelle et évaluation en cours...
                       </p>
                     )}
                   </div>
@@ -742,14 +751,14 @@ export const Step3Progress: React.FC<Step3ProgressProps> = ({
                   {isCompleted && sub.result && (
                     <div className="flex items-center gap-3">
                       <div className="text-right">
-                        <span className="text-base font-extrabold text-slate-900">
+                        <span className="text-base font-extrabold text-slate-900 dark:text-white tabular-nums">
                           {sub.result.note}
                         </span>
-                        <span className="text-xs text-slate-500 font-medium">
+                        <span className="text-xs text-slate-500 dark:text-slate-400 font-medium">
                           /{sub.result.note_sur}
                         </span>
                       </div>
-                      <span className="w-7 h-7 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center">
+                      <span className="w-7 h-7 rounded-full bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 flex items-center justify-center">
                         <CheckCircle2 className="w-4 h-4" />
                       </span>
                     </div>

@@ -247,7 +247,9 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
                 <p className="font-semibold text-slate-900 dark:text-white truncate">{teacherName}</p>
                 <p className="text-[11px] text-slate-500 dark:text-slate-400 truncate mt-0.5">{currentLead.email}</p>
                 <div className="mt-1.5 text-[11px] font-medium text-slate-600 dark:text-slate-300">
-                  {(currentLead.subscriptionCredits ?? 50) + (currentLead.extraCredits ?? 0)} corrections disponibles
+                  {((!currentLead.plan || currentLead.plan === 'trial' || currentLead.plan === 'free') && (currentLead.subscriptionCredits ?? 0) <= 30
+                    ? Math.max(0, 50 - (currentLead.copiesCorrected ?? 0))
+                    : (currentLead.subscriptionCredits ?? 50)) + (currentLead.extraCredits ?? 0)} corrections disponibles
                 </div>
               </div>
 

@@ -40,6 +40,7 @@ export interface PedagogicalGuidelines {
   rewardEffortAndMethod: boolean;
   rigorousJustification: boolean;
   encourageClarity: boolean;
+  antiHallucinationStrict?: boolean;
   customInstructions: string;
 }
 

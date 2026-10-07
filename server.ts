@@ -7,7 +7,7 @@ import { GoogleGenAI, Type } from '@google/genai';
 import Anthropic from '@anthropic-ai/sdk';
 import { createServer as createViteServer } from 'vite';
 
-dotenv.config();
+dotenv.config({ override: true });
 
 const app = express();
 const PORT = 3000;
@@ -25,6 +25,7 @@ app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 
 // --- Leads & SaaS Accounts Storage helpers ---
 const LEADS_FILE = path.join(process.cwd(), 'leads.json');
+const DEFAULT_TRIAL_QUOTA = Math.max(50, Number(process.env.FREE_TRIAL_QUOTA) || 50);
 
 export interface TransactionItem {
   id: string;
@@ -144,8 +145,8 @@ export const PROMO_CODES_REGISTRY: Record<string, PromoCodeConfig> = {
   },
 };
 
-// Master Admin Password & In-Memory Session Tokens
-const ADMIN_PASSWORD = process.env.ADMIN_MASTER_PASSWORD || '2341';
+// Master Admin Password & In-Memory Session Tokens (23451)
+const ADMIN_PASSWORD = (process.env.ADMIN_MASTER_PASSWORD || '23451').trim();
 const activeAdminTokens = new Map<string, number>(); // token -> expiresAt (timestamp)
 
 // Admin Authentication Middleware
@@ -164,8 +165,8 @@ function requireAdminAuth(req: express.Request, res: express.Response, next: exp
     return res.status(401).json({ error: 'Accès non autorisé. Token d’administration manquant.' });
   }
 
-  // Allow direct master password verification as fallback
-  if (token === ADMIN_PASSWORD || token === '2341') {
+  // Allow direct master password verification as fallback (23451 & backwards-compatible 2341)
+  if (token === ADMIN_PASSWORD || token === '23451' || token === '2341') {
     return next();
   }
 
@@ -178,40 +179,75 @@ function requireAdminAuth(req: express.Request, res: express.Response, next: exp
   next();
 }
 
-// Telegram Instant Push Notification Service
+// Helper to escape HTML characters for Telegram HTML messages
+function escapeTelegramHtml(text: string | null | undefined): string {
+  if (!text) return '';
+  return String(text)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+}
+
+// Telegram Instant Push Notification Service with multi-mode resilience
 async function sendTelegramNotification(message: string): Promise<{ success: boolean; error?: string }> {
-  const botToken = process.env.TELEGRAM_BOT_TOKEN;
-  const chatId = process.env.TELEGRAM_CHAT_ID;
+  const botToken = (process.env.TELEGRAM_BOT_TOKEN || '8484098189:AAHrvqZavzEML2NJ3g5t2vcsTRkjdzdDuxE').trim();
+  const chatId = (process.env.TELEGRAM_CHAT_ID || '7847633142').trim();
 
   if (!botToken || !chatId) {
-    console.log('[Telegram Bot] Bot non actif (TELEGRAM_BOT_TOKEN ou TELEGRAM_CHAT_ID absent dans .env)');
+    console.warn('[Telegram Bot] Bot non actif (TELEGRAM_BOT_TOKEN ou TELEGRAM_CHAT_ID non définis)');
     return {
       success: false,
       error: 'Variables TELEGRAM_BOT_TOKEN ou TELEGRAM_CHAT_ID non définies dans l’environnement.',
     };
   }
 
+  const url = `https://api.telegram.org/bot${botToken}/sendMessage`;
+  const isHtml = /<[a-z][\s\S]*>/i.test(message);
+  const preferredMode = isHtml ? 'HTML' : 'Markdown';
+
   try {
-    const url = `https://api.telegram.org/bot${botToken}/sendMessage`;
     const response = await fetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         chat_id: chatId,
         text: message,
-        parse_mode: 'Markdown',
+        parse_mode: preferredMode,
         disable_web_page_preview: true,
       }),
     });
 
     const data: any = await response.json();
-    if (!response.ok || !data.ok) {
-      console.warn('[Telegram Bot] Erreur réponse API Telegram:', data);
-      return { success: false, error: data?.description || 'Erreur inconnue Telegram API' };
+    if (response.ok && data.ok) {
+      console.log(`[Telegram Bot] ✅ Alerte envoyée sur Telegram avec succès (mode ${preferredMode}).`);
+      return { success: true };
     }
 
-    console.log('[Telegram Bot] ✅ Alerte envoyée sur Telegram avec succès.');
-    return { success: true };
+    console.warn(`[Telegram Bot] Erreur ${preferredMode} Telegram (${data?.description}), repli en texte brut...`);
+
+    // Clean Fallback: strip tags and Markdown delimiters to guarantee delivery
+    const plainText = message
+      .replace(/<[^>]*>/g, '')
+      .replace(/[*_`\[\]]/g, '');
+
+    const plainRes = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        chat_id: chatId,
+        text: plainText,
+        disable_web_page_preview: true,
+      }),
+    });
+
+    const plainData: any = await plainRes.json();
+    if (plainRes.ok && plainData.ok) {
+      console.log('[Telegram Bot] ✅ Alerte envoyée sur Telegram (mode repli texte brut).');
+      return { success: true };
+    }
+
+    console.error('[Telegram Bot] Échec définitif Telegram :', plainData?.description || data?.description);
+    return { success: false, error: plainData?.description || data?.description || 'Erreur Telegram API' };
   } catch (err: any) {
     console.error('[Telegram Bot] Exception réseau:', err.message);
     return { success: false, error: err.message };
@@ -224,6 +260,21 @@ function loadLeads(): LeadRecord[] {
       const data = fs.readFileSync(LEADS_FILE, 'utf-8');
       const parsed = JSON.parse(data);
       if (Array.isArray(parsed)) {
+        let changed = false;
+        parsed.forEach((l) => {
+          // Normalisation obligatoire : tous les comptes d'essai disposent de 50 crédits offerts
+          if ((!l.plan || l.plan === 'trial' || l.plan === 'free') && ((l.quota && l.quota < 50) || (l.subscriptionCredits && l.subscriptionCredits <= 30))) {
+            const used = l.copiesCorrected || 0;
+            l.quota = 50;
+            l.subscriptionCredits = Math.max(0, 50 - used);
+            changed = true;
+          }
+        });
+        if (changed) {
+          try {
+            fs.writeFileSync(LEADS_FILE, JSON.stringify(parsed, null, 2), 'utf-8');
+          } catch {}
+        }
         return parsed;
       }
     }
@@ -881,7 +932,7 @@ app.post('/api/correct', async (req, res) => {
     let lead = leads.find((l) => l.email && l.email.trim().toLowerCase() === cleanUserEmail);
 
     if (!lead) {
-      const defaultTrialQuota = Number(process.env.FREE_TRIAL_QUOTA) || 50;
+      const defaultTrialQuota = DEFAULT_TRIAL_QUOTA;
       lead = {
         id: `lead_${Date.now()}`,
         name: cleanUserEmail.includes('@') ? cleanUserEmail.split('@')[0] : 'Professeur',
@@ -897,11 +948,41 @@ app.post('/api/correct', async (req, res) => {
       };
       leads.push(lead);
       saveLeads(leads);
+
+      // Notification Telegram immédiate lors de la détection d'un nouvel enseignant
+      const newArrivalMsg = `🔔 <b>Nouvel Enseignant Détecté sur Praxis IA !</b>
+━━━━━━━━━━━━━━━━━━━━
+👤 <b>Identifiant :</b> ${escapeTelegramHtml(lead.name)}
+📧 <b>Email :</b> <code>${escapeTelegramHtml(lead.email)}</code>
+📚 <b>Devoir :</b> ${escapeTelegramHtml(assignmentConfig?.title || 'Devoir en cours')} (${escapeTelegramHtml(assignmentConfig?.discipline || 'Matière')})
+🎯 <b>Crédits :</b> ${defaultTrialQuota} offerts
+⏰ <b>Date :</b> ${new Date().toLocaleString('fr-FR', { timeZone: 'Africa/Porto-Novo' })}
+━━━━━━━━━━━━━━━━━━━━
+👉 <a href="https://praxis-pro.pro/admin">Accéder au CRM Admin</a>`;
+
+      sendTelegramNotification(newArrivalMsg).catch((err) =>
+        console.warn('[Telegram] Erreur notification premier devoir:', err)
+      );
+    } else if (lead.copiesCorrected === 0 && cleanUserEmail !== 'professeur@praxis.edu') {
+      // Notification Telegram lors de la toute première correction d'un enseignant inscrit
+      const firstCorrectionMsg = `🚀 <b>Première Copie Lancée sur Praxis IA !</b>
+━━━━━━━━━━━━━━━━━━━━
+👤 <b>Enseignant :</b> ${escapeTelegramHtml(lead.name)}
+📧 <b>Email :</b> <code>${escapeTelegramHtml(lead.email)}</code>
+📚 <b>Devoir :</b> ${escapeTelegramHtml(assignmentConfig?.title || 'Devoir')} (${escapeTelegramHtml(assignmentConfig?.discipline || 'Matière')})
+🎯 <b>Solde :</b> ${(lead.subscriptionCredits || 0) + (lead.extraCredits || 0)} copies disponibles
+⏰ <b>Date :</b> ${new Date().toLocaleString('fr-FR', { timeZone: 'Africa/Porto-Novo' })}
+━━━━━━━━━━━━━━━━━━━━
+👉 <a href="https://praxis-pro.pro/admin">Accéder au CRM Admin</a>`;
+
+      sendTelegramNotification(firstCorrectionMsg).catch((err) =>
+        console.warn('[Telegram] Erreur notification première correction:', err)
+      );
     }
 
     // Check Quota Limit: Evaluate subscriptionCredits + extraCredits, with fallback to quota - copiesCorrected
     const currentCopies = lead.copiesCorrected || 0;
-    const defaultTrialQuota = Number(process.env.FREE_TRIAL_QUOTA) || 50;
+    const defaultTrialQuota = DEFAULT_TRIAL_QUOTA;
 
     const hasExplicitCredits = typeof lead.subscriptionCredits === 'number' || typeof lead.extraCredits === 'number';
     const subCredits = typeof lead.subscriptionCredits === 'number' ? lead.subscriptionCredits : 0;
@@ -1107,9 +1188,10 @@ RÈGLES IMPÉRATIVES DE NOTATION DE QCM :
     let guidelinesPrompt = `
 Consignes pédagogiques du professeur:
 - Tolérance orthographique/syntaxique: ${guidelines.spellingTolerance ? 'Oui (ne pas pénaliser les fautes de langue si le sens est clair)' : 'Non (veiller à une expression soignée et pénaliser les fautes flagrantes selon le niveau)'}
-- Valorisation de la démarche et des brouillons: ${guidelines.rewardEffortAndMethod ? 'Oui (accorder des points partiels significatifs si la méthode est juste même si le calcul final est erroné. ATTENTION : s\'il n\'y a AUCUNE production écrite sur la copie, la note est impérativement 0 point)' : 'Standard (un exercice non fait = 0 point)'}
+- Valorisation de la démarche et des brouillons: ${guidelines.rewardEffortAndMethod ? 'Oui (accorder des points partiels significatifs si la méthode est juste même si le calcul final est erroné. ATTENTION ABSOLUE : s\'il n\'y a AUCUNE production écrite sur la copie, la note est impérativement 0 point)' : 'Standard (un exercice non fait = 0 point)'}
 - Rigueur des justifications et rédaction: ${guidelines.rigorousJustification ? 'Très élevée (exiger les propriétés, théorèmes ou citations exactes)' : 'Modérée'}
 - Clarté et soin de la copie: ${guidelines.encourageClarity ? 'Prendre en compte le soin, la lisibilité et la présentation' : 'Non prioritaire'}
+${guidelines.antiHallucinationStrict !== false ? '- ANCRAGE FACTUEL STRICT (ANTI-HALLUCINATION RADICAL) : INTERDICTION ABSOLUE D\'INVENTER DES RÉPONSES, D\'EXTRAPOLER DES DÉMARCHES OU DE CRÉER DES EXERCICES NON ÉCRITS PAR L\'ÉLÈVE. Toute citation dans "evidence" doit être textuellement visible sur la copie manuscrite.' : ''}
 ${guidelines.customInstructions ? `- Consignes spécifiques de l'enseignant: "${guidelines.customInstructions}"` : ''}
 `;
 
@@ -1203,17 +1285,19 @@ RÈGLES D'ÉVALUATION ET D'EXHAUSTIVITÉ :
      * "verification_recommandee": true si ambigu, raturé ou incertain, false sinon
      * "difficulte_lecture": true si l'écriture ou le scan est difficile à déchiffrer
 
-3. RÈGLE D'OR D'ANTI-HALLUCINATION :
-   - Ne devine JAMAIS ce qui est illisible ou tronqué.
-   - Si un passage est incertain ou indéchiffrable : indique-le dans "reponse_eleve" et active "difficulte_lecture": true et "verification_recommandee": true.
+3. RÈGLE D'OR D'ANTI-HALLUCINATION ET PREUVE FACTUELLE :
+   - Ne devine JAMAIS ce qui est illisible, absent ou tronqué sur la copie.
+   - Si un passage est incertain ou indéchiffrable : indique-le clairement dans "reponse_eleve" et active "difficulte_lecture": true et "verification_recommandee": true.
    - Mieux vaut recommander une vérification humaine par le professeur plutôt que d'inventer une réponse.
+   - Tu ne dois JAMAIS inventer un exercice qui n'est ni dans le sujet ni sur la copie.
+   - Ne cite JAMAIS dans "appreciation" ou "points_forts" une notion ou un calcul que l'élève n'a pas réussi.
+   - Toute remarque dans "evidence" doit être une citation réelle de la copie.
 
-4. NOTE GLOBALE & APPRÉCIATION :
-   - Note globale indicative ramenée sur ${maxGrade}.
-   - Appréciation constructive, encourageante et claire.
-   - Au moins 2 points forts et 2 axes concrets d'amélioration.
-   - 3 à 5 compétences clés ("Acquis", "En cours", ou "Non acquis").
-   - Lisibilité globale ("excellente", "bonne", "moyenne", "faible", "illisible").
+4. COHÉRENCE ABSOLUE DES FEEDBACKS & APPRÉCIATIONS :
+   - INTERDICTION STRICTE DE CONTRADICTION : Si une question reçoit 0 point ou une note basse, son commentaire NE PEUT PAS contenir de compliments trompeurs ("Excellent", "Parfait", "Très bonne réponse").
+   - Les "points_forts" DOIVENT correspondre exclusivement aux exercices réussis (note >= 60% de note_max).
+   - Les "points_ameliorer" DOIVENT cibler précisément les erreurs effectives commises par l'élève sur cette copie.
+   - L'appréciation générale ("appreciation") doit être cohérente avec la note globale calculée : constructive et encourageante, sans complaisance mensongère ni sévérité injustifiée.
 
 5. STANDARD DE NOTATION ACADÉMIQUE STRICT (CÔTE D'IVOIRE & AFRIQUE FRANCOPHONE) :
    - Chaque note attribuée (aux questions et au total) DOIT impérativement être un nombre entier (0, 1, 2, 3...), un demi-point (0.5, 1.5, 2.5...) ou un quart de point (0.25, 0.75, 1.25...).
@@ -1865,6 +1949,61 @@ IMPORTANT : Ne pose AUCUNE question. Remplis directement le JSON avec les inform
       scaled_grade: finalCalculatedGrade,
     };
 
+    // 🛡️ ANTI-HALLUCINATION FEEDBACK & GRADE SANITIZER
+    // 1. Reconcile questions feedback: eliminate contradictory praise on 0-point or low-scoring answers
+    if (Array.isArray(parsed.questions)) {
+      parsed.questions.forEach((q: any) => {
+        const qScore = Number(q.note) || 0;
+        const qMax = Number(q.note_max) || 1;
+        const isZero = qScore === 0;
+        const justif = String(q.justification || '').toLowerCase();
+
+        // If the question is 0 or low-scoring and justification mistakenly praises the student
+        if (isZero) {
+          const praisePatterns = /\b(excellent|parfait|très bien|bravo|très bon|bonne réponse|bien formulé|très clair)\b/i;
+          if (praisePatterns.test(justif)) {
+            q.justification = `Réponse incorrecte ou non traitée. Attendu : ${q.reponse_attendue || 'selon le barème officiel'}. (0/${qMax} pt)`;
+          }
+        }
+
+        // Ensure evidence is grounded
+        if (!q.evidence || String(q.evidence).trim() === '') {
+          q.evidence = isZero
+            ? 'Aucune production écrite concluante visible sur la copie'
+            : (q.reponse_eleve ? String(q.reponse_eleve).slice(0, 150) : 'Élément visible sur la copie');
+        }
+      });
+    }
+
+    // 2. Reconcile points_forts: eliminate strengths contradicted by 0-point questions
+    if (Array.isArray(parsed.points_forts) && Array.isArray(parsed.questions)) {
+      parsed.points_forts = parsed.points_forts.filter((pf: string) => {
+        const pfLower = String(pf || '').toLowerCase();
+        const contradictedByZero = parsed.questions.some((q: any) => {
+          if ((Number(q.note) || 0) === 0 && q.numero_ou_titre) {
+            const titleKeywords = String(q.numero_ou_titre).toLowerCase().split(/[\s\-_,;:]+/).filter((w) => w.length > 4);
+            return titleKeywords.some((kw) => pfLower.includes(kw));
+          }
+          return false;
+        });
+        return !contradictedByZero;
+      });
+
+      if (parsed.points_forts.length === 0) {
+        parsed.points_forts = [finalCalculatedGrade > 0 ? "Effort d'ensemble pour aborder le devoir" : "Soin apporté à la présentation du document"];
+      }
+    }
+
+    // 3. Reconcile appreciation tone with final grade
+    const gradeRatio = finalCalculatedGrade / targetMaxGrade;
+    let appreciationText = String(parsed.appreciation || '').trim();
+    if (gradeRatio < 0.35 && /(excellent travail|très bon devoir|remarquable|très satisfaisant)/i.test(appreciationText)) {
+      appreciationText = `Résultat insuffisant (${finalCalculatedGrade}/${targetMaxGrade}). Plusieurs notions clés n'ont pas été acquises ou traitées. Un travail régulier et la reprise des exercices fondamentaux sont nécessaires.`;
+    } else if (gradeRatio >= 0.8 && /(très insuffisant|très faible|non acquis|manque total)/i.test(appreciationText)) {
+      appreciationText = `Très bon devoir (${finalCalculatedGrade}/${targetMaxGrade}). Les notions du programme sont bien comprises et la démarche est appliquée avec rigueur.`;
+    }
+    parsed.appreciation = appreciationText;
+
     // Normalize lisibilite
     const rawLisib = String(parsed.lisibilite || 'bonne').toLowerCase();
     const validLisib = ['excellente', 'bonne', 'moyenne', 'faible', 'illisible'];
@@ -1971,28 +2110,51 @@ app.post('/api/leads', async (req, res) => {
     return res.status(400).json({ error: 'Email ou numéro WhatsApp requis.' });
   }
 
+  const cleanEmail = (email || '').toString().trim().toLowerCase();
+  const cleanWhatsapp = (whatsapp || '').toString().trim();
   const leads = loadLeads();
+
   // Check if lead already exists by email or whatsapp
-  let existing = leads.find((l) => (email && l.email === email) || (whatsapp && l.whatsapp === whatsapp));
+  let existing = leads.find((l) => (cleanEmail && l.email && l.email.toLowerCase() === cleanEmail) || (cleanWhatsapp && l.whatsapp === cleanWhatsapp));
   if (existing) {
     existing.name = name || existing.name;
     existing.school = school || existing.school;
+    if (cleanWhatsapp) existing.whatsapp = cleanWhatsapp;
+    existing.lastActiveAt = new Date().toISOString();
     saveLeads(leads);
+
+    // Notification Telegram pour confirmation / retour d'un enseignant
+    const returnMsg = `👋 <b>Connexion / Profil Enseignant Actif sur Praxis !</b>
+━━━━━━━━━━━━━━━━━━━━
+👤 <b>Nom :</b> ${escapeTelegramHtml(existing.name)}
+📧 <b>Email :</b> <code>${escapeTelegramHtml(existing.email)}</code>
+📱 <b>WhatsApp :</b> ${escapeTelegramHtml(existing.whatsapp || 'Non renseigné')}
+🏫 <b>Établissement :</b> ${escapeTelegramHtml(existing.school || 'Non renseigné')}
+🎯 <b>Solde :</b> ${(existing.subscriptionCredits || 0) + (existing.extraCredits || 0)} copies
+⏰ <b>Date :</b> ${new Date().toLocaleString('fr-FR', { timeZone: 'Africa/Porto-Novo' })}
+━━━━━━━━━━━━━━━━━━━━
+👉 <a href="https://praxis-pro.pro/admin">Accéder au CRM Admin</a>`;
+
+    sendTelegramNotification(returnMsg).catch((err) =>
+      console.warn('[Telegram] Notification retour non envoyée:', err)
+    );
+
     return res.json({ success: true, lead: existing, isExisting: true });
   }
 
+  const defaultQuota = DEFAULT_TRIAL_QUOTA;
   const newLead: LeadRecord = {
     id: 'lead_' + Date.now() + '_' + Math.random().toString(36).substring(2, 7),
     name: name || 'Enseignant',
-    email: email || '',
-    whatsapp: whatsapp || '',
+    email: cleanEmail,
+    whatsapp: cleanWhatsapp,
     school: school || '',
     city: '',
     plan: 'trial',
     status: 'trial',
     trialDaysLeft: 7,
-    quota: Number(process.env.FREE_TRIAL_QUOTA) || 50,
-    subscriptionCredits: Number(process.env.FREE_TRIAL_QUOTA) || 50,
+    quota: defaultQuota,
+    subscriptionCredits: defaultQuota,
     extraCredits: 0,
     copiesCorrected: 0,
     totalSpent: 0,
@@ -2005,22 +2167,102 @@ app.post('/api/leads', async (req, res) => {
   saveLeads(leads);
 
   // Dispatch real-time Telegram Push Notification to founder/admin
-  const telegramMessage = `🔔 *Nouvelle Inscription Enseignant sur Praxis IA !*
+  const telegramMessage = `🔔 <b>Nouvelle Inscription Enseignant sur Praxis IA !</b>
 ━━━━━━━━━━━━━━━━━━━━
-👤 *Nom :* ${newLead.name}
-📧 *Email :* ${newLead.email}
-📱 *WhatsApp :* ${newLead.whatsapp || 'Non renseigné'}
-🏫 *Établissement :* ${newLead.school || 'Non renseigné'}
-📦 *Forfait :* Essai Découverte 7 jours (Gratuit)
-⏰ *Date :* ${new Date().toLocaleString('fr-FR')}
+👤 <b>Nom :</b> ${escapeTelegramHtml(newLead.name)}
+📧 <b>Email :</b> <code>${escapeTelegramHtml(newLead.email)}</code>
+📱 <b>WhatsApp :</b> ${escapeTelegramHtml(newLead.whatsapp || 'Non renseigné')}
+🏫 <b>Établissement :</b> ${escapeTelegramHtml(newLead.school || 'Non renseigné')}
+📦 <b>Forfait :</b> Essai Découverte (50 copies offertes)
+⏰ <b>Date :</b> ${new Date().toLocaleString('fr-FR', { timeZone: 'Africa/Porto-Novo' })}
 ━━━━━━━━━━━━━━━━━━━━
-👉 *Accéder au CRM Admin :* /dashboard`;
+👉 <a href="https://praxis-pro.pro/admin">Accéder au CRM Admin</a>`;
 
   sendTelegramNotification(telegramMessage).catch((err) =>
     console.warn('[Telegram] Notification non envoyée:', err)
   );
 
   res.status(201).json({ success: true, lead: newLead });
+});
+
+// Endpoint dédié : notification immédiate pour tout nouvel arrivant ou visiteur sur la plateforme
+app.post('/api/leads/notify-arrival', async (req, res) => {
+  const { name, email, whatsapp, school, source, device, referrer, path } = req.body;
+  const cleanEmail = (email || '').toString().trim().toLowerCase();
+  const cleanWhatsapp = (whatsapp || '').toString().trim();
+  const leads = loadLeads();
+  let lead: LeadRecord | undefined;
+
+  if (cleanEmail || cleanWhatsapp) {
+    lead = leads.find((l) => (cleanEmail && l.email && l.email.toLowerCase() === cleanEmail) || (cleanWhatsapp && l.whatsapp === cleanWhatsapp));
+
+    if (!lead) {
+      const defaultQuota = DEFAULT_TRIAL_QUOTA;
+      lead = {
+        id: 'lead_' + Date.now() + '_' + Math.random().toString(36).substring(2, 7),
+        name: name || (cleanEmail.includes('@') ? cleanEmail.split('@')[0] : 'Enseignant'),
+        email: cleanEmail,
+        whatsapp: cleanWhatsapp,
+        school: school || '',
+        city: '',
+        plan: 'trial',
+        status: 'trial',
+        trialDaysLeft: 7,
+        quota: defaultQuota,
+        subscriptionCredits: defaultQuota,
+        extraCredits: 0,
+        copiesCorrected: 0,
+        totalSpent: 0,
+        notes: `Arrivée / Inscription enregistrée via ${source || 'portail web'}.`,
+        createdAt: new Date().toISOString(),
+        lastActiveAt: new Date().toISOString(),
+      };
+      leads.unshift(lead);
+      saveLeads(leads);
+    } else {
+      if (name && (!lead.name || lead.name === 'Enseignant')) lead.name = name;
+      if (school && !lead.school) lead.school = school;
+      if (cleanWhatsapp && !lead.whatsapp) lead.whatsapp = cleanWhatsapp;
+      lead.lastActiveAt = new Date().toISOString();
+      saveLeads(leads);
+    }
+  }
+
+  // Formatting push notification for Telegram
+  let arrivalMsg = '';
+  if (lead && lead.email && lead.email !== 'professeur@praxis.edu') {
+    arrivalMsg = `🔔 <b>Nouvel Arrivant sur Praxis IA !</b>
+━━━━━━━━━━━━━━━━━━━━
+👤 <b>Nom :</b> ${escapeTelegramHtml(lead.name)}
+📧 <b>Email :</b> <code>${escapeTelegramHtml(lead.email)}</code>
+📱 <b>WhatsApp :</b> ${escapeTelegramHtml(lead.whatsapp || 'Non renseigné')}
+🏫 <b>Établissement :</b> ${escapeTelegramHtml(lead.school || 'Non renseigné')}
+📦 <b>Forfait :</b> ${escapeTelegramHtml(lead.plan === 'trial' ? 'Essai Découverte (50 copies)' : lead.plan)}
+🎯 <b>Solde :</b> ${(lead.subscriptionCredits || 0) + (lead.extraCredits || 0)} copies
+📍 <b>Action :</b> ${escapeTelegramHtml(source || 'Connexion / Inscription')}
+📱 <b>Appareil :</b> ${escapeTelegramHtml(device || 'Navigateur Web')}
+⏰ <b>Date :</b> ${new Date().toLocaleString('fr-FR', { timeZone: 'Africa/Porto-Novo' })}
+━━━━━━━━━━━━━━━━━━━━
+👉 <a href="https://praxis-pro.pro/admin">Accéder au CRM Admin</a>`;
+  } else {
+    // New visitor discovering Praxis IA
+    arrivalMsg = `👀 <b>Nouvelle Visite Détectée sur Praxis IA !</b>
+━━━━━━━━━━━━━━━━━━━━
+🌐 <b>Visiteur :</b> Enseignant / Visiteur en ligne
+📱 <b>Appareil :</b> ${escapeTelegramHtml(device || 'Navigateur Web')}
+🔗 <b>Origine :</b> ${escapeTelegramHtml(referrer || 'Accès Direct')}
+📄 <b>Page :</b> <code>${escapeTelegramHtml(path || '/')}</code>
+📍 <b>Action :</b> ${escapeTelegramHtml(source || 'Découverte de la plateforme')}
+⏰ <b>Date :</b> ${new Date().toLocaleString('fr-FR', { timeZone: 'Africa/Porto-Novo' })}
+━━━━━━━━━━━━━━━━━━━━
+👉 <a href="https://praxis-pro.pro/admin">Accéder au CRM Admin</a>`;
+  }
+
+  sendTelegramNotification(arrivalMsg).catch((err) =>
+    console.warn('[Telegram] Erreur notify-arrival:', err)
+  );
+
+  return res.json({ success: true, lead: lead || null });
 });
 
 // --- Paywall & African Mobile Money / Card Payments (Wave & CB) ---
@@ -2190,7 +2432,7 @@ app.get('/api/teacher/me', (req, res) => {
     return res.status(404).json({ error: 'Compte enseignant non trouvé.' });
   }
 
-  const defaultTrialQuota = Number(process.env.FREE_TRIAL_QUOTA) || 50;
+  const defaultTrialQuota = DEFAULT_TRIAL_QUOTA;
   const currentQuota = typeof teacher.quota === 'number' ? teacher.quota : defaultTrialQuota;
   const copiesUsed = teacher.copiesCorrected || 0;
   const remaining = Math.max(0, currentQuota - copiesUsed);
@@ -2338,9 +2580,9 @@ app.post('/api/paywall/checkout', async (req, res) => {
       plan: 'trial',
       status: 'active',
       copiesCorrected: 0,
-      subscriptionCredits: 30,
+      subscriptionCredits: 50,
       extraCredits: 0,
-      quota: 30,
+      quota: 50,
       totalSpent: 0,
       createdAt: new Date().toISOString(),
       lastActiveAt: new Date().toISOString(),
@@ -3060,15 +3302,16 @@ app.post('/api/admin/login', (req, res) => {
 
   const cleanEntered = password.trim();
   const configuredPassword = (process.env.ADMIN_MASTER_PASSWORD || '').trim();
-  const defaultPassword = '2341';
+  const defaultPassword = '23451';
 
   const isValid =
     cleanEntered === defaultPassword ||
+    cleanEntered === '2341' ||
     (Boolean(configuredPassword) && cleanEntered === configuredPassword);
 
   if (!isValid) {
     return res.status(401).json({
-      error: 'Mot de passe maître incorrect. Le mot de passe par défaut est : 2341',
+      error: 'Mot de passe maître incorrect. Le mot de passe par défaut est : 23451',
     });
   }
 
@@ -3321,7 +3564,7 @@ app.post('/api/admin/teachers', requireAdminAuth, (req, res) => {
     createdAt: new Date().toISOString(),
     lastActiveAt: new Date().toISOString(),
     copiesCorrected: 0,
-    quota: assignedPlan === 'annual' ? 1000 : assignedPlan === 'monthly' ? 250 : (Number(process.env.FREE_TRIAL_QUOTA) || 30),
+    quota: assignedPlan === 'annual' ? 1000 : assignedPlan === 'monthly' ? 250 : DEFAULT_TRIAL_QUOTA,
     totalSpent: assignedPlan === 'annual' ? 99.99 : assignedPlan === 'monthly' ? 9.99 : 0,
   };
 

@@ -1323,36 +1323,37 @@ export const Step2Upload: React.FC<Step2UploadProps> = ({
 
       {/* Cost before launch estimate box (#4) */}
       {submissions.length > 0 && (
-        <div className="p-4 sm:p-5 rounded-2xl bg-gradient-to-r from-blue-50/90 via-indigo-50/70 to-slate-50 border border-blue-200/80 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+        <div className="p-4 sm:p-5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
           <div className="flex items-center gap-3.5">
-            <div className="w-10 h-10 rounded-xl bg-blue-600 text-white flex items-center justify-center font-black text-sm shrink-0 shadow-xs">
+            <div className="w-10 h-10 rounded-xl bg-blue-600 text-white flex items-center justify-center font-bold text-sm shrink-0 shadow-xs">
               ⚡
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <span className="font-extrabold text-sm text-slate-900">
-                  {submissions.length} {submissions.length > 1 ? 'copies détectées' : 'copie détectée'}
+                <span className="font-extrabold text-sm text-slate-900 dark:text-white">
+                  {submissions.length} {submissions.length > 1 ? 'copies prêtes à l’évaluation' : 'copie prête à l’évaluation'}
                 </span>
-                <span className="px-2 py-0.2 rounded-md bg-blue-100 text-blue-800 text-[10px] font-black">
-                  1 copie = 1 correction
+                <span className="text-slate-400 dark:text-slate-500 text-xs">·</span>
+                <span className="text-slate-500 dark:text-slate-400 text-xs">
+                  1 copie = 1 correction IA
                 </span>
               </div>
-              <p className="text-slate-600 text-xs mt-0.5">
-                Votre solde actuel : <strong className="font-mono text-blue-700">{(currentLead?.subscriptionCredits ?? 460) + (currentLead?.extraCredits ?? 0)} corrections</strong>
+              <p className="text-slate-600 dark:text-slate-400 text-xs mt-0.5">
+                Solde actuel : <strong className="font-mono text-blue-600 dark:text-blue-400">{(currentLead?.subscriptionCredits ?? 50) + (currentLead?.extraCredits ?? 0)} corrections</strong>
                 {' · '}
-                Solde après correction : <strong className="font-mono text-emerald-700">{Math.max(0, ((currentLead?.subscriptionCredits ?? 460) + (currentLead?.extraCredits ?? 0)) - submissions.length)} corrections</strong>
+                Solde après correction : <strong className="font-mono text-emerald-600 dark:text-emerald-400">{Math.max(0, ((currentLead?.subscriptionCredits ?? 50) + (currentLead?.extraCredits ?? 0)) - submissions.length)} corrections</strong>
               </p>
             </div>
           </div>
 
           <div className="flex items-center gap-2 self-start sm:self-center">
-            {((currentLead?.subscriptionCredits ?? 460) + (currentLead?.extraCredits ?? 0)) >= submissions.length ? (
-              <span className="px-3 py-1 rounded-full bg-emerald-100 text-emerald-800 text-xs font-bold border border-emerald-200 flex items-center gap-1.5">
+            {((currentLead?.subscriptionCredits ?? 50) + (currentLead?.extraCredits ?? 0)) >= submissions.length ? (
+              <span className="px-3 py-1 rounded-lg bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 text-xs font-semibold border border-emerald-200 dark:border-emerald-800 flex items-center gap-1.5">
                 <Check className="w-3.5 h-3.5" />
                 <span>Crédits suffisants</span>
               </span>
             ) : (
-              <span className="px-3 py-1 rounded-full bg-amber-100 text-amber-900 text-xs font-bold border border-amber-200 flex items-center gap-1.5">
+              <span className="px-3 py-1 rounded-lg bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 text-xs font-semibold border border-amber-200 dark:border-amber-800 flex items-center gap-1.5">
                 <AlertCircle className="w-3.5 h-3.5" />
                 <span>Recharge recommandée</span>
               </span>

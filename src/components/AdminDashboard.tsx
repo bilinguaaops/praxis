@@ -949,7 +949,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToApp }) =
                 </div>
                 <div className="flex items-center justify-between mt-2">
                   <p className="text-[11px] text-slate-500">
-                    Mot de passe par défaut : <span className="font-mono text-slate-400 select-all">2341</span>
+                    Mot de passe par défaut : <span className="font-mono text-slate-400 select-all">23451</span>
                   </p>
                 </div>
               </div>
@@ -2118,7 +2118,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToApp }) =
                 <span className="font-bold text-white text-sm">
                   {selectedTeacherForDetail.copiesCorrected || 0} copies analysées
                 </span>
-                <span className="text-[11px] text-slate-400 block">Quota actuel : {selectedTeacherForDetail.quota || 30} copies</span>
+                <span className="text-[11px] text-slate-400 block">Quota actuel : {selectedTeacherForDetail.quota || 50} copies</span>
               </div>
               <div className="bg-[#0B0F17] p-3 rounded-xl border border-slate-800">
                 <span className="text-slate-500 block mb-0.5">Total Dépensé (LTV)</span>

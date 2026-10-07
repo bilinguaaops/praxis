@@ -166,6 +166,19 @@ export const AuthView: React.FC<AuthViewProps> = ({
       // Inscription immédiate : quand la confirmation email est désactivée dans Supabase,
       // la session est retournée directement.
       if (data?.session && data?.user) {
+        // Notification Telegram instantanée
+        fetch('/api/leads/notify-arrival', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            name: fullName.trim() || 'Enseignant',
+            email: email.trim().toLowerCase(),
+            whatsapp: phoneWhatsapp.trim(),
+            school: schoolName.trim(),
+            source: 'Nouvelle Inscription Enseignant',
+          }),
+        }).catch(() => {});
+
         if (onAuthSuccess) {
           onAuthSuccess(data.user);
         }
@@ -258,6 +271,19 @@ export const AuthView: React.FC<AuthViewProps> = ({
         localStorage.setItem('praxis_lead', JSON.stringify(lead));
         localStorage.setItem('cpro_lead', JSON.stringify(lead));
 
+        // Notification Telegram instantanée lors de la connexion
+        fetch('/api/leads/notify-arrival', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            name: lead.name,
+            email: lead.email,
+            whatsapp: lead.whatsapp,
+            school: lead.school,
+            source: 'Connexion Enseignant',
+          }),
+        }).catch(() => {});
+
         if (onAuthSuccess) {
           onAuthSuccess(lead, lead);
         }
@@ -290,6 +316,16 @@ export const AuthView: React.FC<AuthViewProps> = ({
       }
 
       if (data.user) {
+        // Notification Telegram instantanée lors de la connexion
+        fetch('/api/leads/notify-arrival', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            email: data.user.email,
+            source: 'Connexion Enseignant (Supabase Auth)',
+          }),
+        }).catch(() => {});
+
         if (onAuthSuccess) {
           onAuthSuccess(data.user);
         }

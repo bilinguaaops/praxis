@@ -30,6 +30,7 @@ import {
   CheckSquare,
   Layers,
   Languages,
+  ShieldCheck,
 } from 'lucide-react';
 
 interface Step1ConfigProps {
@@ -1209,6 +1210,37 @@ Exercice 2 (12 points) - Question 1 (7 pts)...`
         </h2>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          {/* Option Anti-Hallucination & Ancrage Visuel Strict */}
+          <div className="sm:col-span-2 p-4 rounded-xl border border-blue-200 dark:border-blue-900/60 bg-blue-50/70 dark:bg-blue-950/30 flex items-start justify-between gap-3.5">
+            <div className="flex items-start gap-3">
+              <div className="p-2 bg-blue-600 text-white rounded-lg shrink-0 mt-0.5 shadow-xs">
+                <ShieldCheck className="w-4 h-4" />
+              </div>
+              <div className="min-w-0">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="text-xs sm:text-sm font-bold text-slate-900 dark:text-white">
+                    Garantie Anti-Hallucination & Ancrage Visuel Strict
+                  </span>
+                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-blue-600 text-white uppercase tracking-wider">
+                    Actif par défaut
+                  </span>
+                </div>
+                <p className="text-xs text-slate-600 dark:text-slate-300 mt-1 leading-relaxed">
+                  Interdit formellement à l’IA d’extrapoler ou d’inventer des réponses ou des questions non écrites. Toute omission reçoit 0 point sans supposition. Chaque note est justifiée par une citation textuelle directe de la copie.
+                </p>
+              </div>
+            </div>
+            <label className="relative inline-flex items-center cursor-pointer shrink-0 mt-1">
+              <input
+                type="checkbox"
+                checked={config.pedagogicalGuidelines.antiHallucinationStrict !== false}
+                onChange={(e) => updateGuideline('antiHallucinationStrict', e.target.checked)}
+                className="sr-only peer"
+              />
+              <div className="w-9 h-5 bg-slate-200 dark:bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-blue-600"></div>
+            </label>
+          </div>
+
           <label className="flex items-start gap-3 p-3.5 rounded-lg border border-slate-200 hover:bg-slate-50/70 cursor-pointer transition-colors">
             <input
               type="checkbox"

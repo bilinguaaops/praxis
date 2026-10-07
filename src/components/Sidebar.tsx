@@ -50,8 +50,13 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onOpenBilling,
 }) => {
   const { isDark, toggleTheme } = useTheme();
-  // Credits calculation
-  const subscriptionCredits = currentLead?.subscriptionCredits ?? 50;
+  // Credits calculation (Garantie de 50 crédits d'essai offerts)
+  const isTrial = !currentLead?.plan || currentLead.plan === 'trial' || currentLead.plan === 'free';
+  const rawSubCredits = currentLead?.subscriptionCredits ?? 50;
+  const copiesUsed = currentLead?.copiesCorrected ?? 0;
+  const subscriptionCredits = isTrial && rawSubCredits <= 30
+    ? Math.max(0, 50 - copiesUsed)
+    : rawSubCredits;
   const extraCredits = currentLead?.extraCredits ?? 0;
   const totalCredits = subscriptionCredits + extraCredits;
   const maxMonthlyCredits = 500;

@@ -43,6 +43,7 @@ const DEFAULT_CONFIG: AssignmentConfig = {
     rewardEffortAndMethod: true,
     rigorousJustification: true,
     encourageClarity: true,
+    antiHallucinationStrict: true,
     customInstructions: '',
   },
 };
@@ -93,6 +94,16 @@ export default function App() {
         const parsed = JSON.parse(saved);
         // Exclure formellement l'ancien compte test générique pour éviter tout contournement
         if (parsed && parsed.email && parsed.email !== 'professeur@praxis.edu') {
+          // Normalisation : 50 corrections d'essai offertes à l'inscription (au lieu des anciennes 30)
+          if ((!parsed.plan || parsed.plan === 'trial' || parsed.plan === 'free') && ((parsed.subscriptionCredits ?? 0) <= 30 || (parsed.quota ?? 0) <= 30)) {
+            const used = parsed.copiesCorrected || 0;
+            parsed.quota = 50;
+            parsed.subscriptionCredits = Math.max(0, 50 - used);
+            try {
+              localStorage.setItem('praxis_lead', JSON.stringify(parsed));
+              localStorage.setItem('cpro_lead', JSON.stringify(parsed));
+            } catch {}
+          }
           return parsed;
         }
       }
@@ -101,7 +112,7 @@ export default function App() {
     return null;
   });
 
-  // Nettoyage immédiat de tout ancien compte test partagé
+  // Nettoyage immédiat de tout ancien compte test partagé et mise à niveau du quota d'essai à 50
   useEffect(() => {
     try {
       const saved = localStorage.getItem('praxis_lead') || localStorage.getItem('cpro_lead');
@@ -111,8 +122,57 @@ export default function App() {
           localStorage.removeItem('praxis_lead');
           localStorage.removeItem('cpro_lead');
           setLocalLead(null);
+        } else if (parsed && (!parsed.plan || parsed.plan === 'trial' || parsed.plan === 'free') && ((parsed.subscriptionCredits ?? 0) <= 30 || (parsed.quota ?? 0) <= 30)) {
+          const used = parsed.copiesCorrected || 0;
+          parsed.quota = 50;
+          parsed.subscriptionCredits = Math.max(0, 50 - used);
+          localStorage.setItem('praxis_lead', JSON.stringify(parsed));
+          localStorage.setItem('cpro_lead', JSON.stringify(parsed));
+          setLocalLead({ ...parsed });
         }
       }
+    } catch {}
+  }, []);
+
+  // Notification Telegram automatique pour tout nouvel arrivant ou visiteur sur la plateforme
+  useEffect(() => {
+    try {
+      const pathname = window.location.pathname;
+      const isAdminPage = pathname.startsWith('/admin') || window.location.search.includes('admin=true');
+      const hasAdminToken = sessionStorage.getItem('praxis_admin_token') || localStorage.getItem('praxis_admin_token');
+
+      // Ne pas notifier si c'est l'administrateur
+      if (isAdminPage || hasAdminToken) return;
+
+      const alreadyNotified = sessionStorage.getItem('praxis_arrival_notified');
+      if (alreadyNotified) return;
+
+      sessionStorage.setItem('praxis_arrival_notified', 'true');
+
+      const saved = localStorage.getItem('praxis_lead') || localStorage.getItem('cpro_lead');
+      const leadData = saved ? JSON.parse(saved) : null;
+
+      const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+      const device = isMobile ? 'Mobile' : 'Ordinateur / Desktop';
+      let hostname = 'Accès Direct';
+      try {
+        if (document.referrer) hostname = new URL(document.referrer).hostname;
+      } catch {}
+
+      fetch('/api/leads/notify-arrival', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: leadData?.name,
+          email: leadData?.email,
+          whatsapp: leadData?.whatsapp,
+          school: leadData?.school,
+          device,
+          referrer: hostname,
+          path: pathname,
+          source: leadData?.email ? 'Retour Enseignant' : 'Visite Plateforme',
+        }),
+      }).catch(() => {});
     } catch {}
   }, []);
 
